@@ -457,7 +457,28 @@ void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &display
       break;
   }
 #else
-  std::cerr << "No supporting windowing systems defined at build time (xlib and xcb)" << std::endl;
+  if(numLoops == 0)
+  {
+    std::cout << "No window system (xlib, xcb) built, looping indefinitely in headless mode."
+              << std::endl;
+  }
+
+  IReplayOutput *out =
+      renderer->CreateOutput(CreateHeadlessWindowingData(width, height), ReplayOutputType::Texture);
+
+  uint32_t loopCount = 0;
+
+  bool done = false;
+  while(!done)
+  {
+    renderer->SetFrameEvent(10000000, true);
+    out->Display();
+
+    loopCount++;
+
+    if(numLoops > 0 && loopCount == numLoops)
+      break;
+  }
 #endif
 }
 
