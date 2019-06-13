@@ -145,6 +145,7 @@ option(ENABLE_RENDERDOCCMD "Enable renderdoccmd" ON)
 option(ENABLE_QRENDERDOC "Enable qrenderdoc" ON)
 option(ENABLE_PYRENDERDOC "Enable renderdoc python modules" ON)
 
+option(ENABLE_SURFACELESS "Enable xcb windowing support" OFF)
 option(ENABLE_XLIB "Enable xlib windowing support" ON)
 option(ENABLE_XCB "Enable xcb windowing support" ON)
 option(ENABLE_GGP "Enable GGP support" OFF)
@@ -297,6 +298,10 @@ elseif(ENABLE_GGP)
 elseif(UNIX)
     add_definitions(-DRENDERDOC_PLATFORM_LINUX)
 
+    if(ENABLE_SURFACELESS)
+        add_definitions(-DRENDERDOC_WINDOWING_SURFACELESS)
+    endif()
+
     if(ENABLE_XLIB)
         add_definitions(-DRENDERDOC_WINDOWING_XLIB)
     endif()
@@ -354,6 +359,10 @@ if(UNIX AND NOT ANDROID AND NOT APPLE AND NOT ENABLE_GGP)
 
     if(ENABLE_XCB)
         message(STATUS "  - XCB")
+    endif()
+
+    if(ENABLE_SURFACELESS)
+        message(STATUS "  - Surfaceless")
     endif()
 endif()
 

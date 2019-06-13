@@ -456,6 +456,22 @@ void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &display
     if(numLoops > 0 && loopCount == numLoops)
       break;
   }
+#elif defined(RENDERDOC_WINDOWING_SURFACELESS)
+  uint32_t loopCount = 0;
+
+  IReplayOutput *out = NULL;
+  out = renderer->CreateOutput(CreateSurfacelessWindowingData(connection, window),
+			       ReplayOutputType::Texture);
+
+  while(true)
+  {
+    out->Display();
+
+    loopCount++;
+
+    if(numLoops > 0 && loopCount == numLoops)
+      break;
+  }
 #else
   std::cerr << "No supporting windowing systems defined at build time (xlib and xcb)" << std::endl;
 #endif
@@ -534,6 +550,11 @@ int main(int argc, char *argv[])
 
 #if defined(RENDERDOC_WINDOWING_XCB)
     support += "XCB, ";
+    count++;
+#endif
+
+#if defined(RENDERDOC_WINDOWING_SURFACELESS)
+    support += "Surfaceless, ";
     count++;
 #endif
 
