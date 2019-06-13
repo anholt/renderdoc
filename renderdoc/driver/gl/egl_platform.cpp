@@ -119,10 +119,15 @@ class EGLPlatform : public GLPlatform
     {
 #if ENABLED(RDOC_WIN32)
       case WindowingSystem::Win32: win = window.win32.window; break;
-#elif ENABLED(RDOC_ANDROID)
+#endif
+#if ENABLED(RDOC_ANDROID)
       case WindowingSystem::Android: win = window.android.window; break;
-#elif ENABLED(RDOC_LINUX)
+#endif
+#if ENABLED(RDOC_XLIB)
       case WindowingSystem::Xlib: win = window.xlib.window; break;
+#endif
+#if ENABLED(RDOC_WAYLAND)
+      case WindowingSystem::Wayland: win = (EGLNativeWindowType)window.wayland.egl_win; break;
 #endif
       case WindowingSystem::Unknown:
       case WindowingSystem::Headless:

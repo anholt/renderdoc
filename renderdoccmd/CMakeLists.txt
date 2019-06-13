@@ -26,6 +26,12 @@ elseif(ENABLE_GGP)
 elseif(UNIX)
     list(APPEND sources renderdoccmd_linux.cpp)
 
+    if(ENABLE_WAYLAND)
+        find_package(PkgConfig)
+	pkg_check_modules(WAYLAND wayland-egl)
+        list(APPEND libraries PRIVATE ${WAYLAND_LIBRARIES})
+    endif()
+
     if(ENABLE_XLIB)
         list(APPEND libraries PRIVATE -lX11)
     endif()

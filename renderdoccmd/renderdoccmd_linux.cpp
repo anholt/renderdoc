@@ -40,6 +40,11 @@
 #include <X11/Xlib-xcb.h>
 #endif
 
+#if defined(RENDERDOC_WINDOWING_WAYLAND)
+#include <wayland-client.h>
+#include <wayland-egl.h>
+#endif
+
 #include <replay/renderdoc_replay.h>
 
 void Daemonise()
@@ -249,6 +254,48 @@ static xcb_window_t CreateXCBWindow(Display *display, int width, int height, con
 }
 #endif
 
+#if defined(RENDERDOC_WINDOWING_WAYLAND)
+struct wl_compositor *compositor;
+struct wl_shell *shell;
+
+static void registry_add_object(void *data, struct wl_registry *registry, uint32_t name,
+                                const char *interface, uint32_t version)
+{
+  if(!strcmp(interface, "wl_compositor"))
+  {
+    compositor =
+        (struct wl_compositor *)wl_registry_bind(registry, name, &wl_compositor_interface, 1);
+  }
+  else if(!strcmp(interface, "wl_shell"))
+  {
+    shell = (struct wl_shell *)wl_registry_bind(registry, name, &wl_shell_interface, 1);
+  }
+}
+static void registry_remove_object(void *data, struct wl_registry *registry, uint32_t name)
+{
+}
+static struct wl_registry_listener registry_listener = {&registry_add_object,
+                                                        &registry_remove_object};
+
+static void shell_surface_ping(void *data, struct wl_shell_surface *shell_surface, uint32_t serial)
+{
+  wl_shell_surface_pong(shell_surface, serial);
+}
+
+static void shell_surface_configure(void *data, struct wl_shell_surface *shell_surface,
+                                    uint32_t edges, int32_t width, int32_t height)
+{
+  // XXX Should we do anything with resizes?  The Xlib path doesn't.
+}
+
+static void shell_surface_popup_done(void *data, struct wl_shell_surface *shell_surface)
+{
+}
+
+static struct wl_shell_surface_listener shell_surface_listener = {
+    &shell_surface_ping, &shell_surface_configure, &shell_surface_popup_done};
+#endif
+
 static Display *display = NULL;
 
 WindowingData DisplayRemoteServerPreview(bool active, const rdcarray<WindowingSystem> &systems)
@@ -421,6 +468,68 @@ void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &display
     if(numLoops > 0 && loopCount == numLoops)
       break;
   }
+#elif defined(RENDERDOC_WINDOWING_WAYLAND)
+
+  struct wl_display *display = wl_display_connect(NULL);
+  struct wl_registry *registry = wl_display_get_registry(display);
+  wl_registry_add_listener(registry, &registry_listener, NULL);
+  wl_display_roundtrip(display);
+
+  struct wl_surface *surface = wl_compositor_create_surface(compositor);
+  struct wl_shell_surface *shell_surface = wl_shell_get_shell_surface(shell, surface);
+  wl_shell_surface_add_listener(shell_surface, &shell_surface_listener, NULL);
+  wl_shell_surface_set_toplevel(shell_surface);
+  struct wl_egl_window *egl_window = wl_egl_window_create(surface, width, height);
+
+  rdcarray<WindowingSystem> systems = renderer->GetSupportedWindowSystems();
+
+  bool wayland = false;
+
+  for(size_t i = 0; i < systems.size(); i++)
+  {
+    if(systems[i] == WindowingSystem::Wayland)
+      wayland = true;
+  }
+
+  IReplayOutput *out = NULL;
+
+  // prefer xcb
+  if(wayland)
+  {
+    out = renderer->CreateOutput(CreateWaylandWindowingData(display, egl_window),
+                                 ReplayOutputType::Texture);
+  }
+  else
+  {
+    std::cerr << "Wayland not supported, can't create window." << std::endl;
+    std::cerr << "Supported systems: ";
+    for(size_t i = 0; i < systems.size(); i++)
+      std::cerr << (uint32_t)systems[i] << std::endl;
+    std::cerr << std::endl;
+    return;
+  }
+
+  out->SetTextureDisplay(displayCfg);
+
+  uint32_t loopCount = 0;
+  bool done = false;
+  while(!done)
+  {
+    wl_display_dispatch_pending(display);
+
+    // We should check input for exiting.
+    // We should check for window close events.
+
+    renderer->SetFrameEvent(10000000, true);
+    out->Display();
+
+    usleep(100000);
+
+    loopCount++;
+
+    if(numLoops > 0 && loopCount == numLoops)
+      break;
+  }
 #else
   std::cerr << "No supporting windowing systems defined at build time (xlib and xcb)" << std::endl;
 #endif
@@ -499,6 +608,11 @@ int main(int argc, char *argv[])
 
 #if defined(RENDERDOC_WINDOWING_XCB)
     support += "XCB, ";
+    count++;
+#endif
+
+#if defined(RENDERDOC_WINDOWING_WAYLAND)
+    support += "Wayland, ";
     count++;
 #endif
 

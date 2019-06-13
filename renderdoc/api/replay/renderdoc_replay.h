@@ -318,6 +318,10 @@ DOCUMENT(R"(Specifies a windowing system to use for creating an output window.
   rendering to happen off-screen.
   See :func:`CreateHeadlessWindowingData`.
 
+.. data:: Wayland
+
+  The windowing data refers to a Wayland window. See :func:`CreateWaylandWindowingData`.
+
 .. data:: Win32
 
   The windowing data refers to a Win32 window. See :func:`CreateWin32WindowingData`.
@@ -343,6 +347,7 @@ enum class WindowingSystem : uint32_t
 {
   Unknown,
   Headless,
+  Wayland,
   Win32,
   Xlib,
   XCB,
@@ -356,6 +361,10 @@ DECLARE_REFLECTION_ENUM(WindowingSystem);
 // typedef the window data structs so this will compile on all platforms without system headers. We
 // only actually need the real definitions when we're using the data, otherwise it's mostly opaque
 // pointers or integers.
+
+// Wayland
+struct wl_display;
+struct wl_egl_window;
 
 // Win32
 typedef struct HWND__ *HWND;
@@ -391,6 +400,12 @@ struct WindowingData
     {
       int32_t width, height;
     } headless;
+
+    struct
+    {
+      struct wl_display *display;
+      struct wl_egl_window *egl_win;
+    } wayland;
 
     struct
     {
@@ -442,6 +457,24 @@ inline const WindowingData CreateHeadlessWindowingData(int32_t width, int32_t he
 
   ret.headless.width = width > 0 ? width : 1;
   ret.headless.height = height > 0 ? height : 1;
+
+  return ret;
+}
+
+DOCUMENT(R"(Create a :class:`WindowingData` for a Wayland ``Drawable`` handle.
+
+:param Display display: The ``Display`` connection used for this window.
+:param Drawable window: The native ``Drawable`` handle for this window.
+:return: A :class:`WindowingData` corresponding to the given window.
+:rtype: WindowingData
+)");
+inline const WindowingData CreateWaylandWindowingData(struct wl_display *display, struct wl_egl_window *egl_win)
+{
+  WindowingData ret = {};
+
+  ret.system = WindowingSystem::Wayland;
+  ret.wayland.display = display;
+  ret.wayland.egl_win = egl_win;
 
   return ret;
 }
