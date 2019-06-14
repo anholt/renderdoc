@@ -195,6 +195,60 @@ void VerifyVulkanLayer(const GlobalEnvironment &env, int argc, char *argv[])
   add_command("vulkanregister", new VulkanRegisterCommand(env));
 }
 
+#if defined(RENDERDOC_WINDOWING_XLIB) && defined(RENDERDOC_WINDOWING_XCB)
+static xcb_window_t CreateXCBWindow(Display *display, int width, int height, const char *name)
+{
+  int scr = DefaultScreen(display);
+
+  xcb_connection_t *connection = XGetXCBConnection(display);
+
+  if(connection == NULL)
+  {
+    std::cerr << "Couldn't get XCB connection from Xlib Display" << std::endl;
+    return 0;
+  }
+
+  XSetEventQueueOwner(display, XCBOwnsEventQueue);
+
+  const xcb_setup_t *setup = xcb_get_setup(connection);
+  xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
+  while(scr-- > 0)
+    xcb_screen_next(&iter);
+
+  xcb_screen_t *screen = iter.data;
+
+  uint32_t value_mask, value_list[32];
+
+  xcb_window_t window = xcb_generate_id(connection);
+
+  value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+  value_list[0] = screen->black_pixel;
+  value_list[1] =
+      XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+
+  xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, width, height, 0,
+                    XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, value_mask, value_list);
+
+  /* Magic code that will send notification when window is destroyed */
+  xcb_intern_atom_cookie_t cookie = xcb_intern_atom(connection, 1, 12, "WM_PROTOCOLS");
+  xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(connection, cookie, 0);
+
+  xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(connection, 0, 16, "WM_DELETE_WINDOW");
+  xcb_intern_atom_reply_t *atom_wm_delete_window = xcb_intern_atom_reply(connection, cookie2, 0);
+
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING,
+                      8, strlen(name), name);
+
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, (*reply).atom, 4, 32, 1,
+                      &(*atom_wm_delete_window).atom);
+  free(reply);
+
+  xcb_map_window(connection, window);
+
+  return window;
+}
+#endif
+
 static Display *display = NULL;
 
 WindowingData DisplayRemoteServerPreview(bool active, const rdcarray<WindowingSystem> &systems)
@@ -213,53 +267,9 @@ WindowingData DisplayRemoteServerPreview(bool active, const rdcarray<WindowingSy
       if(display == NULL)
         return remoteServerPreview;
 
-      int scr = DefaultScreen(display);
-
-      xcb_connection_t *connection = XGetXCBConnection(display);
-
-      if(connection == NULL)
-      {
-        std::cerr << "Couldn't get XCB connection from Xlib Display" << std::endl;
+      xcb_window_t window = CreateXCBWindow(display, 1280, 720, "Remote Server Preview");
+      if(window == 0)
         return remoteServerPreview;
-      }
-
-      XSetEventQueueOwner(display, XCBOwnsEventQueue);
-
-      const xcb_setup_t *setup = xcb_get_setup(connection);
-      xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
-      while(scr-- > 0)
-        xcb_screen_next(&iter);
-
-      xcb_screen_t *screen = iter.data;
-
-      uint32_t value_mask, value_list[32];
-
-      xcb_window_t window = xcb_generate_id(connection);
-
-      value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-      value_list[0] = screen->black_pixel;
-      value_list[1] =
-          XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-
-      xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, 1280, 720, 0,
-                        XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, value_mask, value_list);
-
-      /* Magic code that will send notification when window is destroyed */
-      xcb_intern_atom_cookie_t cookie = xcb_intern_atom(connection, 1, 12, "WM_PROTOCOLS");
-      xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(connection, cookie, 0);
-
-      xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(connection, 0, 16, "WM_DELETE_WINDOW");
-      xcb_intern_atom_reply_t *atom_wm_delete_window = xcb_intern_atom_reply(connection, cookie2, 0);
-
-      xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME,
-                          XCB_ATOM_STRING, 8, sizeof("Remote Server Preview") - 1,
-                          "Remote Server Preview");
-
-      xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, (*reply).atom, 4, 32, 1,
-                          &(*atom_wm_delete_window).atom);
-      free(reply);
-
-      xcb_map_window(connection, window);
 
       bool xcb = false, xlib = false;
 
@@ -327,52 +337,7 @@ void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &display
     return;
   }
 
-  int scr = DefaultScreen(display);
-
-  xcb_connection_t *connection = XGetXCBConnection(display);
-
-  if(connection == NULL)
-  {
-    std::cerr << "Couldn't get XCB connection from Xlib Display" << std::endl;
-    return;
-  }
-
-  XSetEventQueueOwner(display, XCBOwnsEventQueue);
-
-  const xcb_setup_t *setup = xcb_get_setup(connection);
-  xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
-  while(scr-- > 0)
-    xcb_screen_next(&iter);
-
-  xcb_screen_t *screen = iter.data;
-
-  uint32_t value_mask, value_list[32];
-
-  xcb_window_t window = xcb_generate_id(connection);
-
-  value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-  value_list[0] = screen->black_pixel;
-  value_list[1] =
-      XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-
-  xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0, width, height, 0,
-                    XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, value_mask, value_list);
-
-  /* Magic code that will send notification when window is destroyed */
-  xcb_intern_atom_cookie_t cookie = xcb_intern_atom(connection, 1, 12, "WM_PROTOCOLS");
-  xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(connection, cookie, 0);
-
-  xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(connection, 0, 16, "WM_DELETE_WINDOW");
-  xcb_intern_atom_reply_t *atom_wm_delete_window = xcb_intern_atom_reply(connection, cookie2, 0);
-
-  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING,
-                      8, sizeof("renderdoccmd") - 1, "renderdoccmd");
-
-  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, (*reply).atom, 4, 32, 1,
-                      &(*atom_wm_delete_window).atom);
-  free(reply);
-
-  xcb_map_window(connection, window);
+  CreateXCBWindow(display, width, height, "renderdoccmd");
 
   rdcarray<WindowingSystem> systems = renderer->GetSupportedWindowSystems();
 
