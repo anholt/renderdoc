@@ -311,6 +311,13 @@ WindowingData DisplayRemoteServerPreview(bool active, const rdcarray<WindowingSy
   return remoteServerPreview;
 }
 
+int64_t get_time_ns(void)
+{
+   struct timespec tv;
+   clock_gettime(CLOCK_MONOTONIC, &tv);
+   return tv.tv_nsec + tv.tv_sec * 1000000000ll;
+}
+
 void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &displayCfg, uint32_t width,
                             uint32_t height, uint32_t numLoops)
 {
@@ -470,6 +477,8 @@ void DisplayRendererPreview(IReplayController *renderer, TextureDisplay &display
   while(!done)
   {
     renderer->SetFrameEvent(10000000, true);
+
+    
     out->Display();
 
     loopCount++;

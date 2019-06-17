@@ -4995,6 +4995,13 @@ const DrawcallDescription *WrappedOpenGL::GetDrawcall(uint32_t eventId)
   return m_Drawcalls[eventId];
 }
 
+double get_time(void)
+{
+   struct timespec tv;
+   clock_gettime(CLOCK_MONOTONIC, &tv);
+   return ((double)tv.tv_nsec / 1000000000.0) + tv.tv_sec;
+}
+
 void WrappedOpenGL::ReplayLog(uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType)
 {
   bool partial = true;
@@ -5018,6 +5025,9 @@ void WrappedOpenGL::ReplayLog(uint32_t startEventID, uint32_t endEventID, Replay
   GLMarkerRegion::Set(StringFormat::Fmt("!!!!RenderDoc Internal:  Replay %d (%d): %u->%u",
                                         (int)replayType, (int)partial, startEventID, endEventID));
 
+  double start_time = get_time();
+  GL.glFinish();
+
   m_ReplayEventCount = 0;
 
   ReplayStatus status = ReplayStatus::Succeeded;
@@ -5036,6 +5046,19 @@ void WrappedOpenGL::ReplayLog(uint32_t startEventID, uint32_t endEventID, Replay
   // make sure to end any unbalanced replay events if we stopped in the middle of a frame
   for(int i = 0; m_ReplayMarkers && i < m_ReplayEventCount; i++)
     GLMarkerRegion::End();
+
+  if (replayType == eReplay_OnlyDraw) {
+    GL.glFinish();
+
+    double end_time = get_time();
+    static int first_frame = true;
+
+    if (first_frame) {
+      first_frame = false;
+    } else {
+      fprintf(stderr, "FPS: %f\n", 1.0 / (end_time - start_time));
+    }
+  }
 
   GLMarkerRegion::Set("!!!!RenderDoc Internal: Done replay");
 }
