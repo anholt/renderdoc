@@ -47,6 +47,8 @@ target_compile_definitions(_renderdoc ${MODULE_DEFINES})
 target_include_directories(_renderdoc ${MODULE_INCLUDES})
 target_link_libraries(_renderdoc PRIVATE renderdoc)
 
+install(TARGETS _renderdoc DESTINATION lib/python3/dist-packages)
+
 add_library(_qrenderdoc SHARED
     ${CMAKE_BINARY_DIR}/qrenderdoc/renderdoc_python.cxx
     ${CMAKE_BINARY_DIR}/qrenderdoc/qrenderdoc_python.cxx
