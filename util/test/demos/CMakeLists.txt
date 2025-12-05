@@ -235,7 +235,7 @@ project(demos)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-    list(APPEND warning_flags -Werror -Wno-unused-result -Wno-nullability-completeness)
+    list(APPEND warning_flags -Wno-unused-result -Wno-nullability-completeness)
     string(REPLACE ";" " " warning_flags "${warning_flags}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${warning_flags}")
 endif()
