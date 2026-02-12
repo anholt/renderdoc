@@ -387,9 +387,9 @@ This manager is retrieved by calling :meth:`ExtensionManager.GetMiniQtHelper`.
   :param QWidget widget: The widget sending the callback.
   :param str text: Additional data for the call, such as the current or selected text.
 
-.. function:: InvokeCallback(context, widget, text)
+.. function:: UIInvokeCallback()
 
-  Not a member function - the signature for any ``InvokeCallback`` callbacks.
+  Not a member function - the signature for any ``UIInvokeCallback`` callbacks.
 
   Callback for invoking onto the UI thread from another thread (in particular the replay thread).
   Takes no parameters as the callback is expected to store its own state.
@@ -397,7 +397,7 @@ This manager is retrieved by calling :meth:`ExtensionManager.GetMiniQtHelper`.
 struct IMiniQtHelper
 {
   typedef std::function<void(ICaptureContext *, QWidget *, rdcstr)> WidgetCallback;
-  typedef std::function<void()> InvokeCallback;
+  typedef std::function<void()> UIInvokeCallback;
 
   DOCUMENT(R"(Invoke a callback on the UI thread. All widget accesses must come from the UI thread,
 so if work has been done on the render thread then this function can be used to asynchronously and
@@ -410,10 +410,10 @@ immediately before returning.
   No parameters are provided to the callback, it is assumed that the callback will maintain its own
   context as needed.
 
-:param InvokeCallback callback: The callback to invoke on the UI thread.
-  Callback function signature must match :func:`InvokeCallback`.
+:param Callable[[], None] callback: The callback to invoke on the UI thread.
+  Callback function signature must match :func:`UIInvokeCallback`.
 )");
-  virtual void InvokeOntoUIThread(InvokeCallback callback) = 0;
+  virtual void InvokeOntoUIThread(UIInvokeCallback callback) = 0;
 
   // top level widgets
 
@@ -427,7 +427,8 @@ is a layout type widget, to allow customising how children are added. By default
 added in a vertical layout.
 
 :param str windowTitle: The title of any window with this widget as its root.
-:param WidgetCallback closed: A callback that will be called when the widget is closed by the user.
+:param Callable[[CaptureContext, QWidget, str], None] closed: A callback that will be called when
+  the widget is closed by the user.
   This implicitly deletes the widget and all its children, which will no longer be valid even if a
   handle to them exists.
   Callback function signature must match :func:`WidgetCallback`.
@@ -742,7 +743,8 @@ The widget needs to be added to a parent to become part of a panel or window.
 
   DOCUMENT(R"(Create a normal button widget.
 
-:param WidgetCallback pressed: Callback to be called when the button is pressed.
+:param Callable[[CaptureContext, QWidget, str], None] pressed: Callback to be called when the button
+  is pressed.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
@@ -839,7 +841,8 @@ checkerboard to be rendered instead. This is the default behaviour when a widget
   DOCUMENT(R"(Create a checkbox widget which can be toggled between unchecked and checked. When
 created the checkbox is unchecked.
 
-:param WidgetCallback changed: Callback to be called when the widget is toggled.
+:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the widget
+  is toggled.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
@@ -852,7 +855,8 @@ at most one radio box in any group of sibling radio boxes being checked.
 Upon creation the radio box is unchecked, even in a group of other radio boxes that are unchecked.
 If you want a default radio box to be checked, you should use :meth:`SetWidgetChecked`.
 
-:param WidgetCallback changed: Callback to be called when the widget is toggled.
+:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the widget
+  is toggled.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
@@ -923,7 +927,8 @@ happen.
 
 :param bool singleLine: ``True`` if the widget should be a single-line entry, otherwise it is a
   multi-line text box.
-:param WidgetCallback changed: Callback to be called when the text in the textbox is changed.
+:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the text
+  in the textbox is changed.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
@@ -937,7 +942,8 @@ When created there are no pre-defined entries in the drop-down section. This can
 
 :param bool editable: ``True`` if the widget should allow the user to enter any text they wish as
   well as being able to select a pre-defined entry.
-:param WidgetCallback changed: Callback to be called when the text in the combobox is changed. This
+:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the text
+  in the combobox is changed. This
   will be called both when a new option is selected or when the user edits the text.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
@@ -1066,7 +1072,7 @@ This manager is retrieved by calling :meth:`CaptureContext.Extensions`.
   was registered.
 
   :param CaptureContext context: The current capture context.
-  :param dict data: Additional data for the call, as a dictionary with string keys.
+  :param Dict[str, Any] data: Additional data for the call, as a dictionary with string keys.
     Context-dependent based on what generated the callback
 )");
 struct IExtensionManager
@@ -1115,7 +1121,8 @@ struct IExtensionManager
 :param List[str] submenus: A list of strings containing the submenus to add before the item. The
   last string will be the name of the menu item itself. Must contain at least one entry, or two
   entries if ``base`` is :data:`WindowMenu.NewMenu`.
-:param ExtensionCallback callback: The function to callback when the menu item is selected.
+:param Callable[[CaptureContext, Dict[str, Any]], None] callback: The function to callback when
+  the menu item is selected.
   Callback function signature must match :func:`ExtensionCallback`.
 )");
   virtual void RegisterWindowMenu(WindowMenu base, const rdcarray<rdcstr> &submenus,
@@ -1131,7 +1138,8 @@ struct IExtensionManager
 :param PanelMenu base: The panel to add the item to.
 :param List[str] submenus: A list of strings containing the submenus to add before the item. The
   last string will be the name of the menu item itself. Must contain at least one entry.
-:param ExtensionCallback callback: The function to callback when the menu item is selected.
+:param Callable[[CaptureContext, Dict[str, Any]], None] callback: The function to callback when
+  the menu item is selected.
   Callback function signature must match :func:`ExtensionCallback`.
 )");
   virtual void RegisterPanelMenu(PanelMenu base, const rdcarray<rdcstr> &submenus,
@@ -1147,7 +1155,8 @@ struct IExtensionManager
 :param ContextMenu base: The panel to add the item to.
 :param List[str] submenus: A list of strings containing the submenus to add before the item. The
   last string will be the name of the menu item itself. Must contain at least one entry.
-:param ExtensionCallback callback: The function to callback when the menu item is selected.
+:param Callable[[CaptureContext, Dict[str, Any]], None] callback: The function to callback when
+  the menu item is selected.
   Callback function signature must match :func:`ExtensionCallback`.
 )");
   virtual void RegisterContextMenu(ContextMenu base, const rdcarray<rdcstr> &submenus,

@@ -190,7 +190,7 @@ will be invoked, if it exists.
 :param QWidget widget: A handle to the widget to use as the context for this shortcut, or ``None``
   for a global shortcut. Note that if an existing global shortcut exists the new one will not be
   registered.
-:param ShortcutCallback callback: The function to callback when the shortcut is hit.
+:param Callable[[QWidget], None] callback: The function to callback when the shortcut is hit.
   Callback function signature must match :func:`ShortcutCallback`.
 )");
   virtual void RegisterShortcut(const rdcstr &shortcut, QWidget *widget,
@@ -365,14 +365,14 @@ expression.
 :param str description: The description of the filter function. This should explain the available
   parameters (if applicable) and what the filter does. It will be used for documenting to users
   what each filter means.
-:param EventFilterCallback filter: The callback to call for each candidate event to perform
-  filtering.
+:param Callable[[CaptureContext,str,str,int,renderdoc.SDChunk,renderdoc.ActionDescription,str], bool] filter: The
+  callback to call for each candidate event to perform filtering.
   Callback function signature must match :func:`EventFilterCallback`.
-:param FilterParseCallback parser: The callback to call when the parsing the parameters and checking
-  for any errors. This can be ``None`` if no pre-parsing is required.
+:param Callable[[CaptureContext,str,str], str] parser: The callback to call when the parsing the
+  parameters and checking for any errors. This can be ``None`` if no pre-parsing is required.
   Callback function signature must match :func:`FilterParseCallback`.
-:param AutoCompleteCallback completer: The callback to call when trying to provide autocomplete
-  suggestions. This can be ``None`` if no completion is desired/applicable.
+:param Callable[[CaptureContext,str,str], List[str]] completer: The callback to call when trying
+  to provide autocomplete suggestions. This can be ``None`` if no completion is desired/applicable.
   Callback function signature must match :func:`AutoCompleteCallback`.
 :return: Whether or not the registration was successful.
 :rtype: bool
@@ -1504,9 +1504,9 @@ in UI side structures. This manager controls and serialises access to the underl
 
 This manager is retrieved by calling :meth:`CaptureContext.Replay`.
 
-.. function:: InvokeCallback(controller)
+.. function:: ReplayInvokeCallback(controller)
 
-  Not a member function - the signature for any ``InvokeCallback`` callbacks.
+  Not a member function - the signature for any ``ReplayInvokeCallback`` callbacks.
 
   :param renderdoc.ReplayController controller: The controller to access. Must not be cached or
     used after the callback returns.
@@ -1520,7 +1520,7 @@ This manager is retrieved by calling :meth:`CaptureContext.Replay`.
 )");
 struct IReplayManager
 {
-  typedef std::function<void(IReplayController *)> InvokeCallback;
+  typedef std::function<void(IReplayController *)> ReplayInvokeCallback;
   typedef std::function<void(const rdcstr &, const rdcarray<PathEntry> &)> DirectoryBrowseCallback;
 
   DOCUMENT(R"(Delete a capture file, whether local or remote.
@@ -1612,7 +1612,8 @@ blocking fashion on the current thread.
 
 :param bool synchronous: If a capture is open, then ``True`` will use :meth:`BlockInvoke` to call
   the callback. Otherwise if ``False`` then :meth:`AsyncInvoke` will be used.
-:param DirectoryBrowseCallback callback: The function to callback on the replay thread.
+:param Callable[[str, List[renderdoc.PathEntry]], None] callback: The function to callback on the
+  replay thread.
   Callback function signature must match :func:`DirectoryBrowseCallback`.
 )");
   virtual void GetHomeFolder(bool synchronous, DirectoryBrowseCallback callback) = 0;
@@ -1625,7 +1626,8 @@ blocking fashion on the current thread.
 :param str path: The path to query the contents of.
 :param bool synchronous: If a capture is open, then ``True`` will use :meth:`BlockInvoke` to call
   the callback. Otherwise if ``False`` then :meth:`AsyncInvoke` will be used.
-:param DirectoryBrowseCallback callback: The function to callback on the replay thread.
+:param Callable[[str, List[renderdoc.PathEntry]], None] callback: The function to callback on the
+  replay thread.
   Callback function signature must match :func:`DirectoryBrowseCallback`.
 )");
   virtual void ListFolder(const rdcstr &path, bool synchronous, DirectoryBrowseCallback callback) = 0;
@@ -1670,27 +1672,27 @@ The manager processes only the request on the top of the queue, so when a new ta
 comes in, we remove any other requests in the queue before it that have the same tag.
 
 :param str tag: The tag to identify this callback.
-:param InvokeCallback method: The function to callback on the replay thread.
-  Callback function signature must match :func:`InvokeCallback`.
+:param Callable[[renderdoc.ReplayController], None] method: The function to callback on the replay thread.
+  Callback function signature must match :func:`ReplayInvokeCallback`.
 )");
-  virtual void AsyncInvoke(const rdcstr &tag, InvokeCallback method) = 0;
+  virtual void AsyncInvoke(const rdcstr &tag, ReplayInvokeCallback method) = 0;
 
   DOCUMENT(R"(Make a non-blocking invoke call onto the replay thread.
 
-:param InvokeCallback method: The function to callback on the replay thread.
-  Callback function signature must match :func:`InvokeCallback`.
+:param Callable[[renderdoc.ReplayController], None] method: The function to callback on the replay thread.
+  Callback function signature must match :func:`ReplayInvokeCallback`.
 )");
-  virtual void AsyncInvoke(InvokeCallback method) = 0;
+  virtual void AsyncInvoke(ReplayInvokeCallback method) = 0;
 
   // This is an ugly hack, but we leave BlockInvoke as the last method, so that when the class is
   // extended and the wrapper around BlockInvoke to release the python GIL happens, it picks up the
   // same docstring.
   DOCUMENT(R"(Make a blocking invoke call onto the replay thread.
 
-:param InvokeCallback method: The function to callback on the replay thread.
-  Callback function signature must match :func:`InvokeCallback`.
+:param Callable[[renderdoc.ReplayController], None] method: The function to callback on the replay thread.
+  Callback function signature must match :func:`ReplayInvokeCallback`.
 )");
-  virtual void BlockInvoke(InvokeCallback method) = 0;
+  virtual void BlockInvoke(ReplayInvokeCallback method) = 0;
 
 protected:
   IReplayManager() = default;
@@ -2783,12 +2785,13 @@ place if needed.
 :param renderdoc.KnownShaderTool knownTool: The preferred tool to use to compile, if known.
 :param renderdoc.ShaderEncoding shaderEncoding: The encoding of the input files.
 :param renderdoc.ShaderCompileFlags flags: The flags originally used to compile the shader.
-:param ShaderViewer.SaveCallback saveCallback: The callback function to call when a save/update is
-  triggered.
-  Callback function signature must match :func:`ShaderViewer.SaveCallback`.
-:param ShaderViewer.RevertCallback revertCallback: The callback function to call when the shader
-  is to be reverted - either by user request or because the shader viewer was closed.
-  Callback function signature must match :func:`ShaderViewer.RevertCallback`.
+:param Callable[[CaptureContext,ShaderViewer,renderdoc.ResourceId,renderdoc.ShaderStage,renderdoc.ShaderEncoding,renderdoc.ShaderCompileFlags, str, bytes], None] saveCallback: The
+  callback function to call when a save/update is triggered.
+  Callback function signature must match :func:`SaveCallback`.
+:param Callable[[CaptureContext, ShaderViewer, renderdoc.ResourceId], None] revertCallback: The
+  callback function to call when the shader is to be reverted - either by user request or because
+  the shader viewer was closed.
+  Callback function signature must match :func:`RevertCallback`.
 :return: The new :class:`ShaderViewer` window opened but not shown for editing.
 :rtype: ShaderViewer
 )");

@@ -187,7 +187,7 @@ TEMPLATE_ARRAY_INSTANTIATE_PTR(rdcarray, ICaptureViewer)
 %rename("%s") IReplayManager::BlockInvoke;
 
 %extend IReplayManager {
-  void BlockInvoke(InvokeCallback m) {
+  void BlockInvoke(ReplayInvokeCallback m) {
     PyObject *global_internal_handle = NULL;
 
     PyObject *globals = PyEval_GetGlobals();
