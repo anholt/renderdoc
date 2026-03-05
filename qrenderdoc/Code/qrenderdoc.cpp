@@ -286,7 +286,8 @@ int main(int argc, char *argv[])
 
     {
       QCoreApplication application(argc, mod_argv);
-      PythonContext::GlobalInit();
+      PersistantConfig cfg;
+      PythonContext::GlobalInit(cfg);
 
       logstream << "Checking python binding consistency.\n";
 
@@ -631,7 +632,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-      PythonContext::GlobalInit();
+      PythonContext::GlobalInit(config);
 
       if(updateApplied)
       {

@@ -365,6 +365,12 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING(public, QVariantList, rdcarray<rdcstr>, TextureViewer_ShaderDirs)                 \
                                                                                                    \
   DOCUMENT(                                                                                        \
+      "List of extra directories to write python stubs into.\n"                                    \
+      "\n:"                                                                                        \
+      "type: List[str]");                                                                          \
+  CONFIG_SETTING(public, QVariantList, rdcarray<rdcstr>, Python_StubDirs)                          \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
       "``True`` if when loading a capture that was originally captured on a remote device but "    \
       "uses an API that can be supported locally, should be loaded locally without prompting to "  \
       "switch to a remote context.\n"                                                              \

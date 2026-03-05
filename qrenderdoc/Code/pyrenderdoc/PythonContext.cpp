@@ -401,7 +401,7 @@ void PythonContext::GenerateStubs(const rdcarray<rdcstr> &extraPaths)
   qInfo() << "Stubs generation processed in" << timer.elapsed() << "ms";
 }
 
-void PythonContext::GlobalInit()
+void PythonContext::GlobalInit(PersistantConfig &config)
 {
   // must happen on the UI thread
   if(qApp->thread() != QThread::currentThread())
@@ -417,10 +417,10 @@ void PythonContext::GlobalInit()
   PyImport_AppendInittab("qrenderdoc", &PyInit_qrenderdoc);
 
 #if PY_VERSION_HEX > 0x030B0000
-  PyConfig config;
-  PyConfig_InitPythonConfig(&config);
-  config.configure_c_stdio = 0;
-  config.parse_argv = 0;
+  PyConfig pyconfig;
+  PyConfig_InitPythonConfig(&pyconfig);
+  pyconfig.configure_c_stdio = 0;
+  pyconfig.parse_argv = 0;
 #endif
 
 #if defined(STATIC_QRENDERDOC)
@@ -433,7 +433,7 @@ void PythonContext::GlobalInit()
     pylibs.toWCharArray(python_home);
 
 #if PY_VERSION_HEX > 0x030B0000
-    config.home = python_home;
+    pyconfig.home = python_home;
 #else
     Py_SetPythonHome(python_home);
 #endif
@@ -441,11 +441,11 @@ void PythonContext::GlobalInit()
 #endif
 
 #if PY_VERSION_HEX > 0x030B0000
-  config.program_name = program_name;
+  pyconfig.program_name = program_name;
 
-  config.use_environment = 0;
+  pyconfig.use_environment = 0;
 
-  Py_InitializeFromConfig(&config);
+  Py_InitializeFromConfig(&pyconfig);
 #else
   Py_SetProgramName(program_name);
 
@@ -477,7 +477,7 @@ void PythonContext::GlobalInit()
 
   main_dict = PyModule_GetDict(main_module);
 
-  GenerateStubs({});
+  GenerateStubs(config.Python_StubDirs);
 
   // replace sys.stdout and sys.stderr with our own objects. These have a 'this' pointer of NULL,
   // which then indicates they need to forward to a global object

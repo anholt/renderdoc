@@ -81,6 +81,9 @@ private slots:
   void on_ExternalTool_RadeonGPUProfiler_textEdited(const QString &rgp);
   void on_browseRGPPath_clicked();
 
+  // python
+  void on_Python_StubPaths_clicked();
+
   // texture viewer
   void on_TextureViewer_PerTexSettings_toggled(bool checked);
   void on_TextureViewer_ResetRange_toggled(bool checked);

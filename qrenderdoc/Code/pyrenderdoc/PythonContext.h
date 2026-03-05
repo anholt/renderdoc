@@ -55,7 +55,7 @@ public:
   void PausePythonThreading();
   void ResumePythonThreading();
 
-  static void GlobalInit();
+  static void GlobalInit(PersistantConfig &config);
   static void GlobalShutdown();
 
   static QStringList GetApplicationExtensionsPaths();
