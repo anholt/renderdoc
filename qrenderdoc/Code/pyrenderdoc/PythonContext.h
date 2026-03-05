@@ -65,6 +65,8 @@ public:
                             rdcarray<rdcpair<rdcstr, PyObject *>> &args);
   static void FreePyArgs(rdcarray<rdcpair<rdcstr, PyObject *>> &args);
 
+  static void GenerateStubs(const rdcarray<rdcstr> &extraPaths);
+
   bool CheckInterfaces(rdcstr &log);
 
   QString versionString();

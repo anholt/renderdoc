@@ -64,6 +64,7 @@ PyTypeObject **SbkPySide2_QtWidgetsTypes = NULL;
 #include <QApplication>
 #include <QDebug>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -220,6 +221,186 @@ void FetchException(QString &typeStr, QString &valueStr, int &finalLine, QList<Q
   Py_DecRef(tracebackObj);
 }
 
+QStringList GetPystubsLocations(QString basePath)
+{
+  QString versionSubdir =
+      QFormatStr("v%1_%2").arg(RENDERDOC_VERSION_MAJOR).arg(RENDERDOC_VERSION_MINOR);
+  QString latestSubdir = lit("latest");
+
+  QDir dir(basePath);
+  if(dir.mkpath(versionSubdir))
+  {
+    QDir latestDir = dir;
+    latestDir.mkpath(latestSubdir);
+    latestDir.cd(latestSubdir);
+    QString latestPath = latestDir.absolutePath();
+
+    dir.cd(versionSubdir);
+    QString versionedPath = dir.absolutePath();
+    return {versionedPath, latestPath};
+  }
+
+  return {};
+}
+
+struct StubsVersion
+{
+  int major = 0, minor = 0;
+  QString commit;
+
+  static StubsVersion Current()
+  {
+    StubsVersion ret;
+    ret.major = RENDERDOC_VERSION_MAJOR;
+    ret.minor = RENDERDOC_VERSION_MINOR;
+    if(RENDERDOC_STABLE_BUILD)
+      ret.commit = lit("stable");
+    else
+      ret.commit = QString::fromUtf8(RENDERDOC_GetCommitHash());
+    return ret;
+  }
+
+  bool ShouldReplace(const StubsVersion &o)
+  {
+    if(major != o.major)
+      return major > o.major;
+    if(minor != o.minor)
+      return minor > o.minor;
+
+    // if we're identical major/minor, don't regenerate if it's the same commit
+    if(commit == o.commit)
+      return false;
+
+    // never replace a stable version with non-stable
+    if(o.commit == lit("stable"))
+      return false;
+
+    // otherwise we don't know when this was m ade, regenerate
+    return true;
+  }
+};
+
+QDebug operator<<(QDebug debug, const StubsVersion &ver)
+{
+  debug << QFormatStr("%1.%2 (%3)").arg(ver.major).arg(ver.minor).arg(ver.commit.mid(0, 6));
+  return debug;
+}
+
+StubsVersion GetStubsVersion(QString basePath)
+{
+  StubsVersion ret;
+  QFile file(QDir(basePath).absoluteFilePath(lit("version.txt")));
+  if(file.open(QFile::ReadOnly))
+  {
+    QByteArray version = file.readAll();
+    QTextStream ts(version);
+
+    ts >> ret.major >> ret.minor >> ret.commit;
+
+    file.close();
+  }
+
+  return ret;
+}
+
+void SetStubsVersion(QString basePath, const StubsVersion &ver)
+{
+  QFile file(QDir(basePath).absoluteFilePath(lit("version.txt")));
+  if(file.open(QFile::WriteOnly | QFile::Truncate))
+  {
+    QString version;
+    QTextStream ts(&version);
+
+    ts << ver.major << "\n" << ver.minor << "\n" << ver.commit;
+
+    file.write(version.toUtf8());
+
+    file.close();
+  }
+}
+void PythonContext::GenerateStubs(const rdcarray<rdcstr> &extraPaths)
+{
+  QElapsedTimer timer;
+  timer.start();
+
+  StubsVersion cur = StubsVersion::Current();
+
+  QStringList paths;
+
+  // take the first standard location that works, these should be in priority order and typically
+  // the first one is writeable as normal.
+  for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+  {
+    paths << GetPystubsLocations(path + lit("/pystubs"));
+    if(!paths.empty())
+      break;
+  }
+
+  for(rdcstr path : extraPaths)
+    paths << GetPystubsLocations(path);
+
+  PyObject *stubgen_module = NULL;
+  PyObject *gen = NULL;
+
+  for(QString target : paths)
+  {
+    StubsVersion ver = GetStubsVersion(target);
+
+    if(!cur.ShouldReplace(ver))
+    {
+      qInfo() << "Not modifying stubs of version " << ver << "in" << target;
+      continue;
+    }
+
+    SetStubsVersion(target, cur);
+
+    if(gen == NULL)
+    {
+      QByteArray stubgen;
+      {
+        QFile file(lit(":/py/stubgen.py"));
+
+        file.open(QFile::ReadOnly);
+        stubgen = file.readAll();
+        file.close();
+      }
+
+      PyObject *stubgen_compiled = Py_CompileString(stubgen.data(), "stubgen.py", Py_file_input);
+      stubgen_module = PyImport_ExecCodeModule("__rd_stubgen", stubgen_compiled);
+      Py_XDECREF(stubgen_compiled);
+
+      gen = PyObject_GetAttrString(stubgen_module, "gen");
+    }
+
+    PyObject *args =
+        Py_BuildValue("(Os)", PyDict_GetItemString(main_dict, "renderdoc"), target.toUtf8().data());
+    PyObject *retval = PyObject_CallObject(gen, args);
+
+    if(!retval)
+      qCritical() << "Didn't generate renderdoc stubs";
+
+    Py_XDECREF(retval);
+    Py_XDECREF(args);
+
+    args =
+        Py_BuildValue("(Os)", PyDict_GetItemString(main_dict, "qrenderdoc"), target.toUtf8().data());
+    retval = PyObject_CallObject(gen, args);
+
+    if(!retval)
+      qCritical() << "Didn't generate qrenderdoc stubs";
+
+    Py_XDECREF(retval);
+    Py_XDECREF(args);
+
+    qInfo() << "Generated stubs for " << cur << "into" << target;
+  }
+
+  Py_XDECREF(gen);
+  Py_XDECREF(stubgen_module);
+
+  qInfo() << "Stubs generation processed in" << timer.elapsed() << "ms";
+}
+
 void PythonContext::GlobalInit()
 {
   // must happen on the UI thread
@@ -295,6 +476,8 @@ void PythonContext::GlobalInit()
   PyModule_AddObject(main_module, "qrenderdoc", PyImport_ImportModule("qrenderdoc"));
 
   main_dict = PyModule_GetDict(main_module);
+
+  GenerateStubs({});
 
   // replace sys.stdout and sys.stderr with our own objects. These have a 'this' pointer of NULL,
   // which then indicates they need to forward to a global object

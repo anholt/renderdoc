@@ -520,7 +520,13 @@ def gen_class(file: Stream, class_obj: Type):
 
 
 def gen(module: types.ModuleType, destpath: str):
+    global dependencies, dummy_types, fwd_ref
+
     begin = time.time()
+
+    dependencies.clear()
+    dummy_types.clear()
+    fwd_ref.clear()
 
     output_basepath = os.path.join(destpath, module.__name__)
     if __file__ in dir(module):
@@ -712,8 +718,7 @@ def gen(module: types.ModuleType, destpath: str):
 
         imports = collect_imports(func_deps)
 
-        needed_dummies = set(imports["."]).intersection(dummy_types)
-        needed_dummies = sorted(list(needed_dummies))
+        needed_dummies = sorted(list(dummy_types))
 
         # don't need to import anything locally, it's already going to be imported below in the classes
         del imports["."]
@@ -797,9 +802,8 @@ def gen(module: types.ModuleType, destpath: str):
                     needed_dummies.sort()
                     out.println("")
                     out.println("# Dummy types")
-                    out.println("from typing import NewType")
                     for dummy in needed_dummies:
-                        out.println(f"{dummy} = NewType('{dummy}', int)")
+                        out.println(f"from . import {dummy}")
 
                 if len(dependencies[name]) > 0:
                     out.println("")

@@ -1,4 +1,7 @@
 <RCC>
+    <qresource prefix="/py">
+        <file alias="stubgen.py">../../docs/stubgen.py</file>
+    </qresource>
     <qresource prefix="/">
         <file>logo.svg</file>
         <file>topologies/topo_linelist.svg</file>
