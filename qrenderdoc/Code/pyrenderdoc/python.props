@@ -3,6 +3,9 @@
 
 <PropertyGroup>
   <PythonBase>$(SolutionDir)\qrenderdoc\3rdparty\python</PythonBase>
+  <PySide2Base>$(SolutionDir)\qrenderdoc\3rdparty\pyside</PySide2Base>
+
+	<PySide2Available>1</PySide2Available>
 
   <CustomPythonUsed>0</CustomPythonUsed>
 
@@ -94,6 +97,7 @@
 
 <PropertyGroup Condition="'$(CustomPythonUsed)'!='0'">
   <PythonBase>$(PythonOverride)</PythonBase>
+  <PySide2Base>$(PythonOverride)\pyside</PySide2Base>
 
 	<PythonMajorMinor>$(CustomPythonUsed)</PythonMajorMinor>
 
@@ -107,10 +111,18 @@
 	<PythonDLLsDir Condition="Exists('$(PythonOverride)\DLLs\_ctypes.pyd')">$(PythonBase)\DLLs</PythonDLLsDir>
 	<PythonImportLib Condition="Exists('$(PythonOverride)\python$(PythonMajorMinor).lib')">$(PythonBase)\python$(PythonMajorMinor).lib</PythonImportLib>
 	<PythonImportLib Condition="Exists('$(PythonOverride)\libs\python$(PythonMajorMinor).lib')">$(PythonBase)\libs\python$(PythonMajorMinor).lib</PythonImportLib>
+
+	<!-- see if PySide is also available in a subdirectory, this would have to be prepared specifically in the format we expect -->
+	<PySide2Available>0</PySide2Available>
+	<PySide2Available Condition="Exists('$(PySide2Base)\include\PySide2\pyside.h') AND Exists('$(PySide2Base)\$(Platform)\shiboken2.dll')">1</PySide2Available>
 </PropertyGroup>
 
 <Target Name="PythonOverridden" AfterTargets="Build" Condition="'$(CustomPythonUsed)'!='0'">
 	<Message Importance="high" Text="Built against python from $(PythonOverride)" />
+</Target>
+
+<Target Name="PythonOverriddenNoPySide" AfterTargets="Build" Condition="'$(CustomPythonUsed)'!='0' AND '$(PySide2Available)'!='0'">
+	<Message Importance="high" Text="PySide2 found and used from $(PythonOverride)" />
 </Target>
 
 <Target Name="PythonFailedOverridden" AfterTargets="Build" Condition="'$(CustomPythonUsed)'=='0' AND $(PythonOverride)!=''">
