@@ -87,6 +87,8 @@ extern "C" PyObject *PyInit_qrenderdoc(void);
 extern "C" PyObject *WrapBareQWidget(QWidget *);
 extern "C" QWidget *UnwrapBareQWidget(PyObject *);
 
+extern "C" PyObject *GetCurrentGlobalHandle();
+
 // little utility function to convert a PyObject * that we know is a string to a QString
 static inline QString ToQStr(PyObject *value)
 {
@@ -125,6 +127,8 @@ struct OutputRedirector
   };
   int isStdError;
   bool block;
+  PyObject *compiled;
+  PyObject *chain_trace;
 };
 
 static PyTypeObject OutputRedirectorType = {PyVarObject_HEAD_INIT(NULL, 0)};
@@ -466,6 +470,7 @@ void PythonContext::GlobalInit(PersistantConfig &config)
   OutputRedirectorType.tp_new = PyType_GenericNew;
   OutputRedirectorType.tp_dealloc = &PythonContext::outstream_del;
   OutputRedirectorType.tp_methods = OutputRedirector_methods;
+  OutputRedirectorType.tp_call = &PythonContext::outstream_trace;
 
   OutputRedirector_methods[0].ml_meth = &PythonContext::outstream_write;
   OutputRedirector_methods[1].ml_meth = &PythonContext::outstream_flush;
@@ -1136,52 +1141,70 @@ void PythonContext::executeString(const QString &filename, const QString &source
       Py_CompileString(source.toUtf8().data(), filename.toUtf8().data(),
                        source.count(QLatin1Char('\n')) == 0 ? Py_single_input : Py_file_input);
 
-  PyObject *ret = NULL;
+  bool caughtException = false;
+  QString typeStr;
+  QString valueStr;
+  int finalLine = -1;
+  QList<QString> frames;
 
   if(compiled)
   {
-    PyObject *traceContext = PyDict_New();
+    PyObject *sys = PyImport_ImportModule("sys");
+    PyObject *settrace = NULL;
+    PyObject *gettrace = NULL;
+    PyObject *tracer = NULL;
+    if(sys)
+    {
+      settrace = PyObject_SafeGetAttrString(sys, "settrace");
+      gettrace = PyObject_SafeGetAttrString(sys, "gettrace");
+      tracer = PyDict_GetItemString(context_namespace, "_renderdoc_internal");
+    }
 
-    uintptr_t thisint = (uintptr_t)this;
-    uint64_t thisuint64 = (uint64_t)thisint;
-    PyObject *thisobj = PyLong_FromUnsignedLongLong(thisuint64);
+    if(settrace && gettrace && tracer)
+    {
+      OutputRedirector *redir = (OutputRedirector *)tracer;
+      redir->compiled = compiled;
+      redir->chain_trace = PyObject_CallNoArgs(gettrace);
 
-    PyDict_SetItemString(traceContext, "thisobj", thisobj);
-    PyDict_SetItemString(traceContext, "compiled", compiled);
-
-    PyEval_SetTrace(&PythonContext::traceEvent, traceContext);
+      Py_XDECREF(PyObject_CallFunction(settrace, "O", tracer));
+    }
 
     m_Abort = false;
 
     m_State = PyGILState_GetThisThreadState();
 
-    ret = PyEval_EvalCode(compiled, context_namespace, context_namespace);
+    PyObject *ret = PyEval_EvalCode(compiled, context_namespace, context_namespace);
+
+    caughtException = (ret == NULL);
+
+    if(caughtException)
+      FetchException(typeStr, valueStr, finalLine, frames);
+
+    Py_XDECREF(ret);
 
     m_State = NULL;
 
     // catch any output
     outputTick();
 
-    PyEval_SetTrace(NULL, NULL);
+    if(settrace && gettrace && tracer)
+    {
+      OutputRedirector *redir = (OutputRedirector *)tracer;
+      redir->compiled = NULL;
+
+      Py_XDECREF(PyObject_CallFunction(settrace, "O", redir->chain_trace));
+
+      redir->chain_trace = NULL;
+    }
 
     ProcessDecRefQueue();
 
-    Py_XDECREF(thisobj);
-    Py_XDECREF(traceContext);
+    Py_XDECREF(sys);
+    Py_XDECREF(settrace);
+    Py_XDECREF(gettrace);
   }
 
-  Py_DecRef(compiled);
-
-  QString typeStr;
-  QString valueStr;
-  int finalLine = -1;
-  QList<QString> frames;
-  bool caughtException = (ret == NULL);
-
-  if(caughtException)
-    FetchException(typeStr, valueStr, finalLine, frames);
-
-  Py_XDECREF(ret);
+  Py_XDECREF(compiled);
 
   PyGILState_Release(gil);
 
@@ -1559,33 +1582,71 @@ PyObject *PythonContext::outstream_flush(PyObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-int PythonContext::traceEvent(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg)
+PyObject *PythonContext::outstream_trace(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-  PyObject *thisobj = PyDict_GetItemString(obj, "thisobj");
+  if(PyErr_Occurred())
+    return NULL;
 
-  uint64_t thisuint64 = PyLong_AsUnsignedLongLong(thisobj);
-  uintptr_t thisint = (uintptr_t)thisuint64;
-  PythonContext *context = (PythonContext *)thisint;
+  const char *what = NULL;
+  PyObject *frameObj = NULL;
+  PyObject *arg = NULL;
 
-  PyCodeObject *code = PyFrame_GetCode(frame);
+  if(!PyArg_ParseTuple(args, "OzO:trace", &frameObj, &what, &arg))
+    return NULL;
 
-  PyObject *compiled = PyDict_GetItemString(obj, "compiled");
-  if(compiled == (PyObject *)code && what == PyTrace_LINE)
+  OutputRedirector *redirector = (OutputRedirector *)self;
+
+  if(PyFrame_Check(frameObj) && what && strcmp(what, "line") == 0)
   {
-    context->location.line = PyFrame_GetLineNumber(frame);
+    PyFrameObject *frame = (PyFrameObject *)frameObj;
+    PythonContext *context = redirector->context;
 
-    emit context->traceLine(context->location.file, context->location.line);
+    // increment ref here so we can loop with a held ref either from the base frame or from PyFrame_GetBack()
+    Py_XINCREF(frame);
+
+    // step up the frame looking for one in our code we're watching
+    while(frame)
+    {
+      PyCodeObject *code = PyFrame_GetCode(frame);
+
+      if(redirector->compiled == (PyObject *)code && context)
+      {
+        context->location.line = PyFrame_GetLineNumber(frame);
+
+        emit context->traceLine(context->location.file, context->location.line);
+
+        Py_XDECREF(frame);
+        Py_XDECREF(code);
+        break;
+      }
+
+      Py_XDECREF(code);
+
+      // first get the next frame without decrefing the current
+      PyFrameObject *back = PyFrame_GetBack(frame);
+      // now decref the old frame
+      Py_XDECREF(frame);
+      // and iterate on the next one, if we got one
+      frame = back;
+    }
+
+    if(context && context->shouldAbort())
+    {
+      PyErr_SetString(PyExc_SystemExit, "Execution aborted.");
+      return NULL;
+    }
   }
 
-  Py_XDECREF(code);
-
-  if(context->shouldAbort())
+  if(redirector->chain_trace && !Py_IsNone(redirector->chain_trace))
   {
-    PyErr_SetString(PyExc_SystemExit, "Execution aborted.");
-    return -1;
+    PyObject *prev_trace = redirector->chain_trace;
+    PyObject *new_trace = PyObject_Call(redirector->chain_trace, args, kwargs);
+    Py_XDECREF(prev_trace);
+    redirector->chain_trace = new_trace;
   }
 
-  return 0;
+  Py_XINCREF(self);
+  return self;
 }
 
 extern "C" PyThreadState *GetExecutingThreadState(PyObject *global_handle)

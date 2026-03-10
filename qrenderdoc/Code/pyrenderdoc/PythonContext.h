@@ -161,7 +161,7 @@ private:
   static void outstream_del(PyObject *self);
   static PyObject *outstream_write(PyObject *self, PyObject *args);
   static PyObject *outstream_flush(PyObject *self, PyObject *args);
-  static int traceEvent(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg);
+  static PyObject *outstream_trace(PyObject *self, PyObject *args, PyObject *kwargs);
 };
 
 template <>
