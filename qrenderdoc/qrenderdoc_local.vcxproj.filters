@@ -2041,5 +2041,6 @@
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="python36.natvis" />
+    <Natvis Include="python38.natvis" />
   </ItemGroup>
 </Project>

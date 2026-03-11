@@ -2146,6 +2146,7 @@
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="python36.natvis" />
+    <Natvis Include="python38.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
