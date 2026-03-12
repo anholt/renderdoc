@@ -1248,6 +1248,13 @@ QWidget.
 )");
   virtual void RunScript() = 0;
 
+  DOCUMENT(R"(Debugs the current script in the python shell.
+
+This runs the script but waits for a debugger to connect first before beginning. The user
+will have the option to cancel, which aborts the run of the script.
+)");
+  virtual void DebugScript() = 0;
+
 protected:
   IPythonShell() = default;
   ~IPythonShell() = default;

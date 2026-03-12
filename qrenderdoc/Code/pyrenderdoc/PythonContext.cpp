@@ -91,6 +91,8 @@ extern "C" QWidget *UnwrapBareQWidget(PyObject *);
 
 extern "C" PyObject *GetCurrentGlobalHandle();
 
+QSemaphore debuggerWaitSemaphore;
+
 // little utility function to convert a PyObject * that we know is a string to a QString
 static inline QString ToQStr(PyObject *value)
 {
@@ -1405,7 +1407,7 @@ QString PythonContext::versionString()
   return QFormatStr("%1.%2.%3").arg(PY_MAJOR_VERSION).arg(PY_MINOR_VERSION).arg(PY_MICRO_VERSION);
 }
 
-void PythonContext::executeString(const QString &filename, const QString &source)
+void PythonContext::executeString(const QString &filename, const QString &source, bool debugging)
 {
   if(!initialised())
   {
@@ -1447,13 +1449,22 @@ void PythonContext::executeString(const QString &filename, const QString &source
       Py_CompileString(source.toUtf8().data(), tempFilename.toUtf8().data(),
                        source.count(QLatin1Char('\n')) == 0 ? Py_single_input : Py_file_input);
 
+  bool debugAttached = false;
+
+  if(debugging)
+    debugAttached = PythonContext::WaitForDebugger();
+
   bool caughtException = false;
   QString typeStr;
   QString valueStr;
   int finalLine = -1;
   QList<QString> frames;
 
-  if(compiled)
+  if(debugging && !debugAttached)
+  {
+    // don't do anything, we wanted to debug and the attaching was cancelled - don't execute
+  }
+  else if(compiled)
   {
     PrepareDebugTracing();
 
@@ -1522,7 +1533,7 @@ void PythonContext::executeString(const QString &filename, const QString &source
 
 void PythonContext::executeString(const QString &source)
 {
-  executeString(QString(), source);
+  executeString(QString(), source, false);
 }
 
 void PythonContext::executeFile(const QString &filename)
@@ -1540,7 +1551,7 @@ void PythonContext::executeFile(const QString &filename)
   {
     QByteArray py = f.readAll();
 
-    executeString(filename, QString::fromUtf8(py));
+    executeString(filename, QString::fromUtf8(py), false);
   }
   else
   {
@@ -2054,6 +2065,152 @@ PyObject *PythonContext::outstream_trace(PyObject *self, PyObject *args, PyObjec
 
   Py_XINCREF(self);
   return self;
+}
+
+void PythonContext::PrepareDebuggerWait()
+{
+  if(!m_DebugPy)
+    return;
+
+  // reset the semaphore
+  while(debuggerWaitSemaphore.available())
+    debuggerWaitSemaphore.tryAcquire();
+
+  // set up one count in the semaphore
+  debuggerWaitSemaphore.release();
+}
+
+bool PythonContext::WaitForDebugger()
+{
+  if(!m_DebugPy)
+    return false;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  // don't care about the return value
+  Py_XDECREF(PyObject_CallMethod(m_DebugPy, "wait_for_client", NULL));
+
+  // return whether a client connected
+
+  PyObject *is_connected = PyObject_CallMethod(m_DebugPy, "is_client_connected", NULL);
+  bool ret = (PyBool_Check(is_connected) && is_connected == Py_True);
+  Py_XDECREF(is_connected);
+
+  // indicate that the work has finished
+  debuggerWaitSemaphore.tryAcquire(1);
+
+  PyGILState_Release(gil);
+
+  return ret;
+}
+
+void PythonContext::LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location)
+{
+  if(!m_DebugPy)
+    return;
+
+  if(context_location.isEmpty())
+  {
+    for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+    {
+      QDir tmpDir(path);
+      tmpDir.mkpath(lit("pytmp"));
+      tmpDir.cd(lit("pytmp"));
+      if(tmpDir.exists())
+      {
+        context_location = tmpDir.absolutePath();
+        break;
+      }
+    }
+  }
+
+  // don't overwrite an existing file, to allow user customisation
+  QDir context_dir(context_location);
+  if(!context_dir.exists(lit(".vscode/launch.json")))
+  {
+    context_dir.mkpath(lit(".vscode"));
+    QFile launch(context_dir.absoluteFilePath(lit(".vscode/launch.json")));
+    launch.open(QFile::Truncate | QFile::WriteOnly);
+    launch.write(R"(
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Remote Attach",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": { "host": "localhost", "port": 5678 }
+        }
+    ]
+}
+	)");
+    launch.close();
+
+    // write tasks to auto-attach. This will require user approval
+    QFile tasks(context_dir.absoluteFilePath(lit(".vscode/tasks.json")));
+    tasks.open(QFile::Truncate | QFile::WriteOnly);
+    tasks.write(R"(
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "attach on startup",
+            "command": "${command:workbench.action.debug.start}",
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
+        }
+    ]
+}
+	)");
+    tasks.close();
+  }
+
+  GUIInvoke::defer(window, [window, &config, context_location]() {
+    // wait a short while before displaying the progress dialog in case a debugger is already connected
+    for(int i = 0; debuggerWaitSemaphore.available() == 1 && i < 40; i++)
+      QThread::msleep(5);
+
+    // if we should launch vs code and there's nothing connected, do that now
+    if(config.Python_LaunchVSCode)
+    {
+      PyGILState_STATE gil = PyGILState_Ensure();
+
+      PyObject *is_connected_ret = PyObject_CallMethod(m_DebugPy, "is_client_connected", NULL);
+      bool debugger_connected = (PyBool_Check(is_connected_ret) && is_connected_ret == Py_True);
+      Py_XDECREF(is_connected_ret);
+
+      PyGILState_Release(gil);
+
+      QString code_path = QStandardPaths::findExecutable(lit("code"));
+
+      if(!debugger_connected && !code_path.isEmpty())
+      {
+        QStringList args;
+        args << lit("-n");
+        if(!context_location.isEmpty())
+          args << context_location;
+
+        QProcess::startDetached(code_path, args);
+      }
+    }
+
+    ShowProgressDialog(
+        window, tr("Waiting for debugger to connect.\n\nListening on localhost:5678"),
+        []() { return debuggerWaitSemaphore.available() == 0; }, NULL,
+        []() {
+          PyGILState_STATE gil = PyGILState_Ensure();
+
+          PyObject *wait_for_client = PyObject_SafeGetAttrString(m_DebugPy, "wait_for_client");
+          if(wait_for_client)
+          {
+            Py_XDECREF(PyObject_CallMethod(wait_for_client, "cancel", NULL));
+            Py_XDECREF(wait_for_client);
+          }
+
+          PyGILState_Release(gil);
+        });
+  });
 }
 
 extern "C" PyThreadState *GetExecutingThreadState(PyObject *global_handle)

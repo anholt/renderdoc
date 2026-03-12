@@ -308,6 +308,7 @@ SettingsDialog::SettingsDialog(ICaptureContext &ctx, QWidget *parent)
   ui->EventBrowser_ColorEventRow->setChecked(m_Ctx.Config().EventBrowser_ColorEventRow);
 
   ui->Python_DebugEnabled->setChecked(m_Ctx.Config().Python_DebugEnabled);
+  ui->Python_LaunchVSCode->setChecked(m_Ctx.Config().Python_LaunchVSCode);
 
   ui->Python_DebugPyDir->setText(m_Ctx.Config().Python_DebugPyDir);
 
@@ -874,6 +875,13 @@ void SettingsDialog::on_Python_DebugPyDir_textEdited(const QString &dir)
 void SettingsDialog::on_Python_DebugEnabled_toggled(bool checked)
 {
   m_Ctx.Config().Python_DebugEnabled = ui->Python_DebugEnabled->isChecked();
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_LaunchVSCode_toggled(bool checked)
+{
+  m_Ctx.Config().Python_LaunchVSCode = ui->Python_LaunchVSCode->isChecked();
 
   m_Ctx.Config().Save();
 }

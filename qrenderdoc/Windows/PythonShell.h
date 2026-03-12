@@ -55,7 +55,8 @@ public:
   void SetScriptText(rdcstr script) override;
   bool LoadScriptFromFilename(rdcstr filename) override;
   rdcstr GetScriptText() override;
-  void RunScript() override;
+  void RunScript() override { runScript(false); }
+  void DebugScript() override { runScript(true); }
 private slots:
   // automatic slots
   void on_execute_clicked();
@@ -64,6 +65,7 @@ private slots:
   void on_openScript_clicked();
   void on_saveScript_clicked();
   void on_runScript_clicked();
+  void on_debugScript_clicked();
   void on_abortRun_clicked();
 
   // manual slots
@@ -95,6 +97,8 @@ private:
   PythonContext *newContext();
   PythonContext *newImportedDummyContext();
   void setGlobals(PythonContext *ret);
+
+  void runScript(bool debugging);
 
   void startAutocomplete();
   void selectedHelp(QString word);

@@ -69,6 +69,10 @@ public:
 
   static void PrepareDebugTracing();
 
+  static void PrepareDebuggerWait();
+  static bool WaitForDebugger();
+  static void LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location);
+
   bool CheckInterfaces(rdcstr &log);
 
   QString versionString();
@@ -115,7 +119,8 @@ signals:
 
 public slots:
   void executeString(const QString &source);
-  void executeString(const QString &filename, const QString &source);
+  void executeString(const QString &filename, const QString &source, bool debugging);
+
   void executeFile(const QString &filename);
   void setGlobal(const char *varName, const char *typeName, void *object);
   void setPyGlobal(const char *varName, PyObject *object);

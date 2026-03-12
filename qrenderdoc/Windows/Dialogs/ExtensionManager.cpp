@@ -29,6 +29,7 @@
 #include <QRegularExpression>
 #include "Code/Interface/QRDInterface.h"
 #include "Code/Resources.h"
+#include "Code/pyrenderdoc/PythonContext.h"
 #include "Widgets/Extended/RDHeaderView.h"
 #include "Windows/MainWindow.h"
 #include "ui_ExtensionManager.h"
@@ -54,6 +55,7 @@ ExtensionManager::ExtensionManager(ICaptureContext &ctx)
   ui->author->setText(lit("---"));
   ui->URL->setText(lit("---"));
   ui->reload->setEnabled(false);
+  ui->debug->setEnabled(false);
   ui->alwaysLoad->setEnabled(false);
 
   QObject::connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -124,6 +126,38 @@ void ExtensionManager::on_reload_clicked()
       }
 
       update_currentItem(item);
+    }
+  }
+}
+
+void ExtensionManager::on_debug_clicked()
+{
+  if(m_Extensions.empty())
+    return;
+
+  RDTreeWidgetItem *item = ui->extensions->currentItem();
+  if(!item)
+    return;
+
+  int idx = ui->extensions->indexOfTopLevelItem(item);
+
+  if(idx >= 0 && idx < m_Extensions.count())
+  {
+    const ExtensionMetadata &e = m_Extensions[idx];
+    if(!e.name.isEmpty())
+    {
+      PythonContext::PrepareDebuggerWait();
+
+      LambdaThread *thread = new LambdaThread([this]() {
+        PythonContext::WaitForDebugger();
+
+        GUIInvoke::call(this, [this]() { on_reload_clicked(); });
+      });
+
+      thread->selfDelete(true);
+      thread->start();
+
+      PythonContext::LaunchDebugger(this, m_Ctx.Config(), QFileInfo(e.filePath).absoluteFilePath());
     }
   }
 }
@@ -239,6 +273,7 @@ void ExtensionManager::update_currentItem(RDTreeWidgetItem *item)
 
       bool loaded = item->checkState(2) == Qt::Checked;
       ui->reload->setEnabled(true);
+      ui->debug->setEnabled(true);
       ui->reload->setText(loaded ? tr("Reload") : tr("Load"));
       ui->alwaysLoad->setEnabled(loaded);
 

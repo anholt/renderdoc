@@ -1059,7 +1059,7 @@ rdcstr PythonShell::GetScriptText()
   return scriptEditor->getText(scriptEditor->textLength() + 1).data();
 }
 
-void PythonShell::RunScript()
+void PythonShell::runScript(bool debugging)
 {
   PythonContext *context = newContext();
 
@@ -1073,11 +1073,14 @@ void PythonShell::RunScript()
 
   enableButtons(false);
 
-  LambdaThread *thread = new LambdaThread([this, script, context]() {
+  if(debugging)
+    PythonContext::PrepareDebuggerWait();
+
+  LambdaThread *thread = new LambdaThread([this, debugging, script, context]() {
     PythonContext::AddDebuggableThread();
 
     scriptContext = context;
-    context->executeString(lit("script.py"), script);
+    context->executeString(lit("script.py"), script, debugging);
     scriptContext = NULL;
 
     GUIInvoke::call(this, [this, context]() {
@@ -1091,6 +1094,9 @@ void PythonShell::RunScript()
   thread->setName(lit("Python script"));
   thread->selfDelete(true);
   thread->start();
+
+  if(debugging)
+    PythonContext::LaunchDebugger(this, m_Ctx.Config(), QString());
 }
 
 void PythonShell::on_execute_clicked()
@@ -1198,6 +1204,11 @@ void PythonShell::on_saveScript_clicked()
 void PythonShell::on_runScript_clicked()
 {
   RunScript();
+}
+
+void PythonShell::on_debugScript_clicked()
+{
+  DebugScript();
 }
 
 void PythonShell::on_abortRun_clicked()
@@ -1528,6 +1539,12 @@ void PythonShell::enableButtons(bool enable)
   ui->saveScript->setEnabled(enable);
   ui->runScript->setEnabled(enable);
   ui->abortRun->setEnabled(!enable);
+  ui->debugScript->setEnabled(enable);
+
+  if(enable && !m_Ctx.Config().Python_DebugEnabled)
+  {
+    ui->debugScript->setEnabled(false);
+  }
 }
 
 void PythonShell::startAutocomplete()

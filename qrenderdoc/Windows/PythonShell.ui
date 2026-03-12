@@ -237,6 +237,26 @@
            </widget>
           </item>
           <item>
+           <widget class="QToolButton" name="debugScript">
+            <property name="toolTip">
+             <string>Begin running the script in python</string>
+            </property>
+            <property name="text">
+             <string>Debug</string>
+            </property>
+            <property name="icon">
+             <iconset resource="../Resources/resources.qrc">
+              <normaloff>:/wrench.png</normaloff>:/wrench.png</iconset>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonTextBesideIcon</enum>
+            </property>
+            <property name="autoRaise">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QToolButton" name="abortRun">
             <property name="toolTip">
              <string>Stop execution of the current script</string>

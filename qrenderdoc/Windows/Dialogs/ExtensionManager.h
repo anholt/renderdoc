@@ -49,6 +49,7 @@ public:
 private slots:
   // automatic slots
   void on_reload_clicked();
+  void on_debug_clicked();
   void on_openLocation_clicked();
   void on_alwaysLoad_toggled(bool checked);
   void on_extensions_currentItemChanged(RDTreeWidgetItem *item, RDTreeWidgetItem *);

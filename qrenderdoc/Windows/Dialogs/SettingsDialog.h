@@ -86,6 +86,7 @@ private slots:
   void on_Python_DebugPyDirBrowse_clicked();
   void on_Python_DebugPyDir_textEdited(const QString &dir);
   void on_Python_DebugEnabled_toggled(bool checked);
+  void on_Python_LaunchVSCode_toggled(bool checked);
 
   // texture viewer
   void on_TextureViewer_PerTexSettings_toggled(bool checked);

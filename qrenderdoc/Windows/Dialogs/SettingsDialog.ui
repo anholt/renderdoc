@@ -751,7 +751,26 @@ After interop is enabled you will need to reload any capture.</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="0" colspan="2">
+          <item row="4" column="0">
+           <widget class="QLabel" name="Python_LaunchVSCodeLabel">
+            <property name="text">
+             <string>Launch VS Code for debugging</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="Python_LaunchVSCode">
+            <property name="toolTip">
+             <string>When debugging a python script or UI extension, launch new instance of VS Code.
+
+If disabled, debugging will do nothing and wait for a debugger connection.</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
            <spacer name="verticalSpacer_9">
             <property name="orientation">
              <enum>Qt::Vertical</enum>

@@ -374,6 +374,15 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING_VAL(public, bool, bool, Python_DebugEnabled, true)                                \
                                                                                                    \
   DOCUMENT(                                                                                        \
+      "``True`` if a new instance of VS Code should be launched when debugging a python script "   \
+      "or UI extension.\n"                                                                         \
+      "\n"                                                                                         \
+      "Defaults to ``True``."                                                                      \
+      ""                                                                                           \
+      ":type: bool");                                                                              \
+  CONFIG_SETTING_VAL(public, bool, bool, Python_LaunchVSCode, true)                                \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
       "The path to an copy of the ``debugpy`` module which should be loaded for debugging."        \
       ""                                                                                           \
       ":type: str");                                                                               \
