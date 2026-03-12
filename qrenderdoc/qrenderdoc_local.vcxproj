@@ -1808,6 +1808,11 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>false</Visible>
     </Content>
+    <Content Include="$(PythonDLLsDir)\libffi-7.dll" Condition="Exists('$(PythonDLLsDir)\libffi-7.dll')">
+      <Link>libffi-7.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
     <Content Include="$(PythonDLLsDir)\select.pyd" Condition="Exists('$(PythonDLLsDir)\select.pyd')">
       <Link>select.pyd</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
