@@ -1074,6 +1074,8 @@ void PythonShell::RunScript()
   enableButtons(false);
 
   LambdaThread *thread = new LambdaThread([this, script, context]() {
+    PythonContext::AddDebuggableThread();
+
     scriptContext = context;
     context->executeString(lit("script.py"), script);
     scriptContext = NULL;
@@ -1082,6 +1084,8 @@ void PythonShell::RunScript()
       context->Finish();
       enableButtons(true);
     });
+
+    PythonContext::RemoveDebuggableThread();
   });
 
   thread->setName(lit("Python script"));

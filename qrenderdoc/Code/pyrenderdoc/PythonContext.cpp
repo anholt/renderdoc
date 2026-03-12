@@ -29,6 +29,7 @@
 
 // must be included first
 #include <Python.h>
+#include <pythread.h>
 
 #include "3rdparty/pythoncapi_compat.h"
 
@@ -67,6 +68,7 @@ PyTypeObject **SbkPySide2_QtWidgetsTypes = NULL;
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
@@ -139,6 +141,9 @@ static PyMethodDef OutputRedirector_methods[] = {
     {NULL}};
 
 PyObject *PythonContext::main_dict = NULL;
+PyObject *PythonContext::m_DebugPy = NULL;
+PyObject *PythonContext::m_CallWrapper = NULL;
+PyObject *PythonContext::m_CallWrapperGlobals = NULL;
 QMap<rdcstr, PyObject *> PythonContext::extensions;
 
 static PyObject *current_global_handle = NULL;
@@ -146,6 +151,7 @@ static PyObject *current_global_handle = NULL;
 static QMutex decrefQueueMutex;
 static QList<PyObject *> decrefQueue;
 extern "C" void ProcessDecRefQueue();
+extern "C" void HandleException(PyObject *global_handle);
 
 // helper overload to give us the semantics we want - return NULL without an exception if the attr doesn't exist
 PyObject *PyObject_SafeGetAttrString(PyObject *obj, const char *string)
@@ -405,6 +411,16 @@ void PythonContext::GenerateStubs(const rdcarray<rdcstr> &extraPaths)
   qInfo() << "Stubs generation processed in" << timer.elapsed() << "ms";
 }
 
+void PythonContext::PrepareDebugTracing()
+{
+  // prep the frame for debugpy if we have it enabled, as if we're calling straight from C++ debugpy
+  // won't be enabled and breakpoints won't get hit
+  if(m_DebugPy && m_CallWrapper && m_CallWrapperGlobals)
+  {
+    Py_XDECREF(PyEval_EvalCode(m_CallWrapper, m_CallWrapperGlobals, NULL));
+  }
+}
+
 void PythonContext::GlobalInit(PersistantConfig &config)
 {
   // must happen on the UI thread
@@ -443,6 +459,12 @@ void PythonContext::GlobalInit(PersistantConfig &config)
 #endif
   }
 #endif
+
+  // pydev complains about the zip of standard library files, but that's fine
+  // and the recommendation is to ignore this warning: https://github.com/microsoft/debugpy/issues/890
+  //
+  // we need to set this early so it's snapshotted by python for os.getenv/os.environ
+  qputenv("PYDEVD_DISABLE_FILE_VALIDATION", lit("1").toUtf8());
 
 #if PY_VERSION_HEX > 0x030B0000
   pyconfig.program_name = program_name;
@@ -536,6 +558,240 @@ void PythonContext::GlobalInit(PersistantConfig &config)
     output->context = NULL;
     output->block = false;
   }
+
+  // load debugpy from installed vscode if we find it. This requires a minimum of python 3.8
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 8
+  if(config.Python_DebugEnabled)
+  {
+    QString debugpy_path;
+
+    // use the user's specified debugpy path if it exists
+    if(QDir(config.Python_DebugPyDir).exists() &&
+       QDir(config.Python_DebugPyDir).exists(lit("__init__.py")))
+    {
+      debugpy_path = config.Python_DebugPyDir;
+    }
+
+    // next load debugpy from VS Code, if it exists
+    if(debugpy_path.isEmpty())
+    {
+      QString homePath = QStandardPaths::standardLocations(QStandardPaths::HomeLocation)[0];
+      QDir homeDir(homePath);
+      homeDir.cd(lit(".vscode/extensions"));
+
+      if(homeDir.exists())
+      {
+        QStringList debugpy_exts = homeDir.entryList(QStringList() << lit("ms-python.debugpy*"));
+
+        if(debugpy_exts.size() >= 1)
+        {
+          // assume that sorting works by version, so if there are multiple versions of the
+          // extension we will pick the latest
+          debugpy_exts.sort();
+
+          QDir debugpy_libs = homeDir;
+          debugpy_libs.cd(debugpy_exts.last());
+          debugpy_libs.cd(lit("bundled/libs"));
+
+          if(debugpy_libs.exists())
+          {
+            debugpy_path = debugpy_libs.absolutePath();
+          }
+        }
+      }
+    }
+
+    // next try pycharm, if we can find it
+    if(debugpy_path.isEmpty())
+    {
+#ifdef Q_OS_WIN32
+      QDir programBase(lit("C:/Program Files/JetBrains"));
+#else
+      QDir programBase(lit("/opt"));
+#endif
+
+      QString pycharm;
+
+      QStringList pycharms =
+          programBase.entryList(QStringList() << lit("PyCharm*") << lit("pycharm-*"));
+
+      if(!pycharms.empty())
+      {
+        // assume sorting will pick the latest
+        pycharms.sort();
+
+        pycharm = programBase.absoluteFilePath(pycharms.last());
+      }
+
+#ifdef Q_OS_WIN32
+      if(pycharm.isEmpty())
+      {
+        // if we didn't find it in the default location, check in the registry on windows
+        QSettings pycharm_reg(lit("HKEY_LOCAL_MACHINE\\SOFTWARE\\JetBrains\\PyCharm"),
+                              QSettings::NativeFormat);
+
+        QStringList groups = pycharm_reg.childGroups();
+
+        if(!groups.empty())
+        {
+          // assume sorting will pick the latest
+          groups.sort();
+
+          pycharm = pycharm_reg.value(groups.last() + lit("/Default")).toString();
+        }
+      }
+#endif
+
+      if(!pycharm.isEmpty())
+      {
+        QDir helpers(pycharm);
+        helpers.cd(lit("plugins/python-ce/helpers"));
+
+        if(helpers.exists() && helpers.exists(lit("debugpy")))
+        {
+          debugpy_path = helpers.absolutePath();
+        }
+      }
+    }
+
+    // if we got a path to debugpy, try to load it
+    if(!debugpy_path.isEmpty())
+    {
+      PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
+
+      if(!syspath)
+      {
+        qCritical() << "couldn't get sys.path";
+      }
+      else
+      {
+        qInfo() << "Importing debugpy from" << debugpy_path;
+
+        PyObject *str = PyUnicode_FromString(debugpy_path.toUtf8().data());
+
+        PyList_Append(syspath, str);
+        Py_DecRef(str);
+
+        m_DebugPy = PyImport_ImportModule("debugpy");
+
+        if(!m_DebugPy)
+        {
+          qCritical() << "Failed to import debugpy";
+          HandleException(NULL);
+        }
+        else
+        {
+          PyObject *configure = PyObject_SafeGetAttrString(m_DebugPy, "configure");
+
+          // don't let debugpy create a subprocess, for obvious reasons
+          if(configure)
+          {
+            PyObject *props = PyDict_New();
+            PyDict_SetItemString(props, "subProcess", Py_False);
+            PyObject *ret = PyObject_CallFunction(configure, "O", props);
+
+            if(!ret)
+            {
+              qCritical() << "Failed calling debugpy.configure";
+              HandleException(NULL);
+              Py_XDECREF(m_DebugPy);
+              m_DebugPy = NULL;
+            }
+
+            Py_XDECREF(ret);
+            Py_XDECREF(props);
+          }
+          else
+          {
+            qCritical() << "Couldn't find debugpy.configure";
+          }
+
+          Py_XDECREF(configure);
+
+          if(m_DebugPy)
+          {
+            PyObject *listen = PyObject_SafeGetAttrString(m_DebugPy, "listen");
+
+            if(listen)
+            {
+              // listen on default port
+              PyObject *args = PyTuple_Pack(1, PyLong_FromLong(5678));
+              PyObject *kwargs = PyDict_New();
+              PyDict_SetItemString(kwargs, "in_process_debug_adapter", Py_True);
+
+              PyObject *ret = PyObject_Call(listen, args, kwargs);
+
+              if(!ret)
+              {
+                qCritical() << "Failed calling debugpy.listen";
+                HandleException(NULL);
+                Py_XDECREF(m_DebugPy);
+                m_DebugPy = NULL;
+              }
+
+              Py_XDECREF(ret);
+
+              Py_XDECREF(args);
+              Py_XDECREF(kwargs);
+            }
+            else
+            {
+              qCritical() << "Couldn't find debugpy.listen";
+            }
+
+            Py_XDECREF(listen);
+          }
+        }
+
+        // remove the search path from sys.path now
+        Py_XDECREF(PyObject_CallMethod(syspath, "pop", NULL));
+        Py_DecRef(syspath);
+
+        AddDebuggableThread();
+
+        if(m_DebugPy)
+        {
+          m_CallWrapper =
+              Py_CompileString("debugpy.trace_this_thread(True)", "__callwrapper.py", Py_eval_input);
+          m_CallWrapperGlobals = PyDict_Copy(main_dict);
+          PyDict_SetItemString(m_CallWrapperGlobals, "debugpy", m_DebugPy);
+
+          // don't pollute the globals
+          PyObject *tmpGlobals = PyDict_Copy(main_dict);
+
+          // monkey patch to get around a bug in debugpy/pydevd: https://github.com/microsoft/debugpy/issues/2011
+          PyObject *ret = PyRun_String(R"(
+try:
+    monkey_class = sys.modules['_pydevd_bundle'].pydevd_process_net_command_json.PyDevJsonCommandProcessor
+    orig = monkey_class.on_continue_request
+
+    def on_continue_request_hack(self, py_db, request):
+        request.arguments.threadId = '*'
+        orig(self, py_db, request)
+
+    monkey_class.on_continue_request = on_continue_request_hack
+
+    # while we're here, disable termination. No clean way to do this
+    # otherwise
+    def _request_terminate_process_hack(self, py_db):
+        self.api.request_resume_thread('*')
+
+    monkey_class._request_terminate_process = _request_terminate_process_hack
+
+    print("Monkey-patched debugpy successfully")
+except:
+    print("Failed to monkey-patch debugpy")
+    pass
+)",
+                                       Py_file_input, tmpGlobals, NULL);
+
+          Py_XDECREF(ret);
+          Py_XDECREF(tmpGlobals);
+        }
+      }
+    }
+  }
+#endif
 
 // if we need to append to sys.path to locate PySide2, do that now
 #if defined(PYSIDE2_SYS_PATH)
@@ -822,6 +1078,8 @@ void PythonContext::ProcessExtensionWork(std::function<void()> callback)
 {
   PyGILState_STATE gil = PyGILState_Ensure();
 
+  PrepareDebugTracing();
+
   callback();
 
   PyGILState_Release(gil);
@@ -960,6 +1218,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
   if(ext)
   {
+    PrepareDebugTracing();
+
     // if import succeeded, call register()
     PyObject *register_func = PyObject_SafeGetAttrString(ext, "register");
 
@@ -1132,13 +1392,38 @@ void PythonContext::executeString(const QString &filename, const QString &source
     return;
   }
 
-  location.file = filename;
+  QString tempFilename = filename;
+
+  if(filename.isEmpty())
+  {
+    tempFilename = lit("<interactive.py>");
+  }
+  else if(!QFile::exists(filename))
+  {
+    for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+    {
+      QDir tmpDir(path);
+      tmpDir.mkpath(lit("pytmp"));
+      tmpDir.cd(lit("pytmp"));
+      if(tmpDir.exists())
+      {
+        tempFilename = tmpDir.absoluteFilePath(filename);
+        QFile f(tempFilename);
+        f.open(QFile::Truncate | QFile::WriteOnly);
+        f.write(source.toUtf8().data());
+        f.close();
+        break;
+      }
+    }
+  }
+
+  location.file = tempFilename;
   location.line = 1;
 
   PyGILState_STATE gil = PyGILState_Ensure();
 
   PyObject *compiled =
-      Py_CompileString(source.toUtf8().data(), filename.toUtf8().data(),
+      Py_CompileString(source.toUtf8().data(), tempFilename.toUtf8().data(),
                        source.count(QLatin1Char('\n')) == 0 ? Py_single_input : Py_file_input);
 
   bool caughtException = false;
@@ -1149,6 +1434,8 @@ void PythonContext::executeString(const QString &filename, const QString &source
 
   if(compiled)
   {
+    PrepareDebugTracing();
+
     PyObject *sys = PyImport_ImportModule("sys");
     PyObject *settrace = NULL;
     PyObject *gettrace = NULL;
@@ -1214,7 +1501,7 @@ void PythonContext::executeString(const QString &filename, const QString &source
 
 void PythonContext::executeString(const QString &source)
 {
-  executeString(lit("<interactive.py>"), source);
+  executeString(QString(), source);
 }
 
 void PythonContext::executeFile(const QString &filename)
@@ -1384,6 +1671,105 @@ QStringList PythonContext::completionOptions(QString base)
   PyGILState_Release(gil);
 
   return ret;
+}
+
+void PythonContext::AddDebuggableThread()
+{
+  if(!m_DebugPy)
+    return;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *debug_this_thread = PyObject_SafeGetAttrString(m_DebugPy, "debug_this_thread");
+
+  if(debug_this_thread)
+  {
+    PyObject *ret = PyObject_CallNoArgs(debug_this_thread);
+
+    if(!ret)
+      qCritical() << "Failed calling debugpy.debug_this_thread";
+
+    Py_XDECREF(ret);
+  }
+  else
+  {
+    qCritical() << "Couldn't find debugpy.debug_this_thread";
+  }
+
+  Py_XDECREF(debug_this_thread);
+
+  QString threadName = QThread::currentThread()->objectName();
+
+  if(!threadName.isEmpty())
+  {
+    PyObject *sys = PyImport_ImportModule("sys");
+    Q_ASSERT(sys);
+    PyObject *modules = PyObject_SafeGetAttrString(sys, "modules");
+    Q_ASSERT(modules);
+
+    PyObject *threading = PyDict_GetItemString(modules, "threading");
+
+    // expect to load threading
+    if(threading)
+    {
+      PyObject *current_thread = PyObject_SafeGetAttrString(threading, "current_thread");
+
+      Q_ASSERT(current_thread);
+
+      PyObject *cur = PyObject_CallNoArgs(current_thread);
+
+      if(cur)
+      {
+        if(PyObject_HasAttrString(cur, "name"))
+          PyObject_SetAttrString(cur, "name", PyUnicode_FromString(threadName.toUtf8().data()));
+
+        Py_XDECREF(cur);
+      }
+
+      Py_XDECREF(current_thread);
+    }
+
+    Py_XDECREF(modules);
+    Py_XDECREF(sys);
+  }
+
+  PyGILState_Release(gil);
+}
+
+void PythonContext::RemoveDebuggableThread()
+{
+  if(!m_DebugPy)
+    return;
+
+    // 3.13 fixes this to track the lifetime of dummy/external threads, before that we do it manually
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 13
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *sys = PyImport_ImportModule("sys");
+  Q_ASSERT(sys);
+  PyObject *modules = PyObject_SafeGetAttrString(sys, "modules");
+  Q_ASSERT(modules);
+
+  PyObject *threading = PyDict_GetItemString(modules, "threading");
+
+  // expect to load threading
+  if(threading)
+  {
+    PyObject *_active = PyObject_SafeGetAttrString(threading, "_active");
+
+    if(_active)
+    {
+      PyObject *key = PyLong_FromInt32(PyThread_get_thread_ident());
+      if(PyDict_Contains(_active, key) == 1)
+        PyDict_DelItem(_active, key);
+      Py_XDECREF(key);
+    }
+
+    Py_XDECREF(_active);
+  }
+
+  PyGILState_Release(gil);
+#endif
 }
 
 PyObject *PythonContext::QtObjectToPython(const char *typeName, QObject *object)
@@ -1726,7 +2112,7 @@ extern "C" void HandleException(PyObject *global_handle)
   {
     emit redirector->context->exception(typeStr, valueStr, finalLine, frames);
   }
-  else if(redirector && !redirector->context)
+  else
   {
     // if still NULL we're running in the extension context
     rdcstr exString;
@@ -1784,6 +2170,14 @@ extern "C" void QueueDecRef(PyObject *obj)
   QMutexLocker lock(&decrefQueueMutex);
 
   decrefQueue.push_back(obj);
+}
+
+extern "C" PyObject *DoFunctionCall(PyObject *object, PyObject *args)
+{
+  if(!PyCFunction_Check(object))
+    PythonContext::PrepareDebugTracing();
+
+  return PyObject_Call(object, args, NULL);
 }
 
 extern "C" void ProcessDecRefQueue()

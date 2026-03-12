@@ -1843,6 +1843,21 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>false</Visible>
     </Content>
+    <Content Include="$(PythonDLLsDir)\pyexpat.pyd" Condition="Exists('$(PythonDLLsDir)\pyexpat.pyd')">
+      <Link>pyexpat.pyd</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PythonDLLsDir)\_socket.pyd" Condition="Exists('$(PythonDLLsDir)\_socket.pyd')">
+      <Link>_socket.pyd</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PythonDLLsDir)\_queue.pyd" Condition="Exists('$(PythonDLLsDir)\_queue.pyd')">
+      <Link>_queue.pyd</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
     <Content Include="$(PythonDLLsDir)\unicodedata.pyd" Condition="Exists('$(PythonDLLsDir)\unicodedata.pyd')">
       <Link>unicodedata.pyd</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

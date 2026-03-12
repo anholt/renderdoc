@@ -720,7 +720,38 @@ After interop is enabled you will need to reload any capture.</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="0" colspan="2">
+          <item row="1" column="0">
+           <widget class="QLabel" name="Python_DebugEnabledLabel">
+            <property name="text">
+             <string>Enable python debugging (restart required)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="Python_DebugEnabled">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QLabel" name="Python_DebugPyDirLabel">
+            <property name="text">
+             <string>Location of custom debugpy module for debugging</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLineEdit" name="Python_DebugPyDir"/>
+          </item>
+          <item row="3" column="1">
+           <widget class="QPushButton" name="Python_DebugPyDirBrowse">
+            <property name="text">
+             <string>Browse</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
            <spacer name="verticalSpacer_9">
             <property name="orientation">
              <enum>Qt::Vertical</enum>

@@ -67,6 +67,8 @@ public:
 
   static void GenerateStubs(const rdcarray<rdcstr> &extraPaths);
 
+  static void PrepareDebugTracing();
+
   bool CheckInterfaces(rdcstr &log);
 
   QString versionString();
@@ -104,6 +106,8 @@ public:
   bool shouldAbort() { return m_Abort; }
   QString currentFile() { return location.file; }
   int currentLine() { return location.line; }
+  static void AddDebuggableThread();
+  static void RemoveDebuggableThread();
 signals:
   void traceLine(const QString &file, int line);
   void exception(const QString &type, const QString &value, int finalLine, QList<QString> frames);
@@ -120,6 +124,13 @@ private:
   // this is the dict for __main__ after importing our modules, which is copied for each actual
   // python context
   static PyObject *main_dict;
+
+  // this is the debugpy module
+  static PyObject *m_DebugPy;
+  // these are used for callbacks where we have no python frame (e.g. C code on the UI calling into
+  // a registered python callback) so need to quickly set up things for debugging if enabled
+  static PyObject *m_CallWrapper;
+  static PyObject *m_CallWrapperGlobals;
 
   // the list of extension objects, to be able to reload them
   static QMap<rdcstr, PyObject *> extensions;

@@ -307,6 +307,10 @@ SettingsDialog::SettingsDialog(ICaptureContext &ctx, QWidget *parent)
   ui->EventBrowser_ApplyColors->setChecked(m_Ctx.Config().EventBrowser_ApplyColors);
   ui->EventBrowser_ColorEventRow->setChecked(m_Ctx.Config().EventBrowser_ColorEventRow);
 
+  ui->Python_DebugEnabled->setChecked(m_Ctx.Config().Python_DebugEnabled);
+
+  ui->Python_DebugPyDir->setText(m_Ctx.Config().Python_DebugPyDir);
+
   ui->Comments_ShowOnLoad->setChecked(m_Ctx.Config().Comments_ShowOnLoad);
 
   ui->Formatter_MinFigures->setValue(m_Ctx.Config().Formatter_MinFigures);
@@ -843,6 +847,35 @@ void SettingsDialog::on_Python_StubPaths_clicked()
 
     m_Ctx.Config().Save();
   }
+}
+
+void SettingsDialog::on_Python_DebugPyDirBrowse_clicked()
+{
+  QString dir = RDDialog::getExistingDirectory(this, tr("Choose location of debugpy module"),
+                                               m_Ctx.Config().Python_DebugPyDir);
+
+  if(!dir.isEmpty() && QDir(dir).exists() && QDir(dir).exists(lit("__init__.py")))
+  {
+    m_Ctx.Config().Python_DebugPyDir = dir;
+    ui->Python_DebugPyDir->setText(dir);
+  }
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_DebugPyDir_textEdited(const QString &dir)
+{
+  if((QDir(dir).exists() && QDir(dir).exists(lit("__init__.py"))) || dir.isEmpty())
+    m_Ctx.Config().Python_DebugPyDir = dir;
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_DebugEnabled_toggled(bool checked)
+{
+  m_Ctx.Config().Python_DebugEnabled = ui->Python_DebugEnabled->isChecked();
+
+  m_Ctx.Config().Save();
 }
 
 // texture viewer

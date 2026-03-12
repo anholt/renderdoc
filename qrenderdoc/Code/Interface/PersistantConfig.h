@@ -365,6 +365,21 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING(public, QVariantList, rdcarray<rdcstr>, TextureViewer_ShaderDirs)                 \
                                                                                                    \
   DOCUMENT(                                                                                        \
+      "``True`` if debugging should be enabled at startup for python, including UI extensions "    \
+      "and scripts in the python shell.\n"                                                         \
+      "\n"                                                                                         \
+      "Defaults to ``True``."                                                                      \
+      ""                                                                                           \
+      ":type: bool");                                                                              \
+  CONFIG_SETTING_VAL(public, bool, bool, Python_DebugEnabled, true)                                \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
+      "The path to an copy of the ``debugpy`` module which should be loaded for debugging."        \
+      ""                                                                                           \
+      ":type: str");                                                                               \
+  CONFIG_SETTING_VAL(public, QString, rdcstr, Python_DebugPyDir, "")                               \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
       "List of extra directories to write python stubs into.\n"                                    \
       "\n:"                                                                                        \
       "type: List[str]");                                                                          \

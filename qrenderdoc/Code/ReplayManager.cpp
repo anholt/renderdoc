@@ -26,6 +26,7 @@
 #include <QApplication>
 #include <QMutexLocker>
 #include <QProgressDialog>
+#include "Code/pyrenderdoc/PythonContext.h"
 #include "CaptureContext.h"
 #include "QRDUtils.h"
 
@@ -55,7 +56,11 @@ void ReplayManager::OpenCapture(const QString &capturefile, const ReplayOptions 
   int proxyRenderer = -1;
 
   m_Thread = new LambdaThread([this, proxyRenderer, capturefile, opts, progress]() {
+    PythonContext::AddDebuggableThread();
+
     run(proxyRenderer, capturefile, opts, progress);
+
+    PythonContext::RemoveDebuggableThread();
   });
   m_Thread->setName(lit("ReplayManager"));
   m_Thread->start(QThread::HighestPriority);
