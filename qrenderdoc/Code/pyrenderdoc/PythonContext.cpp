@@ -131,6 +131,7 @@ struct OutputRedirector
   };
   int isStdError;
   bool block;
+  rdcstr extension;
   PyObject *compiled;
   PyObject *chain_trace;
 };
@@ -1136,11 +1137,6 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
   PyObject *ext = NULL;
 
-  current_global_handle = PyObject_SafeGetAttrString(sysobj, "_renderdoc_internal");
-
-  if(!current_global_handle)
-    qCritical() << "couldn't get _renderdoc_internal";
-
   QString typeStr;
   QString valueStr;
   int finalLine = -1;
@@ -1236,7 +1232,18 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
   {
     extensions[extension] = ext;
 
-    PyModule_AddObject(ext, "_renderdoc_internal", current_global_handle);
+    // for compatibility with earlier versions of python that took a char * instead of const char *
+    char noparams[1] = "";
+
+    PyObject *ext_context = PyObject_CallFunction((PyObject *)&OutputRedirectorType, noparams);
+
+    OutputRedirector *redir = (OutputRedirector *)ext_context;
+    redir->isStdError = 0;
+    redir->context = NULL;
+    redir->block = false;
+    redir->extension = extension;
+
+    PyModule_AddObject(ext, "_renderdoc_internal", ext_context);
   }
 
   if(ext)
@@ -1333,8 +1340,6 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
   PyList_SetSlice(syspath, len - 1, len, NULL);
 
   Py_DecRef(syspath);
-
-  current_global_handle = NULL;
 
   return ret;
 }
@@ -1900,7 +1905,8 @@ void PythonContext::outstream_del(PyObject *self)
     PythonContext *context = redirector->context;
 
     // delete the context on the UI thread.
-    GUIInvoke::call(context, [context]() { delete context; });
+    if(context)
+      GUIInvoke::call(context, [context]() { delete context; });
   }
 }
 
@@ -2322,6 +2328,10 @@ extern "C" void HandleException(PyObject *global_handle)
       filename = ToQStr(code->co_filename);
       Py_XDECREF(code);
       linenum = PyFrame_GetLineNumber(frame);
+    }
+    else if(redirector)
+    {
+      filename = redirector->extension;
     }
 
     RENDERDOC_LogMessage(LogType::Error, "EXTN", filename, linenum, exString);
