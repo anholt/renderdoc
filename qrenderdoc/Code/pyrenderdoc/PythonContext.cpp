@@ -514,8 +514,7 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
 PythonContext::~PythonContext()
 {
   PyGILState_STATE gil = PyGILState_Ensure();
-  if(m_Completer)
-    Py_DecRef(m_Completer);
+
   PyGILState_Release(gil);
 
   // do a final tick to gather any remaining output
@@ -566,8 +565,22 @@ void PythonContext::Finish()
 {
   PyGILState_STATE gil = PyGILState_Ensure();
 
+  if(m_Completer)
+  {
+    Py_DecRef(m_Completer);
+    m_Completer = NULL;
+  }
+
   // release our external handle to globals. It'll now only be ref'd from inside
   Py_XDECREF(context_namespace);
+
+  // force a GC to detect the cycle left
+  PyObject *gc = PyImport_ImportModule("gc");
+  if(gc)
+  {
+    Py_XDECREF(PyObject_CallMethod(gc, "collect", NULL));
+    Py_XDECREF(gc);
+  }
 
   PyGILState_Release(gil);
 }
