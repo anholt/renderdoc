@@ -559,6 +559,84 @@ void PythonContext::GlobalInit(PersistantConfig &config)
     output->block = false;
   }
 
+// if we need to append to sys.path to locate PySide2, do that now
+#if defined(PYSIDE2_SYS_PATH)
+  {
+    PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
+
+    if(!syspath)
+      qCritical() << "couldn't get sys.path";
+
+#ifndef STRINGIZE
+#define STRINGIZE2(a) #a
+#define STRINGIZE(a) STRINGIZE2(a)
+#endif
+
+    PyObject *str = PyUnicode_FromString(STRINGIZE(PYSIDE2_SYS_PATH));
+
+    PyList_Append(syspath, str);
+
+    Py_DecRef(str);
+    Py_DecRef(syspath);
+  }
+#endif
+
+#if RENDERDOC_STABLE_BUILD == 0
+  // if we're running in the git checkout and we can find the test scripts, add that location to the
+  // path
+  {
+    QDir bin = QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir();
+
+    QString testpath = QDir::cleanPath(bin.absoluteFilePath(lit("../../util/test")));
+
+    if(QDir(testpath).exists(lit("run_tests.py")))
+    {
+      PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
+
+      if(!syspath)
+        qCritical() << "couldn't get sys.path";
+
+      PyObject *str = PyUnicode_FromString(testpath.toUtf8().data());
+
+      PyList_Append(syspath, str);
+
+      Py_DecRef(str);
+      Py_DecRef(syspath);
+    }
+  }
+#endif
+
+// set up PySide
+#if PYSIDE2_ENABLED
+  {
+// hack for win32 builds, where our pyside2 accidentally depends on Qt5Qml.dll for no good
+// reason and we ship a stub to allow the dll to load instead of rebuilding the whole of pyside2
+// :S
+#if defined(_MSC_VER) && !defined(_M_X64)
+    QString Qt5QmlStub = QApplication::applicationDirPath() + lit("/PySide2/Qt5Qml.dll");
+    LoadLibraryA(Qt5QmlStub.toUtf8().data());
+#endif
+
+    Shiboken::AutoDecRef core(Shiboken::Module::import("PySide2.QtCore"));
+    if(!core.isNull())
+      SbkPySide2_QtCoreTypes = Shiboken::Module::getTypes(core);
+    else
+      qCritical() << "Failed to load PySide2.QtCore";
+
+    Shiboken::AutoDecRef gui(Shiboken::Module::import("PySide2.QtGui"));
+    if(!gui.isNull())
+      SbkPySide2_QtGuiTypes = Shiboken::Module::getTypes(gui);
+    else
+      qCritical() << "Failed to load PySide2.QtGui";
+
+    Shiboken::AutoDecRef widgets(Shiboken::Module::import("PySide2.QtWidgets"));
+    if(!widgets.isNull())
+      SbkPySide2_QtWidgetsTypes = Shiboken::Module::getTypes(widgets);
+    else
+      qCritical() << "Failed to load PySide2.QtWidgets";
+  }
+#endif
+
   // load debugpy from installed vscode if we find it. This requires a minimum of python 3.8
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 8
   if(config.Python_DebugEnabled)
@@ -665,102 +743,113 @@ void PythonContext::GlobalInit(PersistantConfig &config)
       }
       else
       {
-        qInfo() << "Importing debugpy from" << debugpy_path;
+        QObject *invokeObj = new QObject();
+        LambdaThread *thread = new LambdaThread([syspath, debugpy_path, invokeObj]() {
+          qInfo() << "Importing debugpy from" << debugpy_path;
 
-        PyObject *str = PyUnicode_FromString(debugpy_path.toUtf8().data());
+          PyGILState_STATE gil = PyGILState_Ensure();
 
-        PyList_Append(syspath, str);
-        Py_DecRef(str);
+          PyObject *str = PyUnicode_FromString(debugpy_path.toUtf8().data());
 
-        m_DebugPy = PyImport_ImportModule("debugpy");
+          PyList_Append(syspath, str);
+          Py_DecRef(str);
 
-        if(!m_DebugPy)
-        {
-          qCritical() << "Failed to import debugpy";
-          HandleException(NULL);
-        }
-        else
-        {
-          PyObject *configure = PyObject_SafeGetAttrString(m_DebugPy, "configure");
+          m_DebugPy = PyImport_ImportModule("debugpy");
 
-          // don't let debugpy create a subprocess, for obvious reasons
-          if(configure)
+          if(!m_DebugPy)
           {
-            PyObject *props = PyDict_New();
-            PyDict_SetItemString(props, "subProcess", Py_False);
-            PyObject *ret = PyObject_CallFunction(configure, "O", props);
-
-            if(!ret)
-            {
-              qCritical() << "Failed calling debugpy.configure";
-              HandleException(NULL);
-              Py_XDECREF(m_DebugPy);
-              m_DebugPy = NULL;
-            }
-
-            Py_XDECREF(ret);
-            Py_XDECREF(props);
+            qCritical() << "Failed to import debugpy";
+            HandleException(NULL);
           }
           else
           {
-            qCritical() << "Couldn't find debugpy.configure";
-          }
+            PyObject *configure = PyObject_SafeGetAttrString(m_DebugPy, "configure");
 
-          Py_XDECREF(configure);
-
-          if(m_DebugPy)
-          {
-            PyObject *listen = PyObject_SafeGetAttrString(m_DebugPy, "listen");
-
-            if(listen)
+            // don't let debugpy create a subprocess, for obvious reasons
+            if(configure)
             {
-              // listen on default port
-              PyObject *args = PyTuple_Pack(1, PyLong_FromLong(5678));
-              PyObject *kwargs = PyDict_New();
-              PyDict_SetItemString(kwargs, "in_process_debug_adapter", Py_True);
-
-              PyObject *ret = PyObject_Call(listen, args, kwargs);
+              PyObject *props = PyDict_New();
+              PyDict_SetItemString(props, "subProcess", Py_False);
+              PyObject *ret = PyObject_CallFunction(configure, "O", props);
 
               if(!ret)
               {
-                qCritical() << "Failed calling debugpy.listen";
+                qCritical() << "Failed calling debugpy.configure";
                 HandleException(NULL);
                 Py_XDECREF(m_DebugPy);
                 m_DebugPy = NULL;
               }
 
               Py_XDECREF(ret);
-
-              Py_XDECREF(args);
-              Py_XDECREF(kwargs);
+              Py_XDECREF(props);
             }
             else
             {
-              qCritical() << "Couldn't find debugpy.listen";
+              qCritical() << "Couldn't find debugpy.configure";
             }
 
-            Py_XDECREF(listen);
+            Py_XDECREF(configure);
+
+            if(m_DebugPy)
+            {
+              PyObject *listen = PyObject_SafeGetAttrString(m_DebugPy, "listen");
+
+              if(listen)
+              {
+                // listen on default port
+                PyObject *args = PyTuple_Pack(1, PyLong_FromLong(5678));
+                PyObject *kwargs = PyDict_New();
+                PyDict_SetItemString(kwargs, "in_process_debug_adapter", Py_True);
+
+                PyObject *ret = PyObject_Call(listen, args, kwargs);
+
+                if(!ret)
+                {
+                  qCritical() << "Failed calling debugpy.listen";
+                  HandleException(NULL);
+                  Py_XDECREF(m_DebugPy);
+                  m_DebugPy = NULL;
+                }
+
+                Py_XDECREF(ret);
+
+                Py_XDECREF(args);
+                Py_XDECREF(kwargs);
+              }
+              else
+              {
+                qCritical() << "Couldn't find debugpy.listen";
+              }
+
+              Py_XDECREF(listen);
+            }
           }
-        }
 
-        // remove the search path from sys.path now
-        Py_XDECREF(PyObject_CallMethod(syspath, "pop", NULL));
-        Py_DecRef(syspath);
+          // remove the search path from sys.path now
+          Py_XDECREF(PyObject_CallMethod(syspath, "pop", NULL));
+          Py_DecRef(syspath);
 
-        AddDebuggableThread();
+          RemoveDebuggableThread();
 
-        if(m_DebugPy)
-        {
-          m_CallWrapper =
-              Py_CompileString("debugpy.trace_this_thread(True)", "__callwrapper.py", Py_eval_input);
-          m_CallWrapperGlobals = PyDict_Copy(main_dict);
-          PyDict_SetItemString(m_CallWrapperGlobals, "debugpy", m_DebugPy);
+          PyGILState_Release(gil);
 
-          // don't pollute the globals
-          PyObject *tmpGlobals = PyDict_Copy(main_dict);
+          if(m_DebugPy)
+          {
+            GUIInvoke::defer(invokeObj, [invokeObj]() {
+              PyGILState_STATE gil = PyGILState_Ensure();
 
-          // monkey patch to get around a bug in debugpy/pydevd: https://github.com/microsoft/debugpy/issues/2011
-          PyObject *ret = PyRun_String(R"(
+              AddDebuggableThread();
+
+              m_CallWrapper = Py_CompileString("debugpy.trace_this_thread(True)",
+                                               "__callwrapper.py", Py_eval_input);
+              m_CallWrapperGlobals = PyDict_Copy(main_dict);
+              PyDict_SetItemString(m_CallWrapperGlobals, "debugpy", m_DebugPy);
+
+              // don't pollute the globals
+              PyObject *tmpGlobals = PyDict_Copy(main_dict);
+
+              // monkey patch to get around a bug in debugpy/pydevd: https://github.com/microsoft/debugpy/issues/2011
+              PyObject *ret = PyRun_String(R"(
 try:
     monkey_class = sys.modules['_pydevd_bundle'].pydevd_process_net_command_json.PyDevJsonCommandProcessor
     orig = monkey_class.on_continue_request
@@ -783,91 +872,23 @@ except:
     print("Failed to monkey-patch debugpy")
     pass
 )",
-                                       Py_file_input, tmpGlobals, NULL);
+                                           Py_file_input, tmpGlobals, NULL);
 
-          Py_XDECREF(ret);
-          Py_XDECREF(tmpGlobals);
-        }
+              Py_XDECREF(ret);
+              Py_XDECREF(tmpGlobals);
+
+              PyGILState_Release(gil);
+
+              invokeObj->deleteLater();
+            });
+          }
+        });
+
+        thread->setName(lit("Python debug initialisation"));
+        thread->selfDelete(true);
+        thread->start();
       }
     }
-  }
-#endif
-
-// if we need to append to sys.path to locate PySide2, do that now
-#if defined(PYSIDE2_SYS_PATH)
-  {
-    PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
-
-    if(!syspath)
-      qCritical() << "couldn't get sys.path";
-
-#ifndef STRINGIZE
-#define STRINGIZE2(a) #a
-#define STRINGIZE(a) STRINGIZE2(a)
-#endif
-
-    PyObject *str = PyUnicode_FromString(STRINGIZE(PYSIDE2_SYS_PATH));
-
-    PyList_Append(syspath, str);
-
-    Py_DecRef(str);
-    Py_DecRef(syspath);
-  }
-#endif
-
-#if RENDERDOC_STABLE_BUILD == 0
-  // if we're running in the git checkout and we can find the test scripts, add that location to the
-  // path
-  {
-    QDir bin = QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir();
-
-    QString testpath = QDir::cleanPath(bin.absoluteFilePath(lit("../../util/test")));
-
-    if(QDir(testpath).exists(lit("run_tests.py")))
-    {
-      PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
-
-      if(!syspath)
-        qCritical() << "couldn't get sys.path";
-
-      PyObject *str = PyUnicode_FromString(testpath.toUtf8().data());
-
-      PyList_Append(syspath, str);
-
-      Py_DecRef(str);
-      Py_DecRef(syspath);
-    }
-  }
-#endif
-
-// set up PySide
-#if PYSIDE2_ENABLED
-  {
-// hack for win32 builds, where our pyside2 accidentally depends on Qt5Qml.dll for no good
-// reason and we ship a stub to allow the dll to load instead of rebuilding the whole of pyside2
-// :S
-#if defined(_MSC_VER) && !defined(_M_X64)
-    QString Qt5QmlStub = QApplication::applicationDirPath() + lit("/PySide2/Qt5Qml.dll");
-    LoadLibraryA(Qt5QmlStub.toUtf8().data());
-#endif
-
-    Shiboken::AutoDecRef core(Shiboken::Module::import("PySide2.QtCore"));
-    if(!core.isNull())
-      SbkPySide2_QtCoreTypes = Shiboken::Module::getTypes(core);
-    else
-      qCritical() << "Failed to load PySide2.QtCore";
-
-    Shiboken::AutoDecRef gui(Shiboken::Module::import("PySide2.QtGui"));
-    if(!gui.isNull())
-      SbkPySide2_QtGuiTypes = Shiboken::Module::getTypes(gui);
-    else
-      qCritical() << "Failed to load PySide2.QtGui";
-
-    Shiboken::AutoDecRef widgets(Shiboken::Module::import("PySide2.QtWidgets"));
-    if(!widgets.isNull())
-      SbkPySide2_QtWidgetsTypes = Shiboken::Module::getTypes(widgets);
-    else
-      qCritical() << "Failed to load PySide2.QtWidgets";
   }
 #endif
 
