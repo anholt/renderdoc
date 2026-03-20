@@ -47,8 +47,9 @@ private:
   // on and needs to finish executing after the external code is done with the context
   ~PythonContext();
 
+  explicit PythonContext(bool extensionContext, QObject *parent);
 public:
-  explicit PythonContext(QObject *parent = NULL);
+  explicit PythonContext(QObject *parent = NULL) : PythonContext(false, parent) {}
   void Finish();
 
   PyThreadState *GetExecutingThreadState() { return m_State; }
@@ -94,7 +95,7 @@ public:
     if(obj)
       setPyGlobal(varName, obj);
     else
-      emit exception(lit("RuntimeError"),
+      emit exception(QString(), lit("RuntimeError"),
                      tr("Failed to set variable '%1' of type '%2'")
                          .arg(QString::fromUtf8(varName))
                          .arg(QString::fromUtf8(typeName)),
@@ -114,10 +115,14 @@ public:
   int currentLine() { return location.line; }
   static void AddDebuggableThread();
   static void RemoveDebuggableThread();
+
+  static PythonContext *GetExtensionContext() { return m_ExtensionContext; }
+
 signals:
   void traceLine(const QString &file, int line);
-  void exception(const QString &type, const QString &value, int finalLine, QList<QString> frames);
-  void textOutput(bool isStdError, const QString &output);
+  void exception(const QString &extension, const QString &type, const QString &value, int finalLine,
+                 QList<QString> frames);
+  void textOutput(const QString &extension, bool isStdError, const QString &output);
 
 public slots:
   void executeString(const QString &source);
@@ -138,6 +143,10 @@ private:
   // a registered python callback) so need to quickly set up things for debugging if enabled
   static PyObject *m_CallWrapper;
   static PyObject *m_CallWrapperGlobals;
+
+  // a statically created PythonContext for extension events/output.
+  // each extension has its own dictionary but this is used so that users can connect to it and receieve events
+  static PythonContext *m_ExtensionContext;
 
   // the list of extension objects, to be able to reload them
   static QMap<rdcstr, PyObject *> extensions;
@@ -170,10 +179,15 @@ private:
 
   QTimer *outputTicker = NULL;
   QMutex outputMutex;
-  QString outstr, errstr;
+
+  struct OutputPair
+  {
+    QString outstr, errstr;
+  };
+  QMap<QString, OutputPair> outputCaches;
 
   void outputTick();
-  void addText(bool isStdError, const QString &output);
+  void addText(QString extension, bool isStdError, const QString &output);
 
   // Python callbacks
   static void outstream_del(PyObject *self);

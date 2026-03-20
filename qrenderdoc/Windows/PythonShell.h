@@ -78,8 +78,9 @@ private slots:
   void interactive_keypress(QKeyEvent *e);
   void helpSearch_keypress(QKeyEvent *e);
   void traceLine(const QString &file, int line);
-  void exception(const QString &type, const QString &value, int finalLine, QList<QString> frames);
-  void textOutput(bool isStdError, const QString &output);
+  void exception(const QString &extension, const QString &type, const QString &value, int finalLine,
+                 QList<QString> frames);
+  void textOutput(const QString &extension, bool isStdError, const QString &output);
   void editor_contextMenu(const QPoint &pos);
 
 private:

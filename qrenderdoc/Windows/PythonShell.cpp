@@ -1052,6 +1052,11 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   enableButtons(true);
 
+  QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::textOutput, this,
+                   &PythonShell::textOutput);
+  QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::exception, this,
+                   &PythonShell::exception);
+
   // reset output to default
   on_clear_clicked();
   on_newScript_clicked();
@@ -1282,8 +1287,8 @@ void PythonShell::traceLine(const QString &file, int line)
   scriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER + 1);
 }
 
-void PythonShell::exception(const QString &type, const QString &value, int finalLine,
-                            QList<QString> frames)
+void PythonShell::exception(const QString &extension, const QString &type, const QString &value,
+                            int finalLine, QList<QString> frames)
 {
   QTextEdit *out = ui->scriptOutput;
   if(QObject::sender() == (QObject *)interactiveContext)
@@ -1307,7 +1312,7 @@ void PythonShell::exception(const QString &type, const QString &value, int final
   appendText(out, exString);
 }
 
-void PythonShell::textOutput(bool isStdError, const QString &output)
+void PythonShell::textOutput(const QString &extension, bool isStdError, const QString &output)
 {
   QTextEdit *out = ui->scriptOutput;
   if(QObject::sender() == (QObject *)interactiveContext)
@@ -1431,9 +1436,10 @@ void PythonShell::refreshCurrentHelp()
 
   ui->helpText->clear();
 
-  QObject::connect(
-      context, &PythonContext::textOutput,
-      [this](bool isStdError, const QString &output) { appendText(ui->helpText, output); });
+  QObject::connect(context, &PythonContext::textOutput,
+                   [this](const QString &, bool isStdError, const QString &output) {
+                     appendText(ui->helpText, output);
+                   });
 
   context->executeString(lit(R"(
 try:

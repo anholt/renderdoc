@@ -129,6 +129,7 @@ struct OutputRedirector
     uint64_t dummy;
     PythonContext *context;
   };
+  bool selfDeleting;
   int isStdError;
   bool block;
   rdcstr extension;
@@ -147,6 +148,7 @@ PyObject *PythonContext::main_dict = NULL;
 PyObject *PythonContext::m_DebugPy = NULL;
 PyObject *PythonContext::m_CallWrapper = NULL;
 PyObject *PythonContext::m_CallWrapperGlobals = NULL;
+PythonContext *PythonContext::m_ExtensionContext = NULL;
 QMap<rdcstr, PyObject *> PythonContext::extensions;
 
 static PyObject *current_global_handle = NULL;
@@ -550,6 +552,7 @@ void PythonContext::GlobalInit(PersistantConfig &config)
 
     OutputRedirector *output = (OutputRedirector *)redirector;
     output->isStdError = 0;
+    output->selfDeleting = false;
     output->context = NULL;
     output->block = false;
 
@@ -558,6 +561,7 @@ void PythonContext::GlobalInit(PersistantConfig &config)
 
     output = (OutputRedirector *)redirector;
     output->isStdError = 1;
+    output->selfDeleting = false;
     output->context = NULL;
     output->block = false;
   }
@@ -897,6 +901,9 @@ except:
 
   // release GIL so that python work can now happen on any thread
   PyEval_SaveThread();
+
+  // this will leak effectively
+  m_ExtensionContext = new PythonContext(true, NULL);
 }
 
 bool PythonContext::initialised()
@@ -904,7 +911,7 @@ bool PythonContext::initialised()
   return main_dict != NULL;
 }
 
-PythonContext::PythonContext(QObject *parent) : QObject(parent)
+PythonContext::PythonContext(bool extensionContext, QObject *parent) : QObject(parent)
 {
   if(!initialised())
     return;
@@ -914,8 +921,6 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
 
   // clone our own local context
   context_namespace = PyDict_Copy(main_dict);
-
-  PyObject *rlcompleter = PyImport_ImportModule("rlcompleter");
 
   // for compatibility with earlier versions of python that took a char * instead of const char *
   char noparams[1] = "";
@@ -929,9 +934,12 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
 
     OutputRedirector *output = (OutputRedirector *)redirector;
     output->context = this;
+    output->selfDeleting = !extensionContext;
     output->block = false;
     Py_DECREF(redirector);
   }
+
+  PyObject *rlcompleter = PyImport_ImportModule("rlcompleter");
 
   if(rlcompleter)
   {
@@ -1237,6 +1245,7 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
     OutputRedirector *redir = (OutputRedirector *)ext_context;
     redir->isStdError = 0;
+    redir->selfDeleting = false;
     redir->context = NULL;
     redir->block = false;
     redir->extension = extension;
@@ -1415,7 +1424,8 @@ void PythonContext::executeString(const QString &filename, const QString &source
   if(!initialised())
   {
     FlushOutput();
-    emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
+    emit exception(QString(), lit("SystemError"), tr("Python integration failed to initialise."),
+                   -1, {});
     return;
   }
 
@@ -1534,7 +1544,7 @@ void PythonContext::executeString(const QString &filename, const QString &source
   if(caughtException)
   {
     FlushOutput();
-    emit exception(typeStr, valueStr, finalLine, frames);
+    emit exception(QString(), typeStr, valueStr, finalLine, frames);
   }
 }
 
@@ -1550,8 +1560,8 @@ void PythonContext::executeFile(const QString &filename)
   if(!f.exists())
   {
     FlushOutput();
-    emit exception(lit("FileNotFoundError"), tr("No such file or directory: %1").arg(filename), -1,
-                   {});
+    emit exception(QString(), lit("FileNotFoundError"),
+                   tr("No such file or directory: %1").arg(filename), -1, {});
     return;
   }
 
@@ -1564,7 +1574,8 @@ void PythonContext::executeFile(const QString &filename)
   else
   {
     FlushOutput();
-    emit exception(lit("IOError"), QFormatStr("%1: %2").arg(f.errorString()).arg(filename), -1, {});
+    emit exception(QString(), lit("IOError"),
+                   QFormatStr("%1: %2").arg(f.errorString()).arg(filename), -1, {});
   }
 }
 
@@ -1573,7 +1584,8 @@ void PythonContext::setGlobal(const char *varName, const char *typeName, void *o
   if(!initialised())
   {
     FlushOutput();
-    emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
+    emit exception(QString(), lit("SystemError"), tr("Python integration failed to initialise."),
+                   -1, {});
     return;
   }
 
@@ -1592,7 +1604,7 @@ void PythonContext::setGlobal(const char *varName, const char *typeName, void *o
   if(ret != 0)
   {
     FlushOutput();
-    emit exception(lit("RuntimeError"),
+    emit exception(QString(), lit("RuntimeError"),
                    tr("Failed to set variable '%1' of type '%2'")
                        .arg(QString::fromUtf8(varName))
                        .arg(QString::fromUtf8(typeName)),
@@ -1854,28 +1866,33 @@ void PythonContext::outputTick()
 {
   QMutexLocker lock(&outputMutex);
 
-  if(!outstr.isEmpty())
+  for(QString &extension : outputCaches.keys())
   {
-    emit textOutput(false, outstr);
-  }
+    OutputPair &o = outputCaches[extension];
 
-  if(!errstr.isEmpty())
-  {
-    emit textOutput(true, errstr);
-  }
+    if(!o.outstr.isEmpty())
+    {
+      emit textOutput(extension, false, o.outstr);
+    }
 
-  outstr.clear();
-  errstr.clear();
+    if(!o.errstr.isEmpty())
+    {
+      emit textOutput(extension, true, o.errstr);
+    }
+
+    o.outstr.clear();
+    o.errstr.clear();
+  }
 }
 
-void PythonContext::addText(bool isStdError, const QString &output)
+void PythonContext::addText(QString context, bool isStdError, const QString &output)
 {
   QMutexLocker lock(&outputMutex);
 
   if(isStdError)
-    errstr += output;
+    outputCaches[context].errstr += output;
   else
-    outstr += output;
+    outputCaches[context].outstr += output;
 }
 
 void PythonContext::setPyGlobal(const char *varName, PyObject *obj)
@@ -1883,7 +1900,8 @@ void PythonContext::setPyGlobal(const char *varName, PyObject *obj)
   if(!initialised())
   {
     FlushOutput();
-    emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
+    emit exception(QString(), lit("SystemError"), tr("Python integration failed to initialise."),
+                   -1, {});
     return;
   }
 
@@ -1900,7 +1918,7 @@ void PythonContext::setPyGlobal(const char *varName, PyObject *obj)
     return;
 
   FlushOutput();
-  emit exception(lit("RuntimeError"),
+  emit exception(QString(), lit("RuntimeError"),
                  tr("Failed to set variable '%1'").arg(QString::fromUtf8(varName)), -1, {});
 }
 
@@ -1908,7 +1926,7 @@ void PythonContext::outstream_del(PyObject *self)
 {
   OutputRedirector *redirector = (OutputRedirector *)self;
 
-  if(redirector)
+  if(redirector && redirector->selfDeleting)
   {
     PythonContext *context = redirector->context;
 
@@ -1933,6 +1951,7 @@ PyObject *PythonContext::outstream_write(PyObject *self, PyObject *args)
   if(redirector)
   {
     PythonContext *context = redirector->context;
+    QString extension = redirector->extension;
     // most likely this is NULL because the sys.stdout override is static and shared amongst
     // contexts. So look up the global variable that stores the context
     if(context == NULL)
@@ -1950,7 +1969,10 @@ PyObject *PythonContext::outstream_write(PyObject *self, PyObject *args)
           OutputRedirector *global =
               (OutputRedirector *)PyDict_GetItemString(globals, "_renderdoc_internal");
           if(global)
+          {
             context = global->context;
+            extension = global->extension;
+          }
         }
 
         Py_XDECREF(globals);
@@ -1974,10 +1996,16 @@ PyObject *PythonContext::outstream_write(PyObject *self, PyObject *args)
 
     if(context)
     {
-      context->addText(redirector->isStdError ? true : false, QString::fromUtf8(text));
+      context->addText(extension, redirector->isStdError ? true : false, QString::fromUtf8(text));
     }
     else
     {
+      if(!extension.isEmpty())
+      {
+        m_ExtensionContext->addText(extension, redirector->isStdError ? true : false,
+                                    QString::fromUtf8(text));
+      }
+
       // if context is still NULL we're running in the extension context
       rdcstr message = text;
 
@@ -2303,10 +2331,17 @@ extern "C" void HandleException(PyObject *global_handle)
   if(redirector && redirector->context)
   {
     redirector->context->FlushOutput();
-    emit redirector->context->exception(typeStr, valueStr, finalLine, frames);
+    emit redirector->context->exception(redirector->extension, typeStr, valueStr, finalLine, frames);
   }
   else
   {
+    if(redirector && !redirector->extension.empty())
+    {
+      PythonContext::GetExtensionContext()->FlushOutput();
+      emit PythonContext::GetExtensionContext()->exception(redirector->extension, typeStr, valueStr,
+                                                           finalLine, frames);
+    }
+
     // if still NULL we're running in the extension context
     rdcstr exString;
 
