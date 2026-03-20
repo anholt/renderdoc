@@ -42,6 +42,8 @@ class PythonShell : public QFrame, public IPythonShell
 {
   Q_OBJECT
 
+  Q_PROPERTY(QVariant persistData READ persistData WRITE setPersistData DESIGNABLE false SCRIPTABLE false)
+
 public:
   explicit PythonShell(ICaptureContext &ctx, QWidget *parent = 0);
 
@@ -57,6 +59,10 @@ public:
   rdcstr GetScriptText() override;
   void RunScript() override { runScript(false); }
   void DebugScript() override { runScript(true); }
+
+  QVariant persistData();
+  void setPersistData(const QVariant &persistData);
+
 private slots:
   // automatic slots
   void on_execute_clicked();

@@ -934,6 +934,10 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   ui->scriptOutput->setFont(Formatter::FixedFont());
   ui->helpText->setFont(Formatter::FixedFont());
 
+  ui->outputGroup->setWindowTitle(tr("Output"));
+  ui->helpGroup->setWindowTitle(tr("Help"));
+  ui->replGroup->setWindowTitle(tr("Interactive REPL"));
+
   ui->lineInput->setAcceptTabCharacters(true);
 
   scriptEditor = new ScintillaEdit(this);
@@ -967,6 +971,15 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   scriptEditor->setScrollWidthTracking(true);
 
   scriptEditor->colourise(0, -1);
+
+  QObject::connect(ui->interactiveOutput, &RDTextEdit::keyPress, [this](QKeyEvent *e) {
+    // ignore keypresses that aren't typing, but for up/down redirect that to the line input to get history
+    if((e->text().isEmpty() || !e->text()[0].isPrint()) && e->key() != Qt::Key_Up &&
+       e->key() != Qt::Key_Down)
+      return;
+    ui->lineInput->setFocus(Qt::OtherFocusReason);
+    QApplication::postEvent(ui->lineInput, new QKeyEvent(*e));
+  });
 
   QObject::connect(scriptEditor, &ScintillaEdit::modified,
                    [this](int type, int, int, int, const QByteArray &, int, int, int) {
@@ -1003,11 +1016,37 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     }
   });
 
-  ui->scriptSplitter->insertWidget(0, scriptEditor);
-  int w = ui->scriptSplitter->rect().width();
-  ui->scriptSplitter->setSizes({w * 2 / 3, w / 3});
+  scriptEditor->setWindowTitle(tr("Script Editor"));
 
-  ui->tabWidget->setCurrentIndex(0);
+  ui->docking->addToolWindow(scriptEditor, ToolWindowManager::EmptySpace);
+  ui->docking->setToolWindowProperties(
+      scriptEditor, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
+
+  ui->docking->addToolWindow(
+      ui->replGroup, ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
+                                                      ui->docking->areaOf(scriptEditor), 0.3f));
+  ui->docking->setToolWindowProperties(
+      ui->replGroup, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
+
+  ui->docking->addToolWindow(ui->outputGroup,
+                             ToolWindowManager::AreaReference(ToolWindowManager::AddTo,
+                                                              ui->docking->areaOf(ui->replGroup)));
+  ui->docking->setToolWindowProperties(
+      ui->outputGroup, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
+
+  ui->docking->addToolWindow(ui->helpGroup,
+                             ToolWindowManager::AreaReference(ToolWindowManager::AddTo,
+                                                              ui->docking->areaOf(ui->replGroup)));
+  ui->docking->setToolWindowProperties(
+      ui->helpGroup, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
+
+  ToolWindowManager::raiseToolWindow(ui->replGroup);
+
+  QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setSpacing(3);
+  layout->setContentsMargins(3, 3, 3, 3);
+  layout->addWidget(ui->toolbar);
+  layout->addWidget(ui->docking);
 
   interactiveContext = NULL;
 
@@ -1027,6 +1066,20 @@ PythonShell::~PythonShell()
   delete m_ThreadCtx;
 
   delete ui;
+}
+
+QVariant PythonShell::persistData()
+{
+  QVariantMap state = ui->docking->saveState();
+
+  return state;
+}
+
+void PythonShell::setPersistData(const QVariant &persistData)
+{
+  QVariantMap state = persistData.toMap();
+
+  ui->docking->restoreState(state);
 }
 
 PythonContext *PythonShell::GetScriptContext()
@@ -1065,7 +1118,7 @@ void PythonShell::runScript(bool debugging)
 
   ANALYTIC_SET(UIFeatures.PythonInterop, true);
 
-  ui->outputHelpTabs->setCurrentIndex(0);
+  ToolWindowManager::raiseToolWindow(ui->outputGroup);
 
   ui->scriptOutput->clear();
 
