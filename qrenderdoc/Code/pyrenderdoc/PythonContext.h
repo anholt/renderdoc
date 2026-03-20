@@ -124,6 +124,8 @@ signals:
                  QList<QString> frames);
   void textOutput(const QString &extension, bool isStdError, const QString &output);
 
+  void extensionLoaded(const QString &extension);
+
 public slots:
   void executeString(const QString &source);
   void executeString(const QString &filename, const QString &source, bool debugging);

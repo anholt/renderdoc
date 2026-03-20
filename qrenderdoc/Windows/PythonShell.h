@@ -73,6 +73,7 @@ private slots:
   void on_runScript_clicked();
   void on_debugScript_clicked();
   void on_abortRun_clicked();
+  void on_outputContext_currentIndexChanged(int idx);
 
   // manual slots
   void interactive_keypress(QKeyEvent *e);
@@ -81,6 +82,7 @@ private slots:
   void exception(const QString &extension, const QString &type, const QString &value, int finalLine,
                  QList<QString> frames);
   void textOutput(const QString &extension, bool isStdError, const QString &output);
+  void extensionLoaded(const QString &extension);
   void editor_contextMenu(const QPoint &pos);
 
 private:
@@ -98,6 +100,18 @@ private:
   int historyidx = -1;
 
   QString m_storedLines;
+
+  struct ScriptOutputLine
+  {
+    QString extension;
+    QString text;
+  };
+
+  rdcarray<QString> loadedExtensions;
+  rdcarray<ScriptOutputLine> scriptOutputLines;
+  size_t lastDisplayedLine = 0;
+
+  void updateScriptOutput(bool fullRefresh);
 
   QString getDottedWordAtPoint(int scintillaPos);
 

@@ -34,6 +34,13 @@
 #include "scintilla/include/qt/ScintillaEdit.h"
 #include "ui_PythonShell.h"
 
+enum
+{
+  AllOutputFilter,
+  ScriptOutputFilter,
+  FirstExtensionOutputFilter,
+};
+
 // a forwarder that invokes onto the UI thread wherever necessary.
 // Note this does NOT make CaptureContext thread safe. We just invoke for any potentially UI
 // operations. All invokes are blocking, so there can't be any times when the UI thread waits
@@ -1052,10 +1059,27 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   enableButtons(true);
 
+  Q_ASSERT(ui->outputContext->count() == AllOutputFilter);
+  ui->outputContext->addItem(tr("All"));
+  Q_ASSERT(ui->outputContext->count() == ScriptOutputFilter);
+  ui->outputContext->addItem(tr("Script"));
+  Q_ASSERT(ui->outputContext->count() == FirstExtensionOutputFilter);
+
+  for(const ExtensionMetadata &e : m_Ctx.Extensions().GetInstalledExtensions())
+  {
+    if(m_Ctx.Extensions().IsExtensionLoaded(e.package))
+    {
+      ui->outputContext->addItem(tr("Extension %1").arg(e.package));
+      loadedExtensions.push_back(e.package);
+    }
+  }
+
   QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::textOutput, this,
                    &PythonShell::textOutput);
   QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::exception, this,
                    &PythonShell::exception);
+  QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::extensionLoaded, this,
+                   &PythonShell::extensionLoaded);
 
   // reset output to default
   on_clear_clicked();
@@ -1125,7 +1149,9 @@ void PythonShell::runScript(bool debugging)
 
   ToolWindowManager::raiseToolWindow(ui->outputGroup);
 
-  ui->scriptOutput->clear();
+  scriptOutputLines.removeIf([](const ScriptOutputLine &l) { return l.extension.isEmpty(); });
+
+  updateScriptOutput(true);
 
   QString script = QString::fromUtf8(scriptEditor->getText(scriptEditor->textLength() + 1));
 
@@ -1290,17 +1316,11 @@ void PythonShell::traceLine(const QString &file, int line)
 void PythonShell::exception(const QString &extension, const QString &type, const QString &value,
                             int finalLine, QList<QString> frames)
 {
-  QTextEdit *out = ui->scriptOutput;
-  if(QObject::sender() == (QObject *)interactiveContext)
-    out = ui->interactiveOutput;
-
-  QString exString;
-
   if(finalLine >= 0)
     traceLine(QString(), finalLine);
 
-  if(!out->toPlainText().endsWith(QLatin1Char('\n')))
-    exString = lit("\n");
+  QString exString;
+
   if(!frames.isEmpty())
   {
     exString += tr("Traceback (most recent call last):\n");
@@ -1309,16 +1329,72 @@ void PythonShell::exception(const QString &extension, const QString &type, const
   }
   exString += QFormatStr("%1: %2\n").arg(type).arg(value);
 
-  appendText(out, exString);
+  if(QObject::sender() == (QObject *)interactiveContext)
+  {
+    appendText(ui->interactiveOutput, exString);
+    return;
+  }
+
+  exString.insert(0, QLatin1Char('\n'));
+
+  scriptOutputLines.push_back({extension, exString});
+
+  updateScriptOutput(false);
 }
 
 void PythonShell::textOutput(const QString &extension, bool isStdError, const QString &output)
 {
-  QTextEdit *out = ui->scriptOutput;
   if(QObject::sender() == (QObject *)interactiveContext)
-    out = ui->interactiveOutput;
+  {
+    appendText(ui->interactiveOutput, output);
+    return;
+  }
 
-  appendText(out, output);
+  scriptOutputLines.push_back({extension, output});
+  updateScriptOutput(false);
+}
+
+void PythonShell::on_outputContext_currentIndexChanged(int idx)
+{
+  updateScriptOutput(true);
+}
+
+void PythonShell::updateScriptOutput(bool fullRefresh)
+{
+  if(fullRefresh)
+  {
+    ui->scriptOutput->clear();
+    lastDisplayedLine = 0;
+  }
+
+  for(size_t i = lastDisplayedLine; i < scriptOutputLines.size(); i++)
+  {
+    bool display = false;
+
+    if(ui->outputContext->currentIndex() == AllOutputFilter)
+      display = true;
+
+    // Script
+    else if(ui->outputContext->currentIndex() == ScriptOutputFilter)
+      display = scriptOutputLines[i].extension.isEmpty();
+
+    else if(loadedExtensions.indexOf(scriptOutputLines[i].extension) + FirstExtensionOutputFilter ==
+            ui->outputContext->currentIndex())
+      display = true;
+
+    if(display)
+    {
+      appendText(ui->scriptOutput, scriptOutputLines[i].text);
+    }
+  }
+
+  lastDisplayedLine = scriptOutputLines.size();
+}
+
+void PythonShell::extensionLoaded(const QString &extension)
+{
+  ui->outputContext->addItem(tr("Extension %1").arg(extension));
+  loadedExtensions.push_back(extension);
 }
 
 void PythonShell::editor_contextMenu(const QPoint &pos)

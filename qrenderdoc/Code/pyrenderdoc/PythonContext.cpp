@@ -1311,7 +1311,11 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
     ext = NULL;
   }
 
-  if(!ext)
+  if(ext)
+  {
+    emit m_ExtensionContext->extensionLoaded(extension);
+  }
+  else
   {
     if(typeStr.isEmpty())
       FetchException(typeStr, valueStr, finalLine, frames);
