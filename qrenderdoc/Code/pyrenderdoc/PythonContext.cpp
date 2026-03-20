@@ -519,7 +519,7 @@ void PythonContext::GlobalInit(PersistantConfig &config)
 
   if(rlcompleter)
   {
-    PyDict_SetItemString(main_dict, "rlcompleter", rlcompleter);
+    // leak a reference so it stays loaded
   }
   else
   {
@@ -915,7 +915,7 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
   // clone our own local context
   context_namespace = PyDict_Copy(main_dict);
 
-  PyObject *rlcompleter = PyDict_GetItemString(main_dict, "rlcompleter");
+  PyObject *rlcompleter = PyImport_ImportModule("rlcompleter");
 
   // for compatibility with earlier versions of python that took a char * instead of const char *
   char noparams[1] = "";
@@ -942,11 +942,7 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
       // create a completer for our context's namespace
       m_Completer = PyObject_CallFunction(Completer, "O", context_namespace);
 
-      if(m_Completer)
-      {
-        PyDict_SetItemString(context_namespace, "_renderdoc_completer", m_Completer);
-      }
-      else
+      if(!m_Completer)
       {
         QString typeStr;
         QString valueStr;
@@ -958,9 +954,11 @@ PythonContext::PythonContext(QObject *parent) : QObject(parent)
         qWarning() << "Couldn't create completion object. " << typeStr << ": " << valueStr;
         PyErr_Clear();
       }
+
+      Py_DecRef(Completer);
     }
 
-    Py_DecRef(Completer);
+    Py_DecRef(rlcompleter);
   }
   else
   {
