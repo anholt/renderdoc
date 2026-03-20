@@ -1414,6 +1414,7 @@ void PythonContext::executeString(const QString &filename, const QString &source
 {
   if(!initialised())
   {
+    FlushOutput();
     emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
     return;
   }
@@ -1531,7 +1532,10 @@ void PythonContext::executeString(const QString &filename, const QString &source
   PyGILState_Release(gil);
 
   if(caughtException)
+  {
+    FlushOutput();
     emit exception(typeStr, valueStr, finalLine, frames);
+  }
 }
 
 void PythonContext::executeString(const QString &source)
@@ -1545,6 +1549,7 @@ void PythonContext::executeFile(const QString &filename)
 
   if(!f.exists())
   {
+    FlushOutput();
     emit exception(lit("FileNotFoundError"), tr("No such file or directory: %1").arg(filename), -1,
                    {});
     return;
@@ -1558,6 +1563,7 @@ void PythonContext::executeFile(const QString &filename)
   }
   else
   {
+    FlushOutput();
     emit exception(lit("IOError"), QFormatStr("%1: %2").arg(f.errorString()).arg(filename), -1, {});
   }
 }
@@ -1566,6 +1572,7 @@ void PythonContext::setGlobal(const char *varName, const char *typeName, void *o
 {
   if(!initialised())
   {
+    FlushOutput();
     emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
     return;
   }
@@ -1584,6 +1591,7 @@ void PythonContext::setGlobal(const char *varName, const char *typeName, void *o
 
   if(ret != 0)
   {
+    FlushOutput();
     emit exception(lit("RuntimeError"),
                    tr("Failed to set variable '%1' of type '%2'")
                        .arg(QString::fromUtf8(varName))
@@ -1874,6 +1882,7 @@ void PythonContext::setPyGlobal(const char *varName, PyObject *obj)
 {
   if(!initialised())
   {
+    FlushOutput();
     emit exception(lit("SystemError"), tr("Python integration failed to initialise."), -1, {});
     return;
   }
@@ -1890,6 +1899,7 @@ void PythonContext::setPyGlobal(const char *varName, PyObject *obj)
   if(ret == 0)
     return;
 
+  FlushOutput();
   emit exception(lit("RuntimeError"),
                  tr("Failed to set variable '%1'").arg(QString::fromUtf8(varName)), -1, {});
 }
@@ -2292,6 +2302,7 @@ extern "C" void HandleException(PyObject *global_handle)
   OutputRedirector *redirector = (OutputRedirector *)global_handle;
   if(redirector && redirector->context)
   {
+    redirector->context->FlushOutput();
     emit redirector->context->exception(typeStr, valueStr, finalLine, frames);
   }
   else

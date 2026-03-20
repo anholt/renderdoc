@@ -106,6 +106,8 @@ public:
 
   QStringList completionOptions(QString base);
 
+  void FlushOutput() { outputTick(); }
+
   void abort() { m_Abort = true; }
   bool shouldAbort() { return m_Abort; }
   QString currentFile() { return location.file; }
