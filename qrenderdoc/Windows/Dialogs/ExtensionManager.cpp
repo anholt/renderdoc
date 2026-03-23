@@ -298,7 +298,11 @@ void ExtensionManager::update_currentItem(RDTreeWidgetItem *item)
       ui->reload->setEnabled(true);
       ui->reload->setText(loaded ? tr("Reload") : tr("Load"));
       ui->output->setEnabled(loaded);
-      ui->debug->setEnabled(loaded);
+      ui->debug->setEnabled(loaded && PythonContext::IsDebuggingEnabled());
+      ui->debug->setToolTip(QString());
+      if(loaded && !PythonContext::IsDebuggingEnabled())
+        ui->debug->setToolTip(
+            tr("Debugging not supported - check documentation for setup instructions"));
       ui->alwaysLoad->setEnabled(loaded);
 
       ui->alwaysLoad->setChecked(m_Ctx.Config().AlwaysLoad_Extensions.contains(e.package));

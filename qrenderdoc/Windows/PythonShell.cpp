@@ -27,6 +27,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QScrollBar>
+#include <QTimer>
 #include "Code/QRDUtils.h"
 #include "Code/ScintillaSyntax.h"
 #include "Code/pyrenderdoc/PythonContext.h"
@@ -1086,6 +1087,16 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   // reset output to default
   on_clear_clicked();
   on_newScript_clicked();
+
+  // we defer debugging loading onto a thread so check after a delay
+  QTimer::singleShot(1200, [this]() {
+    if(!PythonContext::IsDebuggingEnabled())
+    {
+      ui->debugScript->setEnabled(false);
+      ui->debugScript->setToolTip(
+          tr("Debugging not supported - check documentation for setup instructions"));
+    }
+  });
 }
 
 PythonShell::~PythonShell()
