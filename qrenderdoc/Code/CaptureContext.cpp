@@ -220,6 +220,13 @@ CaptureContext::CaptureContext(PersistantConfig &cfg) : m_Config(cfg)
       dir.mkpath(dir.absolutePath());
   }
 
+  m_ExtensionWatcher = new QFileSystemWatcher({}, GetMainWindow()->Widget());
+
+  QObject::connect(m_ExtensionWatcher, &QFileSystemWatcher::directoryChanged,
+                   [this](const QString &path) { ExtensionTouched(path); });
+  QObject::connect(m_ExtensionWatcher, &QFileSystemWatcher::fileChanged,
+                   [this](const QString &path) { ExtensionTouched(path); });
+
   rdcarray<ExtensionMetadata> exts = CaptureContext::GetInstalledExtensions();
 
   for(const ExtensionMetadata &e : exts)
@@ -234,6 +241,8 @@ CaptureContext::CaptureContext(PersistantConfig &cfg) : m_Config(cfg)
 
 CaptureContext::~CaptureContext()
 {
+  delete m_ExtensionWatcher;
+
   delete m_QtHelper;
   RENDERDOC_UnregisterMemoryRegion(this);
   delete m_Icon;
@@ -339,6 +348,8 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
 
           ext.package = package;
           ext.filePath = fileinfo.absolutePath();
+
+          ext.hasChanges = m_DirtyExtensions.contains(rdcstr(package));
 
           if(json.contains(lit("name")))
           {
@@ -483,6 +494,12 @@ rdcstr CaptureContext::LoadExtension(rdcstr name)
     if(ret.isEmpty())
     {
       m_ExtensionObjects[name].swap(m_PendingExtensionObjects);
+
+      m_DirtyExtensions.removeOne(name);
+
+      for(const ExtensionMetadata &e : GetInstalledExtensions())
+        if(e.package == name)
+          AddExtensionWatches(e.filePath);
     }
     else
     {
@@ -2802,6 +2819,47 @@ void CaptureContext::setupDockWindow(QWidget *shad, bool hide)
   shad->setWindowIcon(*m_Icon);
   if(hide)
     shad->hide();
+}
+
+void CaptureContext::AddExtensionWatches(rdcstr filePath)
+{
+  QDir dir(filePath);
+
+  // ignore directories with no python files
+  QStringList pyfiles = dir.entryList(QStringList() << lit("*.py"));
+  if(pyfiles.empty())
+    return;
+
+  // don't watch the directory itself. New files will not be usable and we will already catch
+  // renames.
+  // m_ExtensionWatcher->addPath(filePath);
+  for(QString pyfile : pyfiles)
+    m_ExtensionWatcher->addPath(dir.absoluteFilePath(pyfile));
+
+  for(QString subdir : dir.entryList(QStringList(), QDir::Dirs | QDir::NoDotAndDotDot))
+    AddExtensionWatches(dir.absoluteFilePath(subdir));
+}
+
+void CaptureContext::ExtensionTouched(const QString &extensionPath)
+{
+  // find the root extension dir containing this path
+  for(const ExtensionMetadata &m : GetInstalledExtensions())
+  {
+    if(extensionPath.contains(m.filePath))
+    {
+      // remove all watched paths underneath
+      QStringList paths = m_ExtensionWatcher->directories();
+      paths.append(m_ExtensionWatcher->files());
+      for(QString path : paths)
+      {
+        if(path.contains(m.filePath))
+          m_ExtensionWatcher->removePath(path);
+      }
+
+      // mark it as 'dirty' / needing reload
+      m_DirtyExtensions.push_back(m.package);
+    }
+  }
 }
 
 void CaptureContext::RaiseDockWindow(QWidget *dockWindow)

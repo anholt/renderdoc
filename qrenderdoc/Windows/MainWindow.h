@@ -252,6 +252,7 @@ private:
   RDLabel *statusIcon;
   RDLabel *statusText;
   RDToolButton *extensionStatus;
+  RDToolButton *extensionReload;
   QProgressBar *statusProgress;
   RDMenu *contextChooserMenu;
   QToolButton *contextChooser;

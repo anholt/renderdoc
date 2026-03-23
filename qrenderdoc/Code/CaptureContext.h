@@ -342,6 +342,9 @@ private:
   bool SaveEdits();
   void LoadEdits(const QString &data);
 
+  void AddExtensionWatches(rdcstr filePath);
+  void ExtensionTouched(const QString &path);
+
   void CacheResources();
   rdcstr GetResourceNameUnsuffixed(const ResourceDescription *desc) const;
 
@@ -428,6 +431,7 @@ private:
 
   QList<QObject *> m_PendingExtensionObjects;
   QMap<rdcstr, QList<QObject *>> m_ExtensionObjects;
+  rdcarray<rdcstr> m_DirtyExtensions;
 
   QList<QPointer<RegisteredMenuItem>> m_RegisteredMenuItems;
 
@@ -436,6 +440,7 @@ private:
   MiniQtHelper *m_QtHelper = NULL;
 
   QFileSystemWatcher *m_Watcher = NULL;
+  QFileSystemWatcher *m_ExtensionWatcher = NULL;
 
   // Windows
   MainWindow *m_MainWindow = NULL;

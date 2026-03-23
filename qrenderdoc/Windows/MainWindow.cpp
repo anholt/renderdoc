@@ -234,17 +234,32 @@ MainWindow::MainWindow(ICaptureContext &ctx) : QMainWindow(NULL), ui(new Ui::Mai
   extensionStatus->setIcon(Icons::plugin());
   extensionStatus->setVisible(false);
 
+  extensionReload = new RDToolButton(this);
+  extensionReload->setAutoRaise(true);
+  extensionReload->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  ui->statusBar->addWidget(extensionReload);
+
+  extensionReload->setIcon(Icons::update());
+  extensionReload->setText(tr("Reload changed extensions"));
+  extensionReload->setVisible(false);
+
   QObject::connect(extensionStatus, &RDToolButton::clicked, this,
                    &MainWindow::on_action_Manage_Extensions_triggered);
+  QObject::connect(extensionReload, &RDToolButton::clicked, [this]() {
+    rdcarray<ExtensionMetadata> exts = m_Ctx.Extensions().GetInstalledExtensions();
+    for(const ExtensionMetadata &m : exts)
+      if(m.hasChanges)
+        m_Ctx.Extensions().LoadExtension(m.package);
+  });
   QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::extensionLoaded, this,
                    &MainWindow::PythonStatusUpdate);
 
-  QTimer *debuggerTimer = new QTimer(this);
-  QObject::connect(debuggerTimer, &QTimer::timeout, this, &MainWindow::PythonStatusUpdate);
+  QTimer *pyStatusTimer = new QTimer(this);
+  QObject::connect(pyStatusTimer, &QTimer::timeout, this, &MainWindow::PythonStatusUpdate);
 
-  debuggerTimer->setSingleShot(false);
-  debuggerTimer->setInterval(500);
-  debuggerTimer->start();
+  pyStatusTimer->setSingleShot(false);
+  pyStatusTimer->setInterval(500);
+  pyStatusTimer->start();
 
   QObject::connect(&m_MessageTick, &QTimer::timeout, this, &MainWindow::messageCheck);
   m_MessageTick.setSingleShot(false);
@@ -1348,6 +1363,19 @@ void MainWindow::PythonStatusUpdate()
     extensionStatus->setVisible(true);
 
     QString text = tr("%n extension(s) active", NULL, num);
+
+    bool reloadVisible = false;
+    for(const ExtensionMetadata &m : m_Ctx.Extensions().GetInstalledExtensions())
+    {
+      if(m.hasChanges)
+      {
+        text += tr(" (changed on disk)");
+        reloadVisible = true;
+        break;
+      }
+    }
+    extensionReload->setVisible(reloadVisible);
+
     if(PythonContext::IsDebuggerConnected())
       text += tr(": Python debugger connected");
     extensionStatus->setText(text);

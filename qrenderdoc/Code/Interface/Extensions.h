@@ -357,6 +357,14 @@ struct ExtensionMetadata
 :type: str
 )");
   rdcstr description;
+
+  DOCUMENT(R"(A flag indicating that the extension has changed on disk since the last time it was loaded.
+
+This will always be false if the extension is unloaded.
+
+:type: bool
+)");
+  bool hasChanges = false;
 };
 
 DECLARE_REFLECTION_STRUCT(ExtensionMetadata);
