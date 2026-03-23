@@ -296,8 +296,9 @@ void ExtensionManager::update_currentItem(RDTreeWidgetItem *item)
 
       bool loaded = item->checkState(2) == Qt::Checked;
       ui->reload->setEnabled(true);
-      ui->debug->setEnabled(true);
       ui->reload->setText(loaded ? tr("Reload") : tr("Load"));
+      ui->output->setEnabled(loaded);
+      ui->debug->setEnabled(loaded);
       ui->alwaysLoad->setEnabled(loaded);
 
       ui->alwaysLoad->setChecked(m_Ctx.Config().AlwaysLoad_Extensions.contains(e.package));
