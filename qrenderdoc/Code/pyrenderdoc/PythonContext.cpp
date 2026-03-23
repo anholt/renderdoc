@@ -2275,6 +2275,64 @@ void PythonContext::LaunchDebugger(QWidget *window, PersistantConfig &config, QS
   });
 }
 
+PyParseError PythonContext::CheckPyParse(const QByteArray &script, const rdcstr &scriptNameForErrors)
+{
+  PyParseError parseError;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *ast = PyImport_ImportModule("ast");
+
+  PyObject *scriptText = PyUnicode_FromStringAndSize(script.data(), script.size());
+  PyObject *scriptName = PyUnicode_FromString(scriptNameForErrors.c_str());
+
+  PyObject *parseResult = PyObject_CallMethod(ast, "parse", "OO", scriptText, scriptName);
+
+  if(!parseResult)
+  {
+    PyObject *exObj = NULL, *valueObj = NULL, *tracebackObj = NULL;
+
+    PyErr_Fetch(&exObj, &valueObj, &tracebackObj);
+    PyErr_NormalizeException(&exObj, &valueObj, &tracebackObj);
+
+    {
+      PyObject *a;
+
+      PyObject_GetOptionalAttrString(valueObj, "lineno", &a);
+      parseError.lineno = PyLong_AsInt(a);
+      Py_XDECREF(a);
+
+      PyObject_GetOptionalAttrString(valueObj, "offset", &a);
+      parseError.offset = PyLong_AsInt(a);
+      Py_XDECREF(a);
+
+      PyObject *repr = PyObject_Str(valueObj);
+      PyObject *utf8 = PyUnicode_AsUTF8String(repr);
+      parseError.errStr = PyBytes_AsString(utf8);
+      for(int i = 1; i < parseError.offset - 1; i++)
+        parseError.errStr.insert(0, ' ');
+      parseError.errStr.insert(parseError.offset - 2, "^\n");
+
+      Py_XDECREF(repr);
+      Py_XDECREF(utf8);
+    }
+
+    Py_XDECREF(exObj);
+    Py_XDECREF(valueObj);
+    Py_XDECREF(tracebackObj);
+  }
+
+  Py_XDECREF(scriptText);
+  Py_XDECREF(scriptName);
+  Py_XDECREF(parseResult);
+
+  Py_XDECREF(ast);
+
+  PyGILState_Release(gil);
+
+  return parseError;
+}
+
 extern "C" PyThreadState *GetExecutingThreadState(PyObject *global_handle)
 {
   OutputRedirector *redirector = (OutputRedirector *)global_handle;

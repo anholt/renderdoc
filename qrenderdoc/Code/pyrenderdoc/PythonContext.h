@@ -37,6 +37,12 @@ typedef struct _object PyObject;
 typedef struct _frame PyFrameObject;
 typedef struct _ts PyThreadState;
 
+struct PyParseError
+{
+  int lineno = -1, offset = -1;
+  rdcstr errStr;
+};
+
 class PythonContext : public QObject
 {
 private:
@@ -76,6 +82,8 @@ public:
   static void PrepareDebuggerWait();
   static bool WaitForDebugger();
   static void LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location);
+
+  PyParseError CheckPyParse(const QByteArray &script, const rdcstr &scriptNameForErrors);
 
   bool CheckInterfaces(rdcstr &log);
 

@@ -952,7 +952,42 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   scriptEditor = new ScintillaEdit(this);
 
+  // don't repeatedly re-parse for errors. Have a reasonable timeout
+  QTimer *checkTimer = new QTimer(this);
+  checkTimer->setSingleShot(true);
+  checkTimer->setInterval(1200);
+
+  QObject::connect(checkTimer, &QTimer::timeout, [this]() {
+    PythonContext *context = new PythonContext();
+
+    setGlobals(context);
+
+    QByteArray script = scriptEditor->getText(scriptEditor->textLength() + 1);
+    PyParseError parseError = context->CheckPyParse(script, "script.py");
+
+    if(parseError.lineno >= 0)
+    {
+      sptr_t end = scriptEditor->lineLength(parseError.lineno - 1);
+      sptr_t linePos = scriptEditor->positionFromLine(parseError.lineno - 1);
+      while(QChar(QLatin1Char(script[int(linePos + end - 1)])).isSpace())
+        end--;
+      scriptEditor->setIndicatorCurrent(0);
+      scriptEditor->indicatorFillRange(linePos + parseError.offset - 1, end + 1 - parseError.offset);
+
+      scriptEditor->annotationSetText(parseError.lineno - 1, parseError.errStr.c_str());
+      scriptEditor->annotationSetVisible(ANNOTATION_BOXED);
+      scriptEditor->annotationSetStyle(parseError.lineno - 1, 100);
+    }
+
+    context->Finish();
+  });
+
+  scriptEditor->indicSetFore(0, 0x0000ff);
+
   scriptEditor->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
+  scriptEditor->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
+  scriptEditor->styleSetBack(
+      100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
 
   scriptEditor->setMarginLeft(4.0);
   scriptEditor->setMarginWidthN(0, 32.0);
@@ -992,12 +1027,21 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   });
 
   QObject::connect(scriptEditor, &ScintillaEdit::modified,
-                   [this](int type, int, int, int, const QByteArray &, int, int, int) {
+                   [this, checkTimer](int type, int, int, int, const QByteArray &, int, int, int) {
                      if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
                                 SC_MOD_BEFOREDELETE))
                      {
                        scriptEditor->markerDeleteAll(CURRENT_MARKER);
                        scriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
+
+                       // always remove errors immediately
+                       scriptEditor->setIndicatorCurrent(0);
+                       scriptEditor->indicatorClearRange(0, scriptEditor->textLength() + 1);
+                       scriptEditor->annotationClearAll();
+
+                       // we'll reparse when this timer finishes (it will be re-started on every
+                       // change, so only N ms after the last change
+                       checkTimer->start();
                      }
                    });
 
