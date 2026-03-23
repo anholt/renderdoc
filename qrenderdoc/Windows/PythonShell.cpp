@@ -1143,13 +1143,55 @@ rdcstr PythonShell::GetScriptText()
   return scriptEditor->getText(scriptEditor->textLength() + 1).data();
 }
 
+void PythonShell::SetExtensionOutputFilter(const rdcstr &extensionName)
+{
+  if(extensionName.empty())
+    return;
+
+  int idx = loadedExtensions.indexOf(extensionName);
+  if(idx < 0)
+    return;
+
+  ui->outputContext->setCurrentIndex(FirstExtensionOutputFilter + idx);
+}
+
+void PythonShell::SetScriptOutputFilter()
+{
+  ui->outputContext->setCurrentIndex(ScriptOutputFilter);
+}
+
+void PythonShell::RemoveOutputFilter()
+{
+  ui->outputContext->setCurrentIndex(AllOutputFilter);
+}
+
+void PythonShell::ShowScriptEditor()
+{
+  ToolWindowManager::raiseToolWindow(scriptEditor);
+}
+
+void PythonShell::ShowOutput()
+{
+  ToolWindowManager::raiseToolWindow(ui->outputGroup);
+}
+
+void PythonShell::ShowREPL()
+{
+  ToolWindowManager::raiseToolWindow(ui->replGroup);
+}
+
+void PythonShell::ShowHelp()
+{
+  ToolWindowManager::raiseToolWindow(ui->helpGroup);
+}
+
 void PythonShell::runScript(bool debugging)
 {
   PythonContext *context = newContext();
 
   ANALYTIC_SET(UIFeatures.PythonInterop, true);
 
-  ToolWindowManager::raiseToolWindow(ui->outputGroup);
+  ShowOutput();
 
   scriptOutputLines.removeIf([](const ScriptOutputLine &l) { return l.extension.isEmpty(); });
 

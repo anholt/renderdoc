@@ -1255,6 +1255,51 @@ will have the option to cancel, which aborts the run of the script.
 )");
   virtual void DebugScript() = 0;
 
+  DOCUMENT(R"(Sets the filter on the output panel to only show output from the given extension.
+
+If the extension does not exist or is not loaded, no change will be made to the output filter.
+
+:param str extensionName: The name of the extension to show output from.
+)");
+  virtual void SetExtensionOutputFilter(const rdcstr &extensionName) = 0;
+
+  DOCUMENT(R"(Sets the filter on the output panel to only show output from scripts run.
+
+This will hide any output from extensions that are loaded, and only show output that comes from the script
+run from inside the python window.
+)");
+  virtual void SetScriptOutputFilter() = 0;
+
+  DOCUMENT(R"(Sets the filter on the output panel to show output from all python sources.
+
+This will show output from the running script, as well as any extensions that are loaded.
+)");
+  virtual void RemoveOutputFilter() = 0;
+
+  DOCUMENT(R"(Raises the script editor.
+
+This will ensure the panel containing the script editor is visible.
+)");
+  virtual void ShowScriptEditor() = 0;
+
+  DOCUMENT(R"(Raises the output panel.
+
+This will ensure the panel showing the output from running python code is visible.
+)");
+  virtual void ShowOutput() = 0;
+
+  DOCUMENT(R"(Raises the REPL panel.
+
+This will ensure the panel with the interactive REPL is visible.
+)");
+  virtual void ShowREPL() = 0;
+
+  DOCUMENT(R"(Raises the help panel.
+
+This will ensure the panel showing the help browser is visible.
+)");
+  virtual void ShowHelp() = 0;
+
 protected:
   IPythonShell() = default;
   ~IPythonShell() = default;

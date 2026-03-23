@@ -60,6 +60,14 @@ public:
   void RunScript() override { runScript(false); }
   void DebugScript() override { runScript(true); }
 
+  void SetExtensionOutputFilter(const rdcstr &extensionName) override;
+  void SetScriptOutputFilter() override;
+  void RemoveOutputFilter() override;
+  void ShowScriptEditor() override;
+  void ShowOutput() override;
+  void ShowREPL() override;
+  void ShowHelp() override;
+
   QVariant persistData();
   void setPersistData(const QVariant &persistData);
 

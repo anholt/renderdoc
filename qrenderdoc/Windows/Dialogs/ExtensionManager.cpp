@@ -162,6 +162,29 @@ void ExtensionManager::on_debug_clicked()
   }
 }
 
+void ExtensionManager::on_output_clicked()
+{
+  m_Ctx.ShowPythonShell();
+  m_Ctx.GetPythonShell()->ShowOutput();
+
+  RDTreeWidgetItem *item = ui->extensions->currentItem();
+  if(item)
+  {
+    int idx = ui->extensions->indexOfTopLevelItem(item);
+
+    if(idx >= 0 && idx < m_Extensions.count())
+    {
+      const ExtensionMetadata &e = m_Extensions[idx];
+      if(!e.package.isEmpty())
+      {
+        m_Ctx.GetPythonShell()->SetExtensionOutputFilter(e.package);
+      }
+    }
+  }
+
+  accept();
+}
+
 void ExtensionManager::on_openLocation_clicked()
 {
   if(m_Extensions.empty())
