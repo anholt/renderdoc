@@ -76,8 +76,10 @@ public:
   // IExtensionManager
 
   rdcarray<ExtensionMetadata> GetInstalledExtensions() override;
+  rdcarray<rdcstr> GetLoadedExtensions() override;
   bool IsExtensionLoaded(rdcstr name) override;
   rdcstr LoadExtension(rdcstr name) override;
+  bool IsPythonDebuggerConnected() override;
 
   void RegisterWindowMenu(WindowMenu base, const rdcarray<rdcstr> &submenus,
                           ExtensionCallback callback) override;

@@ -375,8 +375,10 @@ struct ExtensionInvoker : ObjectForwarder<IExtensionManager>
   ///////////////////////////////////////////////////////////////////////
   //
   rdcarray<ExtensionMetadata> GetInstalledExtensions() { return m_Obj.GetInstalledExtensions(); }
+  rdcarray<rdcstr> GetLoadedExtensions() { return m_Obj.GetLoadedExtensions(); }
   bool IsExtensionLoaded(rdcstr name) { return m_Obj.IsExtensionLoaded(name); }
   rdcstr LoadExtension(rdcstr name) { return m_Obj.LoadExtension(name); }
+  bool IsPythonDebuggerConnected() { return m_Obj.IsPythonDebuggerConnected(); }
   IMiniQtHelper &GetMiniQtHelper() { return *m_MiniQt; }
   //
   ///////////////////////////////////////////////////////////////////////

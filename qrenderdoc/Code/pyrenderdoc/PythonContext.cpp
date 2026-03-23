@@ -2113,6 +2113,22 @@ PyObject *PythonContext::outstream_trace(PyObject *self, PyObject *args, PyObjec
   return self;
 }
 
+bool PythonContext::IsDebuggerConnected()
+{
+  if(!m_DebugPy)
+    return false;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *is_connected = PyObject_CallMethod(m_DebugPy, "is_client_connected", NULL);
+  bool ret = (PyBool_Check(is_connected) && is_connected == Py_True);
+  Py_XDECREF(is_connected);
+
+  PyGILState_Release(gil);
+
+  return ret;
+}
+
 void PythonContext::PrepareDebuggerWait()
 {
   if(!m_DebugPy)

@@ -70,6 +70,9 @@ public:
 
   static void PrepareDebugTracing();
 
+  static bool IsDebuggingEnabled() { return m_DebugPy != NULL; }
+  static bool IsDebuggerConnected();
+
   static void PrepareDebuggerWait();
   static bool WaitForDebugger();
   static void LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location);

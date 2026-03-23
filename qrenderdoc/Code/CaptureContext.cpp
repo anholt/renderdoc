@@ -453,9 +453,19 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
   return ret;
 }
 
+rdcarray<rdcstr> CaptureContext::GetLoadedExtensions()
+{
+  return m_ExtensionObjects.keys();
+}
+
 bool CaptureContext::IsExtensionLoaded(rdcstr name)
 {
   return m_ExtensionObjects.contains(name);
+}
+
+bool CaptureContext::IsPythonDebuggerConnected()
+{
+  return PythonContext::IsDebuggingEnabled() && PythonContext::IsDebuggerConnected();
 }
 
 rdcstr CaptureContext::LoadExtension(rdcstr name)

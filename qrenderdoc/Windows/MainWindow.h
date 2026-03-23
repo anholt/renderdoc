@@ -40,6 +40,7 @@ class MainWindow;
 }
 
 class RDLabel;
+class RDToolButton;
 class RDMenu;
 class LambdaThread;
 class QMimeData;
@@ -203,6 +204,8 @@ private slots:
   void ClearRecentCaptureFiles();
   void ClearRecentCaptureSettings();
 
+  void PythonStatusUpdate();
+
   void networkRequestFailed(QUrl url, QString error);
   void networkRequestCompleted(QUrl url, QByteArray data);
 
@@ -248,6 +251,7 @@ private:
 
   RDLabel *statusIcon;
   RDLabel *statusText;
+  RDToolButton *extensionStatus;
   QProgressBar *statusProgress;
   RDMenu *contextChooserMenu;
   QToolButton *contextChooser;

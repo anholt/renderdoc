@@ -39,8 +39,10 @@
 #include <QToolTip>
 #include "Code/QRDUtils.h"
 #include "Code/Resources.h"
+#include "Code/pyrenderdoc/PythonContext.h"
 #include "Widgets/Extended/RDLabel.h"
 #include "Widgets/Extended/RDMenu.h"
+#include "Widgets/Extended/RDToolButton.h"
 #include "Widgets/ReplayOptionsSelector.h"
 #include "Windows/Dialogs/AboutDialog.h"
 #include "Windows/Dialogs/CaptureDialog.h"
@@ -223,6 +225,26 @@ MainWindow::MainWindow(ICaptureContext &ctx) : QMainWindow(NULL), ui(new Ui::Mai
 
   QObject::connect(statusIcon, &RDLabel::doubleClicked, this, &MainWindow::statusDoubleClicked);
   QObject::connect(statusText, &RDLabel::doubleClicked, this, &MainWindow::statusDoubleClicked);
+
+  extensionStatus = new RDToolButton(this);
+  extensionStatus->setAutoRaise(true);
+  extensionStatus->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  ui->statusBar->addWidget(extensionStatus);
+
+  extensionStatus->setIcon(Icons::plugin());
+  extensionStatus->setVisible(false);
+
+  QObject::connect(extensionStatus, &RDToolButton::clicked, this,
+                   &MainWindow::on_action_Manage_Extensions_triggered);
+  QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::extensionLoaded, this,
+                   &MainWindow::PythonStatusUpdate);
+
+  QTimer *debuggerTimer = new QTimer(this);
+  QObject::connect(debuggerTimer, &QTimer::timeout, this, &MainWindow::PythonStatusUpdate);
+
+  debuggerTimer->setSingleShot(false);
+  debuggerTimer->setInterval(500);
+  debuggerTimer->start();
 
   QObject::connect(&m_MessageTick, &QTimer::timeout, this, &MainWindow::messageCheck);
   m_MessageTick.setSingleShot(false);
@@ -1314,6 +1336,22 @@ void MainWindow::ClearRecentCaptureSettings()
 {
   m_Ctx.Config().RecentCaptureSettings.clear();
   PopulateRecentCaptureSettings();
+}
+
+void MainWindow::PythonStatusUpdate()
+{
+  int num = m_Ctx.Extensions().GetLoadedExtensions().count();
+
+  if(num > 0 || PythonContext::IsDebuggerConnected())
+  {
+    // extensions can't be unloaded so we can just unconditionally show this now
+    extensionStatus->setVisible(true);
+
+    QString text = tr("%n extension(s) active", NULL, num);
+    if(PythonContext::IsDebuggerConnected())
+      text += tr(": Python debugger connected");
+    extensionStatus->setText(text);
+  }
 }
 
 void MainWindow::networkRequestFailed(QUrl url, QString error)

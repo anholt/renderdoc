@@ -1098,6 +1098,13 @@ struct IExtensionManager
 )");
   virtual bool IsExtensionLoaded(rdcstr name) = 0;
 
+  DOCUMENT(R"(Retrieve a list of loaded extensions.
+
+:return: The list of installed extension names.
+:rtype: List[str]
+)");
+  virtual rdcarray<rdcstr> GetLoadedExtensions() = 0;
+
   DOCUMENT(R"(Enable an extension by name. If the extension is already enabled, this will reload it.
 
 :param str name: The qualified name of the extension, e.g. ``foo.bar``
@@ -1106,6 +1113,16 @@ struct IExtensionManager
 :rtype: str
 )");
   virtual rdcstr LoadExtension(rdcstr name) = 0;
+
+  DOCUMENT(R"(Check if a python debugger is connected.
+
+.. note::
+  If python debugging is not supported or failed to load, this will return ``False``.
+
+:return: If a python debugger is connected.
+:rtype: bool
+)");
+  virtual bool IsPythonDebuggerConnected() = 0;
 
   //////////////////////////////////////////////////////////////////////////
   // UI hook/callback registration
