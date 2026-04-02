@@ -1374,3 +1374,499 @@ class PyReflector:
             pass
         return Any
 
+
+    # print all scopes and identifiers with their types
+    def dump(self):
+        seen = set()
+        for s in self.scopes:
+            if s in seen:
+                continue
+            seen.add(s)
+            nest = 0
+            p = s.parent
+            while p is not None:
+                nest += 1
+                p = p.parent
+            indent = "  " * nest
+            print(f"{'==' * (nest+1)} {s.name}")
+            accum = []
+            for name in s.identifiers:
+                for inst in s.identifiers[name]:
+                    accum += [{"line": inst.line, "name": name, "type": inst.type_obj}]
+            accum.sort(key=lambda x: x["line"])
+            for a in accum:
+                t = a["type"]
+                # older pythons don't have a good str() for new types
+                if "NewType" in str(t):
+                    t = t.__name__
+                print(f"{indent}Line {a['line']}: {a['name']} is {t}")
+
+
+# self-testing by parsing this file (or any file on the command line)
+# TEST BEGIN
+import sys, re
+from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional, cast
+
+error_code = """
+        def func_with_error(self):
+            print("hi")
+            self.value = self.
+"""
+
+# these tests fail too much without column information that requires at least 3.8
+if __name__ == "__main__" and sys.version_info >= (3, 8):
+    file = __file__
+    if len(sys.argv) >= 2:
+        file = sys.argv[1]
+    else:
+        file = __file__
+
+    with open(file) as f:
+        text = f.read().expandtabs(4)
+        text += error_code
+
+        # trim to the start of the test, but preserve line numbers
+        offs = text.index("# TEST BEGIN")
+        start_line = text.count("\n", 0, offs)
+        text = ("\n" * start_line) + text[offs:]
+
+        # empty globals, pretend this is pristine - it will handle builtins internally
+        refl = PyReflector(text, {}, False)
+
+        if not refl.valid():
+            raise RuntimeError(f"Failed to parse {file}")
+
+        # put user types into globals for easier matching
+        globals().update(refl.user_types)
+
+        # import some things we want to check against but not be in globals
+        import random
+        import base64
+
+        passed = 0
+
+        # find automatic test prompts
+        lines = refl.parsed_text.splitlines()
+        for i, line_text in enumerate(lines):
+            # quick check to make sure we don't match this if here
+            if "# TYPE:" in line_text and not "#exclude" in line_text:
+                col = line_text.index("^")
+
+                # allow multiple checks on the same line
+                while "TYPE:" in lines[i - 1]:
+                    i -= 1
+
+                # this naturally targets the previous line due to 1-based and 0-based
+                line = i
+
+                actual = refl.get_location_type(line, col)
+
+                expect_text = line_text[line_text.index("TYPE: ") + 6 :]
+                expect = eval(expect_text)
+                if actual == expect or (
+                    isinstance(expect, TypeVar)
+                    and isinstance(actual, TypeVar)
+                    and expect.__name__ == actual.__name__
+                ):
+                    passed += 1  # types match
+                else:
+                    raise RuntimeError(
+                        f"{file}:{line}:{col+1} expected type '{actual}' to match '{expect_text}'\n"
+                        + refl.get_line_source(line)
+                        + "\n"
+                        + (" " * col)
+                        + "^"
+                    )
+
+        print(f"{passed} tests passed!")
+
+# parsing tests are below here
+if __name__ == "impossible":
+    import math
+
+    ## simple direct types
+
+    simple_int = 5
+    #  ^    # TYPE: int
+
+    other_thing = simple_int
+    #  ^                   # TYPE: int
+    #                 ^    # TYPE: int
+
+    list_item = ["a"]
+    #  ^    # TYPE: List[str]
+
+    list_item = [1, 2, 3]
+    #  ^    # TYPE: List[int]
+
+    tuple_item = (1, 2, 3)
+    #  ^    # TYPE: Tuple[int,int,int]
+
+    diff_tuple_item = (1, "asdf", 4.4)
+    #  ^    # TYPE: Tuple[int,str,float]
+
+    dict_item = {"asdf": 5, "foo": 3}
+    #  ^    # TYPE: Dict[str, int]
+
+    dict_item = {"asdf": 5, "foo": 3.4}
+    #  ^    # TYPE: Dict[str, Any]
+
+    dict_item = {"asdf": 5, 3: 4}
+    #  ^    # TYPE: Dict[Any, int]
+
+    dict_item = {"asdf": 5, 3: "foo"}
+    #  ^    # TYPE: Dict[Any, Any]
+
+    ## assignments
+
+    # check that we get the right type even when an identifier changes types multiple times
+    override = 5
+    #  ^    # TYPE: int
+
+    override = 4.4
+    #  ^    # TYPE: float
+
+    override = "abc"
+    #  ^    # TYPE: str
+
+    # multi-assignment
+    aaa = bbb = 5
+    # ^              # TYPE: int
+    #      ^         # TYPE: int
+
+    # unpacking
+    aaa, bbb = (1, "str")
+    # ^              # TYPE: int
+    #    ^           # TYPE: str
+
+    ## type annotations
+
+    annot_item: List[int] = []
+    #  ^    # TYPE: List[int]
+
+    annot_item2: Tuple[int, str]
+    #  ^       # TYPE: Tuple[int, str]
+
+    annot_item3: Optional[str] = None
+    #  ^       # TYPE: Optional[str]
+
+    annot_item4: Dict[int, str] = {}
+    #  ^       # TYPE: Dict[int, str]
+
+    annot_item5: Callable[[int, float], str]
+    #  ^       # TYPE: Callable[[int, float], str]
+
+    # annotations are trusted completely
+    annot_wrong_item: List[int] = 0  # type: ignore
+    #  ^    # TYPE: List[int]
+
+    ## operations
+
+    a, b = 2, 3
+
+    ccc = a * b
+    # ^    # TYPE: int
+
+    ccc = -a
+    # ^    # TYPE: int
+
+    ccc = a < b
+    # ^    # TYPE: bool
+
+    ccc = (a > 0) or (b > 0)
+    # ^    # TYPE: bool
+
+    ## loops
+    for counter in range(5):
+        # ^    # TYPE: int
+        print(counter)
+
+    some_list = ["a", "b", "c"]
+
+    for counter, value in enumerate(some_list):
+        #  ^                  # TYPE: int
+        #          ^          # TYPE: str
+        print(f"{counter} - {value}")
+
+    for value in some_list:
+        # ^          # TYPE: str
+        print(value)
+
+    ## list comprehensions
+
+    list_comp = [x * 2 for x in range(10)]
+    #   ^    # TYPE: List[int]
+
+    list_comp = ["foo" * x for x in range(10)]
+    #   ^    # TYPE: List[str]
+
+    list_comp = [len(x) for x in list_comp if len(x) > 4]
+    #   ^    # TYPE: List[int]
+
+    tuple_list = [(1, "a"), (2, "b"), (3, "c")]
+    #   ^    # TYPE: List[Tuple[int,str]]
+
+    unpack_comp = [x for x, y in tuple_list]
+    #   ^    # TYPE: List[int]
+
+    unpack_comp = [y for x, y in tuple_list]
+    #   ^    # TYPE: List[str]
+
+    ## subscript/attribute accesses
+
+    val = list_item[0]
+    # ^                 # TYPE: int
+    #      ^            # TYPE: List[int]
+    #               ^   # TYPE: int
+    #                ^  # TYPE: int
+
+    val = list_item[0:2]
+    # ^                   # TYPE: List[int]
+    #      ^              # TYPE: List[int]
+    #               ^     # TYPE: int
+    #                 ^   # TYPE: int
+    #                  ^  # TYPE: List[int]
+
+    val = tuple_item[0]
+    # ^                  # TYPE: int
+    #       ^            # TYPE: Tuple[int, int, int]
+    #                ^   # TYPE: int
+    #                 ^  # TYPE: int
+
+    val = diff_tuple_item[0]
+    # ^                  # TYPE: int
+
+    val = diff_tuple_item[1]
+    # ^                  # TYPE: str
+
+    val = diff_tuple_item[2]
+    # ^                  # TYPE: float
+
+    # tuples we don't try to evaluate the subscript
+    val = tuple_item[0:2]
+    # ^                    # TYPE: Tuple[int, int, int]
+    #       ^              # TYPE: Tuple[int, int, int]
+    #                ^     # TYPE: int
+    #                  ^   # TYPE: int
+    #                   ^  # TYPE: Tuple[int, int, int]
+
+    ## casts (either explicitly with typing.cast or implicit between
+    ##        lists and tuples)
+
+    val = list(list_item)
+    # ^                   # TYPE: List[int]
+
+    val = cast(str, list_item)
+    # ^                   # TYPE: str
+
+    class Inner:
+        foo: int
+        bar: str
+
+    class Outer:
+        inner: Inner
+        val: float
+
+    # this will force Inner to be procesed early
+    inner_assign = Inner()
+    #  ^    # TYPE: Inner
+    inner_assign = inner_assign.foo
+    #  ^    # TYPE: int
+
+    inner_assign = Inner()
+    inner_assign = inner_assign.bar
+    #  ^                               # TYPE: str
+    #                   ^              # TYPE: Inner
+    #                            ^     # TYPE: str
+
+    outer_list: List[Outer] = []
+
+    val = outer_list
+    # ^    # TYPE: List[Outer]
+
+    val = outer_list[0]
+    # ^    # TYPE: Outer
+
+    val = outer_list[0].inner
+    # ^    # TYPE: Inner
+
+    val = outer_list[0].inner.bar
+    # ^                             # TYPE: str
+    #         ^                     # TYPE: List[Outer]
+    #                ^              # TYPE: int
+    #                 ^             # TYPE: Outer
+    #                     ^         # TYPE: Inner
+    #                          ^    # TYPE: str
+
+    ## functions and calls
+
+    def annot_function(arg1: str, arg2: int) -> bool:
+        #            ^    # TYPE: Callable[[str, int], bool]
+        return len(arg1) < arg2
+
+    val = annot_function("foobar", 4)
+    # ^    # TYPE: bool
+
+    # function returns can be guessed if all returns are the same type
+    def guess_function(arg1, arg2):
+        #            ^    # TYPE: Callable[[Any, Any], float]
+        if len(arg1) < arg2:
+            return 4.4
+        return 5.5
+
+    val = guess_function("foobar", 4)
+    # ^    # TYPE: float
+
+    outer_scope_val = 5
+
+    def function():
+        global outer_scope_val
+
+        ret = 0
+        ret += outer_scope_val
+        #            ^    # TYPE: int
+
+        outer_scope_val = "blah"
+
+        ret += len(outer_scope_val)
+        #            ^    # TYPE: str
+
+        return ret
+
+    a = 5
+    b = 6.6
+    c = Inner()
+    d = "foo"
+    e = [5.5]
+    f = (5, 5)
+
+    def func1(a, b) -> float: ...
+
+    def func2(c, d) -> float: ...
+
+    complex = (func1(a, b) + func2(c, d)) * math.sqrt(len([g * f[0] for g in e]))
+    #   ^                                                                         # TYPE: float
+    #                          ^                                                  # TYPE: Callable[[Any, Any], float]
+    #                              ^                                              # TYPE: Inner
+    #                                                                        ^    # TYPE: List[float]
+
+    def func3(a, b, c, d, e, f) -> bool: ...
+
+    bbb = b
+
+    func3(a, bbb, c, d, e[0], f[1])
+    #   ^                                 # TYPE: Callable[[Any] * 6, bool]
+    #    ^                                # TYPE: Callable[[Any] * 6, bool]
+    #     ^                               # TYPE: int
+    #      ^                              # TYPE: int
+    #       ^                             # TYPE: int
+    #        ^                            # TYPE: float
+    #                ^                    # TYPE: str
+    #                 ^                   # TYPE: str
+    #                  ^                  # TYPE: str
+    #                   ^                 # TYPE: List[float]
+    #                     ^               # TYPE: int
+    #                      ^              # TYPE: float
+    #                       ^             # TYPE: float
+    #                        ^            # TYPE: float
+    #                             ^       # TYPE: bool
+
+    def func4() -> int: ...
+
+    test_val = 123
+    true_val = "true"
+    false_val = "false"
+
+    ternary = true_val if test_val > func4() else false_val
+    #   ^                                                   # TYPE: str
+    #          ^                                            # TYPE: str
+    #                       ^                               # TYPE: int
+    #                                      ^                # TYPE: int
+    #                                               ^       # TYPE: str
+
+    def annot_func1(param1, param2, param3=5, *, param4, param5="hello") -> int:
+        #                ^                                                        # TYPE: Any
+        #                               ^                                         # TYPE: int
+        #                                           ^                             # TYPE: Any
+        #                                                    ^                    # TYPE: str
+        #                                                           ^             # TYPE: str
+        ...
+
+    ## imports
+
+    from random import randint
+
+    a = randint(2, 3)
+    #       ^  # TYPE: random.randint
+
+    from random import choice as pickyourpoison
+
+    a = pickyourpoison([1, 2, 3])
+    #       ^  # TYPE: random.choice
+
+    import base64 as base32times2
+
+    a = base32times2.b64encode(b"hello")
+    #                    ^  # TYPE: base64.b64encode
+
+    ## class methods and properties
+
+    class ContainerClass(Outer):
+        #                   ^  # TYPE: Outer
+        def __init__(self):
+            self.counter = 0
+
+            self.complex = Inner()
+
+            self.value = self.make_value()
+            #       ^  # TYPE: float
+
+            self.other = self.make_other(self.value)
+            #       ^                                 # TYPE: float
+            #                                   ^     # TYPE: float
+
+        def make_value(self) -> float:
+            #      ^  # TYPE: Callable[[Any], float]
+            ...
+
+        def make_other(self, val: float):
+            #      ^  # TYPE: Callable[[Any, float], float]
+            if val > 0.0:
+                return 1.0
+            if val < 0.0:
+                return -1.0
+            return 0.0
+
+        @property
+        def prop(self) -> Dict[str, int]:
+            return {}
+
+        @prop.setter
+        def prop(self, val): ...
+
+        @property
+        def prop2(self):
+            return "blah"
+
+        @prop2.setter
+        def prop2(self, val): ...
+
+        def do_thing(self):
+            self.other = -self.other
+            #       ^               # TYPE: float
+            #                    ^  # TYPE: float
+
+            if self.complex.bar == "hello":
+                # ^                           # TYPE: ContainerClass
+                #       ^                     # TYPE: Inner
+                #            ^               # TYPE: str
+                return 1.234
+
+            lookup = self.prop
+            #  ^  # TYPE: Dict[str, int]
+            key = self.prop2
+            # ^  # TYPE: str
+            if key in lookup:
+                return 4.321
+
+            return self.value * self.other
