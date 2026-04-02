@@ -1,4 +1,7 @@
 import ast
+import inspect
+import sys
+import struct
 import builtins
 from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional
 
@@ -65,6 +68,16 @@ def _get_linerange(node: ast.AST):
             end_lineno = max(end_lineno, _get_linerange(getattr(node, recurse)[-1])[1])
 
     return (lineno, end_lineno)
+
+
+# Python 3.8+ is expected to have start and end columns.
+# Before that, end was missing so we assume all statements are
+# extremely long
+def _get_colrange(node):
+    if not hasattr(node, "col_offset"):
+        return (-1, -1)
+
+    return (node.col_offset, getattr(node, "end_col_offset", 9999))
 
 
 # true if this is a `self.foo` type attribute lookup, so we know
@@ -319,8 +332,455 @@ class PyReflector:
             return "@@" + err.replace("@", "") + "@@"
         return Any
 
-    def _get_type(self, scope: Scope, parsed: Optional[ast.AST]):
-        return None
+    def _get_type(
+        self,
+        scope: Scope,
+        parsed: Optional[ast.AST],
+        tmp_types: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        # simple protection and helps the type checker, silently drop None
+        if parsed is None:
+            return None
+
+        # for things that are names, get the ident and look up its instance.
+        # first check tmp_types for things like temporary objects inside list comprehensions
+        # that we don't create proper identifiers for
+        name = ""
+        line, col = -1, -1
+        if isinstance(parsed, ast.Name):
+            name = parsed.id
+            line, col = parsed.lineno, parsed.col_offset
+        if isinstance(parsed, ast.arg):
+            name = parsed.arg
+            line, col = parsed.lineno, -1
+        if isinstance(parsed, ast.alias):
+            name = parsed.name
+            if parsed.asname is not None:
+                name = parsed.asname
+            line = getattr(parsed, "lineno", -1)
+            col = getattr(parsed, "col_offset", -1)
+
+        if name != "":
+            if tmp_types is not None and name in tmp_types:
+                return tmp_types[name]
+            ident = scope.get_ident(name, line, col)
+            if ident is None:
+                return self._type_failure(f"Unknown name {name}")
+            if isinstance(ident, Ident):
+                # if this is a function call that has a lazy_node, and it's in
+                # our pending list (ie. not already on the current stack somewhere
+                # due to mutual recursion) process it now so we can get a better
+                # type object from inferring its return type
+                if ident.lazy_node is not None:
+                    for i, p in enumerate(self.pending):
+                        if p[1] == ident.lazy_node:
+                            self._process_pending(i)
+                            break
+
+                return ident.type_obj
+            return ident
+
+        if isinstance(parsed, ast.Attribute):
+            # detect single-level self.foo and look up in parent if it exists
+            # these identifiers are stored in the parent scope so they're available
+            # to all self members
+            if _is_self_lookup(parsed) and scope.parent is not None:
+                self_lookup = scope.get_ident(
+                    "self", parsed.value.lineno, parsed.value.col_offset
+                )
+                if self_lookup is not None:
+                    # find the parent class, it could be multiple steps up if this is
+                    # a nested function
+                    parent_scope = scope.parent
+                    while not parent_scope.is_class and parent_scope.parent is not None:
+                        parent_scope = parent_scope.parent
+
+                    ret = parent_scope.get_ident(parsed.attr, -1, -1)
+
+                    if ret is None:
+                        return ret
+
+                    # if this is a function call that has a lazy_node, and it's in
+                    # our pending list (ie. not already on the current stack somewhere
+                    # due to mutual recursion) process it now so we can get a better
+                    # type object from inferring its return type
+                    if ret.lazy_node is not None:
+                        for i, p in enumerate(self.pending):
+                            if p[1] == ret.lazy_node:
+                                self._process_pending(i)
+                                break
+
+                    return ret.type_obj
+
+            # get the type of the base object that we're looking up
+            base = self._get_type(scope, parsed.value, tmp_types)
+            if isinstance(base, str):
+                return self._type_failure(f"{base}, looking up {parsed.attr}")
+
+            if base is None:
+                if self.debug_types:
+                    return self._type_failure(
+                        f"Unexpected None in base {parsed.value} for access {parsed.attr}"
+                    )
+                return Any
+
+            if not hasattr(base, parsed.attr):
+                # if the base is a typevar, it's a user defined type let's
+                # see if this is a member we know about
+                if isinstance(base, TypeVar):
+                    base_ident = scope.get_ident(
+                        base.__name__, parsed.value.lineno, parsed.value.col_offset
+                    )
+                    if base_ident is not None:
+                        base_scope = self.scopes[base_ident.line]
+
+                        # if this scope is in our pending list then process it now
+                        # so we can get a complete type object
+                        for i, p in enumerate(self.pending):
+                            if p[0] == base_scope:
+                                self._process_pending(i)
+                                break
+
+                        attr_ident = base_scope.get_ident(
+                            parsed.attr, parsed.value.lineno, parsed.value.col_offset
+                        )
+
+                        if attr_ident is not None:
+                            return attr_ident.type_obj
+                return self._type_failure(
+                    f"Attribute {parsed.attr} not found in {parsed.value}"
+                )
+
+            ret = getattr(base, parsed.attr)
+
+            # if this is a property return the type that calling the property getter would return
+            if isinstance(ret, property) and ret.fget is not None:
+                try:
+                    ret = inspect.signature(ret.fget).return_annotation
+                except:
+                    return self._type_failure(
+                        f"Failed to inspect property {parsed.attr}"
+                    )
+
+            # if this is a plain object return its type, if it's some kind of callable
+            # then return the object directly as it is a type
+            if (
+                ret is not None
+                and not inspect.isclass(ret)
+                and not inspect.isfunction(ret)
+                and not inspect.isbuiltin(ret)
+                and not inspect.ismethod(ret)
+                and not inspect.ismethoddescriptor(ret)
+            ):
+                if not hasattr(ret, "__origin__") or not inspect.isclass(
+                    getattr(ret, "__origin__")
+                ):
+                    ret = type(ret)
+
+            return ret
+
+        if isinstance(parsed, ast.Expr):
+            return self._get_type(scope, parsed.value, tmp_types)
+
+        if isinstance(parsed, ast.Call):
+            func = self._get_type(scope, parsed.func, tmp_types)
+
+            # special case a bunch of builtins that don't have proper type
+            # annotations. Not strictly needed as we don't expect to do anything,
+            # but useful for debugging
+            # if we could process typeshed stubs we could do away with this, but
+            # those don't parse and need a dedicated separate parser
+            if func is len:
+                return int
+            if func is range:
+                return List[int]
+            if func is max or func is min or func is reversed or func is sorted:
+                return self._get_type(scope, parsed.args[0], tmp_types)
+            if func is any or func is all or func is isinstance or func is issubclass:
+                return bool
+            if func is dir:
+                return dict
+            if func is cast:
+                return self._get_type(scope, parsed.args[0], tmp_types)
+
+            if func is enumerate:
+                seq_type = self._get_type(scope, parsed.args[0], tmp_types)
+                inner_type = Any
+                if _is_generic(List, seq_type):
+                    inner_type = seq_type.__args__[0]
+                return Tuple[int, inner_type]
+
+            if func is next:
+                seq_type = self._get_type(scope, parsed.args[0], tmp_types)
+                inner_type = Any
+                if _is_generic(List, seq_type):
+                    inner_type = seq_type.__args__[0]
+                return inner_type
+
+            if func is str.format:
+                return str
+            if func is list.index:
+                return int
+            if func is struct.unpack or func is struct.unpack_from:
+                return Tuple[Any, ...]
+
+            if _is_generic(Callable, func):
+                ret = func.__args__[-1]
+                if ret == type(None):
+                    ret = None
+
+                return ret
+
+            if func is list:
+                seq_type = self._get_type(scope, parsed.args[0], tmp_types)
+                if _is_generic(List, seq_type):
+                    return seq_type
+
+            if type(func) is type or type(func) is TypeVar:
+                return func
+
+            if func is None:
+                return self._type_failure(
+                    f"Invalid None looking up callable {parsed.func}"
+                )
+
+            # if it doesn't fall into the above cases, try to use inspect to get it from the signature
+            try:
+                sig = inspect.signature(func)
+                # assume this is a builtin with missing docs
+                if sig.return_annotation == inspect.Signature.empty:
+                    return Any
+                return sig.return_annotation
+            except:
+                return self._type_failure(f"Failed to inspect signature of {func}")
+
+        # unpack the elements in a tuple to generate the type for it
+        if isinstance(parsed, ast.Tuple):
+            params = tuple([self._get_type(scope, e, tmp_types) for e in parsed.elts])
+            # if we have type failures enabled, returned types can be error strings
+            if any([isinstance(x, str) for x in params]):
+                return self._type_failure(f"Failed tuple[{params}]")
+            return Tuple[params]
+
+        if isinstance(parsed, ast.Dict):
+            if len(parsed.keys) == 0:
+                return Dict[Any, Any]
+            keytypes = list(
+                set([self._get_type(scope, e, tmp_types) for e in parsed.keys])
+            )
+            valtypes = list(
+                set([self._get_type(scope, e, tmp_types) for e in parsed.values])
+            )
+            keytype, valtype = Any, Any
+            if len(keytypes) == 1:
+                keytype = keytypes[0]
+            if len(valtypes) == 1:
+                valtype = valtypes[0]
+            return Dict[keytype, valtype]
+
+        if isinstance(parsed, ast.List):
+            if len(parsed.elts) == 0:
+                return List[Any]
+
+            x = self._get_type(scope, parsed.elts[0], tmp_types)
+            if isinstance(x, str):
+                return self._type_failure(f"Failed list[{x}]")
+
+            return List[x]
+
+        # subscripts could either be generic type declarations or indices into a
+        # sequence type. We only handle standard generics
+        if isinstance(parsed, ast.Subscript):
+            coll_type = self._get_type(scope, parsed.value, tmp_types)
+
+            slice = parsed.slice
+            if sys.version_info < (3, 9):
+                if isinstance(slice, ast.Index):
+                    slice = slice.value
+
+            # handle type annotations which directly subscript these generics in the AST
+            # e.g. foo: List[int] = blah()
+            if coll_type is List:
+                return List[self._get_type(scope, slice, tmp_types)]
+            if coll_type is Optional:
+                return Optional[self._get_type(scope, slice, tmp_types)]
+            if coll_type is Tuple and isinstance(slice, ast.Tuple):
+                inners = tuple(
+                    [self._get_type(scope, x, tmp_types) for x in slice.elts]
+                )
+                return Tuple[inners]
+            if coll_type is Dict and isinstance(slice, ast.Tuple):
+                key = self._get_type(scope, slice.elts[0], tmp_types)
+                value = self._get_type(scope, slice.elts[1], tmp_types)
+                return Dict[key, value]
+            if coll_type is Callable and isinstance(slice, ast.Tuple):
+                params = slice.elts[0]
+                ret = self._get_type(scope, slice.elts[1], tmp_types)
+                if isinstance(params, ast.List):
+                    return Callable[
+                        [self._get_type(scope, x, tmp_types) for x in params.elts], ret
+                    ]
+                else:
+                    return Callable[..., ret]
+
+            # handle an object which is a given standard type, e.g. `foo[5]` when `foo` is a List[int]
+            c: Any = coll_type
+            if _is_generic(List, c):
+                # list slices return the same type
+                if isinstance(slice, ast.Slice) and slice.upper is not None:
+                    return c
+                if not hasattr(c, "__args__") or c.__args__ is None:
+                    return Any
+                return c.__args__[0]
+            if _is_generic(Optional, c):
+                if not hasattr(c, "__args__") or c.__args__ is None:
+                    return Any
+                return c.__args__[0]
+            if _is_generic(Dict, c):
+                if not hasattr(c, "__args__") or c.__args__ is None:
+                    return Any
+                return c.__args__[1]
+            if _is_generic(Tuple, c):
+                # tuple slices return the same type
+                if isinstance(slice, ast.Slice) and slice.upper is not None:
+                    return c
+                if hasattr(c, "__args__") and len(set(c.__args__)) == 1:
+                    return c.__args__[0]
+                if isinstance(slice, ast.Constant) and isinstance(slice.value, int):
+                    i = slice.value
+                    if hasattr(c, "__args__") and i < len(set(c.__args__)):
+                        return c.__args__[i]
+
+                # if the tuple isn't identically typed, we stop typing
+                return self._type_failure(f"Ambiguous Tuple subscript {c}")
+
+            # any other subscript, we don't attempt to generate type hints for
+            return self._type_failure(f"Unknown subscripted type {c}")
+
+        if isinstance(parsed, ast.Lambda):
+            return Callable[..., Any]
+
+        if isinstance(parsed, ast.FunctionDef):
+            ret = None
+            if parsed.returns is not None:
+                ret = self._get_type(scope, parsed.returns, tmp_types)
+            else:
+                funcscope = self.scopes[parsed.lineno].ident
+                if funcscope is not None:
+                    call: Any = funcscope.type_obj
+                    ret = call.__args__[-1]
+
+            # don't generate args for 'complex' functions
+            args = parsed.args
+            if (
+                args.kwarg is not None
+                or args.vararg is not None
+                or len(args.kwonlyargs) > 0
+            ):
+                return Callable[(..., ret)]
+
+            if "posonlyargs" in args._fields and len(args.posonlyargs) > 0:
+                return Callable[(..., ret)]
+
+            # Callable isn't designed for methods, drop the self argument
+            first = 0
+            if isinstance(scope.parsed, ast.ClassDef) and args.args[0].arg == "self":
+                first = 1
+
+            arg_list = []
+            for i in range(first, len(args.args)):
+                annot = args.args[i].annotation
+                if annot is None:
+                    arg_list += [Any]
+                else:
+                    arg_list += [self._get_type(scope, annot, tmp_types)]
+
+            return Callable[
+                (
+                    [a for a in arg_list],
+                    ret,
+                )
+            ]
+
+        if isinstance(parsed, ast.Constant):
+            if parsed.value is None:
+                return None
+            return type(parsed.value)
+
+        # for if expressions, assume that the types won't vary between each
+        # branch and return the 'main' branch
+        if isinstance(parsed, ast.IfExp):
+            return self._get_type(scope, parsed.body, tmp_types)
+
+        # for list comprehensions / generators we generate a tmp type for the iterator value
+        if isinstance(parsed, ast.ListComp) or isinstance(parsed, ast.GeneratorExp):
+            if tmp_types is None:
+                extras = {}
+            else:
+                extras = tmp_types.copy()
+
+            for g in parsed.generators:
+                iter = self._get_type(scope, g.iter, tmp_types)
+
+                if _is_generic(List, iter):
+                    iter_type = iter.__args__[0]
+                elif _is_generic(Tuple, iter):
+                    if len(set(iter.__args__)) == 1:
+                        iter_type = iter.__args__[0]
+                    else:
+                        return self._type_failure(
+                            f"Ambiguouos tuple list comp on {iter}"
+                        )
+                else:
+                    return self._type_failure(f"Unhandle iter list comp on {iter}")
+
+                if isinstance(g.target, ast.Name):
+                    extras[g.target.id] = iter_type
+                elif (
+                    isinstance(g.target, ast.Tuple)
+                    and _is_generic(Tuple, iter_type)
+                    and len(g.target.elts) == len(iter_type.__args__)
+                ):
+                    for i, e in enumerate(g.target.elts):
+                        if not isinstance(e, ast.Name):
+                            return self._type_failure(
+                                f"Failed unpacking list comp {i} on {e}"
+                            )
+                        extras[e.id] = iter_type.__args__[i]
+
+            inner = self._get_type(scope, parsed.elt, extras)
+            if isinstance(inner, str):
+                return self._type_failure(f"Failed Listcomp {inner}")
+            return List[inner]
+
+        # assume simple ops can be mostly type modeled as if they always return
+        # the LHS type. Not true for int * float or int * str but close enough
+        if isinstance(parsed, ast.BinOp):
+            return self._get_type(scope, parsed.left, tmp_types)
+        if isinstance(parsed, ast.UnaryOp):
+            return self._get_type(scope, parsed.operand, tmp_types)
+        # similarly, comparisons/bools don't consider overloads and just assume bool return
+        if isinstance(parsed, ast.Compare) or isinstance(parsed, ast.BoolOp):
+            return bool
+
+        if sys.version_info >= (3, 14):
+            if isinstance(parsed, ast.JoinedStr) or isinstance(parsed, ast.TemplateStr):
+                return str
+
+        # legacy types before consolidation into constant
+        if sys.version_info < (3, 8):
+            if isinstance(parsed, ast.Num):
+                return type(parsed.n)
+            if isinstance(parsed, ast.Str):
+                return str
+            if isinstance(parsed, ast.Bytes):
+                return bytes
+            if isinstance(parsed, ast.NameConstant):
+                if parsed.value is None:
+                    return None
+                return type(parsed.value)
+
+        return self._type_failure(f"General Type-lookup failure {parsed}")
 
     # we can try to guess function return values by looking at the types of
     # the return statements. If they are all the same (ignoring possible none)
