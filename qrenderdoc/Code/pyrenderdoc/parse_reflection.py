@@ -1,4 +1,5 @@
 import ast
+import builtins
 from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional
 
 
@@ -19,6 +20,89 @@ def _commentlines(text, first_comment_line):
         break
 
     return "\n".join(lines)
+
+
+# a given instance of an identifier and its type
+class Ident:
+    # first line this ident is valid
+    line: int = -1
+    # for assignments the identifier is only valid on the first line
+    # before a certain column.
+    # mostly relevant for overwriting assignments e.g. foo = foo.bar
+    # so the idents for LHS foo and RHS foo can be differentiated
+    col: int = 9999
+    # the type or type hint
+    type_obj: Optional[Any] = None
+    # for functions without return annotations, this will be set to the AST node
+    # for lazy evaluation to obtain a guessed return type.
+    # We do it this way as we normally process in declaration order but
+    lazy_node: Optional[ast.AST] = None
+
+
+# a scope - either a module, class or function
+class Scope:
+    # the name for debugging
+    name: str
+    # the parent scope, for searches upwards for identifiers
+    parent: "Optional[Scope]" = None
+    # the parsed node
+    parsed: ast.AST
+    # the type, only relevant for classes
+    type_obj: Optional[Any] = None
+    # known identifiers in this scope
+    identifiers: Dict[str, List[Ident]]
+    # for non-modules, the ident of this scope
+    ident: Optional[Ident] = None
+    # whether this scope is a class or not (for finding `self`)
+    is_class: bool = False
+
+    def __init__(self):
+        self.identifiers = {}
+
+    def set_ident(self, name: str, ident: Ident):
+        if name not in self.identifiers:
+            self.identifiers[name] = []
+        self.identifiers[name] += [ident]
+
+    # look up the version of an identifier on a given line, in our parents,
+    # or in the builtins
+    def get_ident(self, name: str, line: int, col: int):
+        ret = None
+        if name in self.identifiers:
+            for i in self.identifiers[name]:
+                # only consider identifiers that are valid for the line & col
+                # we're searching for
+                if (
+                    i.line < line
+                    or (i.line == line and (col < i.col or col == -1))
+                    or line == -1
+                ):
+                    # if we don't have a match, or this match is more recent, use it
+                    if ret is None or ret.line < i.line:
+                        ret = i
+
+        # if we don't have a record of it, or we're at a statement before
+        # the first assignment, search the parent at our declaration line
+        if ret is None:
+            if self.parent is not None:
+                return self.parent.get_ident(
+                    name, self.ident.line if self.ident is not None else line, col
+                )
+
+            if name in dir(builtins):
+                return getattr(builtins, name)
+
+            return None
+
+        return ret
+
+    def full_name(self):
+        if self.parent is not None:
+            return f"{self.parent.full_name()}::{self.name}"
+        return self.name
+
+    def __repr__(self):
+        return f"<Scope '{self.full_name()}'>"
 
 
 # Main class, reflects a given source text (if it can) and allows
