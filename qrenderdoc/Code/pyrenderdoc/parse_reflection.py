@@ -1185,3 +1185,192 @@ class PyReflector:
 
             while len(self.pending) > 0:
                 self._process_pending(0)
+
+    # walk into things like function calls and list definitions/comprehensions to find
+    # the atomic expression that we can grab the type of. This is expected to return
+    # from either a name or an attribute lookup but could also return a function or class
+    # type if the location is on their definition
+    def _get_atom_expr(self, parsed: ast.AST, line: int, col: int) -> Optional[ast.AST]:
+        # we expect this to be present but it's not guaranteed
+        end_col_offset = getattr(parsed, "end_col_offset", 9999)
+        line_range = _get_linerange(parsed)
+        col_range = _get_colrange(parsed)
+
+        # early out if this node doesn't contain the desired location
+        if line_range[0] >= 0 and (line < line_range[0] or line > line_range[1]):
+            return None
+
+        if (
+            col_range[0] >= 0
+            and line_range[0] == line_range[1]
+            and (col < col_range[0] or col >= col_range[1])
+        ):
+            return None
+
+        # simple wrapper for a statement that's an expression
+        if isinstance(parsed, ast.Expr):
+            return self._get_atom_expr(parsed.value, line, col)
+
+        # names and aliases are atomic
+        if isinstance(parsed, ast.Name) or isinstance(parsed, ast.alias):
+            return parsed
+
+        # constants we consider atomic, for simplicity and for debugging
+        if isinstance(parsed, ast.Constant):
+            return parsed
+
+        if sys.version_info >= (3, 14):
+            if isinstance(parsed, ast.JoinedStr) or isinstance(parsed, ast.TemplateStr):
+                return parsed
+
+        # legacy types before consolidation into constant
+        if sys.version_info < (3, 8):
+            if isinstance(parsed, ast.Num):
+                return parsed
+            if isinstance(parsed, ast.Str):
+                return parsed
+            if isinstance(parsed, ast.Bytes):
+                return parsed
+            if isinstance(parsed, ast.NameConstant):
+                return parsed
+
+        # for an attribute lookup, see if it matches in the value part, so `foo.bar` would match `foo`
+        # if we're in the first part, otherwise the whole thing
+        if isinstance(parsed, ast.Attribute):
+            ret = self._get_atom_expr(parsed.value, line, col)
+            if ret is not None:
+                return ret
+
+            return parsed
+
+        multi_fields = [
+            "orelse",
+            "finalbody",
+            "generators",
+            "bases",
+            "decorator_list",
+            "targets",
+            "values",
+            "elts",
+            "comparators",
+            "ifs",
+            "defaults",
+            "keys",
+            "names",
+        ]
+
+        if not isinstance(parsed, ast.Lambda):
+            multi_fields += ["body"]
+
+        if isinstance(parsed, ast.Call):
+            multi_fields += ["args"]
+
+        # in an if expression, body and orelse are expressions not lists of statements
+        if isinstance(parsed, ast.IfExp):
+            multi_fields.remove("body")
+            multi_fields.remove("orelse")
+
+        for multi_field in multi_fields:
+            if multi_field in parsed._fields:
+                for inner in getattr(parsed, multi_field):
+                    ret = self._get_atom_expr(inner, line, col)
+                    if ret is not None:
+                        return ret
+
+        if "args" not in multi_fields and "args" in parsed._fields:
+            args: ast.arguments = getattr(parsed, "args")
+            for inner in args.kw_defaults + args.defaults:
+                if inner is not None:
+                    ret = self._get_atom_expr(inner, line, col)
+                    if ret is not None:
+                        return ret
+
+            arg_list = args.args + args.kwonlyargs + [args.vararg] + [args.kwarg]
+            if "posonlyargs" in args._fields:
+                arg_list += args.posonlyargs
+
+            first = True
+            for arg in arg_list:
+                if arg is not None:
+                    if col < _get_colrange(arg)[0] and first:
+                        break
+                    first = False
+                    if arg.annotation is not None:
+                        ret = self._get_atom_expr(arg.annotation, line, col)
+                        if ret is not None:
+                            return ret
+                    arg_col_range = _get_colrange(arg)
+                    if arg.lineno == line and col <= arg_col_range[1]:
+                        return arg
+
+        # for any individual field that's an expr, recurse into it
+        for field in parsed._fields:
+            val = getattr(parsed, field)
+            if isinstance(val, ast.expr):
+                ret = self._get_atom_expr(val, line, col)
+                if ret is not None:
+                    return ret
+
+        if sys.version_info < (3, 9) and "slice" in parsed._fields:
+            slice = getattr(parsed, "slice")
+            for inner_attr in ["value", "lower", "upper"]:
+                if hasattr(slice, inner_attr):
+                    ret = self._get_atom_expr(getattr(slice, inner_attr), line, col)
+                    if ret is not None:
+                        return ret
+
+        # if we match on the first line but didn't match anything else (args, bases)
+        # then return the function/class itself
+        if isinstance(parsed, ast.ClassDef) or isinstance(parsed, ast.FunctionDef):
+            if line == parsed.lineno:
+                return parsed
+
+        # if a call contains the target point but we didn't match above (in func or args)
+        # then the point is on an in-between character like ( or , in between arguments.
+        # find the closest atom before the point.
+        if isinstance(parsed, ast.Call):
+            # if we're pointing at the closing ) return the call instead. Note that without
+            # accurate end-column information this will never match
+            if col == col_range[1] - 1:
+                return parsed
+
+            # if there are no args or the col is before the first one, return the
+            # function itself
+            if len(parsed.args) == 0 or col < parsed.args[0].col_offset:
+                return parsed.func
+
+            # it's the last arg that starts before the target point
+            lastarg = -1
+            for i in range(len(parsed.args) - 1):
+                if parsed.args[i + 1].col_offset > col:
+                    lastarg = i
+                    break
+
+            # prefer using the last character of the arg to narrow down as it's more accurate
+            arg = parsed.args[lastarg]
+            if hasattr(arg, "end_col_offset"):
+                return self._get_atom_expr(
+                    arg, line, getattr(arg, "end_col_offset") - 1
+                )
+            return self._get_atom_expr(arg, line, arg.col_offset)
+
+        # if we got here for a subscript then the column points at our closing bracket, not
+        # the value we're subscripting or the subscript itself, so we should return the whole
+        # expression
+        if isinstance(parsed, ast.Subscript):
+            return parsed
+
+        return None
+
+    # get the type of whatever element is at a particular location
+    def get_location_type(self, line: int, col: int) -> Any:
+        if self.module is None:
+            raise ValueError("Can't get things with failed parse")
+        try:
+            expr = self._get_atom_expr(self.module, line, col)
+            if expr is not None:
+                return self._get_type(self.scopes[line], expr)
+        except:
+            pass
+        return Any
+
