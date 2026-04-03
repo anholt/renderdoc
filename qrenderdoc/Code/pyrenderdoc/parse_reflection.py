@@ -199,6 +199,93 @@ def _nopstrings(string: str) -> str:
     return "".join(text)
 
 
+# this function does a bulk of the work of taking a work-in-progress expression
+# and figuring out which sub-expression is relevant for auto-completion or such.
+#
+# the expression is expected to be truncated such that the end of the expression
+# string is the point of interest. So if a cursor is part-way through a line the
+# rest of the line should not be included.
+#
+# For example in this case:
+#
+#   function_call(param1, param2, function_call_3(x,
+#
+# the sub-expression we care about is `function_call_3(x, ` as the outer function
+# call is not relevant.
+#
+# similarly in this case:
+#
+#   outer_list[other_value.blah
+#
+# we want to find other_value.blah
+#
+# One different case is with function calls:
+#
+#  function_call(param1, [incomplete_list_comp for x in other, blah.foo
+#
+# In this case what we care about is blah.foo
+#
+# Note this function *does not* try to determine if we're part way through
+# typing a function call and which argument we're on. That is handled separately
+# since it cares less about subexressions and more about counting parameters
+def _get_trailing_expr(expr: str) -> str:
+    pure_expr = _nopstrings(expr)
+
+    # search backwards to the first unbalanced [], {} or ()
+    i = len(pure_expr) - 1
+    depths = [0, 0, 0]
+    depth_toks = {
+        "(": (0, -1),
+        ")": (0, 1),
+        "[": (1, -1),
+        "]": (1, 1),
+        "{": (2, -1),
+        "}": (2, 1),
+    }
+    while i > 0:
+        # if this doesn't affect paren matching we can't stop due to unbalanced
+        # nesting
+        if pure_expr[i] not in depth_toks:
+            # if it's a token that we expect to delimit the end of an expression,
+            # stop now if we're not nested
+            if pure_expr[i] in "=,:;{}+-/*<>&|^%@~\"'" and all(
+                [x == 0 for x in depths]
+            ):
+                i += 1
+                return pure_expr[i:].strip()
+            # if this is whitespace and the previous token wasn't a . or ,
+            # then stop here too
+            elif (
+                pure_expr[i].isspace()
+                and depths == [0, 0, 0]
+                and i > 1
+                and pure_expr[i - 1] not in ".,"
+                and not pure_expr[i - 1].isspace()
+            ):
+                i += 1
+                return pure_expr[i:].strip()
+
+            i -= 1
+        else:
+            # update nesting
+            d, x = depth_toks[pure_expr[i]]
+            depths[d] += x
+
+            i -= 1
+
+            # if we hit an unbalanced nesting, stop here
+            if any([x < 0 for x in depths]):
+                # start from the [ char, not what would have been the next char
+                i += 1
+                # don't include the unbalanced brace/paren
+                i += 1
+
+                return pure_expr[i:].strip()
+
+    # if we didn't find anything, the whole expression is the one we care about
+    return pure_expr.strip()
+
+
 class _target_in_gen(ast.AST):
     target: ast.AST
     gen: ast.comprehension
@@ -1711,6 +1798,92 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
             else:
                 raise RuntimeError(
                     f"expected {inval} to nop out to {expected} but got {actual}"
+                )
+
+        expr_tests = [
+            ("ret = hello(a, b) + world(c, d)", "world(c, d)"),
+            # simple direct and valid expressions
+            ("hello", "hello"),
+            ("foo.bar", "foo.bar"),
+            ("foo[0]", "foo[0]"),
+            ("foo[bar.foo]", "foo[bar.foo]"),
+            ("foo()", "foo()"),
+            ("foo(bar)", "foo(bar)"),
+            ("foo(bar, qux)", "foo(bar, qux)"),
+            ("(bar, qux)", "(bar, qux)"),
+            ("[bar, qux]", "[bar, qux]"),
+            ("[thing.other for thing in list]", "[thing.other for thing in list]"),
+            # strings will be nop'd
+            ('{"bar": 2, "qux": 3}', '{"xxx": 2, "xxx": 3}'),
+            # complex chained but valid expression
+            (
+                "foo.bar[other.index].member(param1, param2=blah).data",
+                "foo.bar[other.index].member(param1, param2=blah).data",
+            ),
+            # function calls with nested parameters
+            (
+                "foo(tuple_param = (1,2), list_param = [1,2], dict_param = {1: 4, 8: 2})",
+                "foo(tuple_param = (1,2), list_param = [1,2], dict_param = {1: 4, 8: 2})",
+            ),
+            (
+                "foo(other_func(1,2), obj.method([1,2], blah))",
+                "foo(other_func(1,2), obj.method([1,2], blah))",
+            ),
+            # grabbing subexpression in a larger expression (still valid)
+            ("ret = hello", "hello"),
+            ("ret = hello + world", "world"),
+            ("ret = hello > world", "world"),
+            ("ret = hello(a, b) + world(c, d)", "world(c, d)"),
+            (
+                "ret = [thing.other for thing in list]",
+                "[thing.other for thing in list]",
+            ),
+            ("x, y = func1(a, b), func2(c, d)", "func2(c, d)"),
+            ("if condition: thing_doer.do(x, y)", "thing_doer.do(x, y)"),
+            ("statement1(call); statement2(call)", "statement2(call)"),
+            # simple expressions but with trailing . that's invalid
+            ("hello.", "hello."),
+            ("foo.bar.", "foo.bar."),
+            ("foo[0].", "foo[0]."),
+            ("foo[bar.foo].", "foo[bar.foo]."),
+            ("foo(bar, qux).other.", "foo(bar, qux).other."),
+            # open subscript
+            ("foo[0", "0"),
+            ("foo[bar.other", "bar.other"),
+            ("foo[bar.other + blah", "blah"),
+            # open list comp
+            ("blah = [other.foo for other in list", "list"),
+            # partial function calls - these are handled separately for parameter completion
+            ("func(param, param2", "param2"),
+            ("func(param", "param"),
+            ("func(", ""),
+            # invalid function calls or calls containing problems in their arguments
+            # this is useful so if we are in a function call we can 'cap' it with a )
+            # without caring, and count parameters
+            ("func(param, param2, )", "func(param, param2, )"),
+            ("func(param, thing. )", "func(param, thing. )"),
+            # testing behaviour with an extra )
+            ("foobar)", "foobar)"),
+            ("func_call())", "func_call())"),
+            ("func_call().member)", "func_call().member)"),
+            # complex nesting of function calls
+            ("func1(param, func2(other, param3, kw_param=func3(blah", "blah"),
+            ("func1(param, func2(other, param3, kw_param=func3(blah)", "func3(blah)"),
+            ("func1(param, func2(other, param3, func3(blah)", "func3(blah)"),
+            (
+                "func1(param, func2(other, param3, thing.func3(blah)",
+                "thing.func3(blah)",
+            ),
+        ]
+
+        for inval, expected in expr_tests:
+            actual = _get_trailing_expr(inval)
+
+            if actual == expected:
+                passed += 1
+            else:
+                raise RuntimeError(
+                    f"expected trailing expr of '{inval}' to be '{expected}' but got '{actual}'"
                 )
 
         print(f"{passed} tests passed!")
