@@ -286,6 +286,62 @@ def _get_trailing_expr(expr: str) -> str:
     return pure_expr.strip()
 
 
+# for a function-call like expression which is allowed to not be fully
+# syntactically correct but should be 'minimal' ie. similar to what
+# the above _get_trailing_expr returns.
+# this returns the function call, and the index of the last argument
+def _get_func_arg(call: str) -> Tuple[str, int]:
+    call = _nopstrings(call)
+
+    # this function only handles call-like strings, that must have a trailing )
+    if call[-1] != ")":
+        return ("", -1)
+
+    depth = 0
+    arg_count = 0
+    i = len(call) - 1
+    while i > 0:
+        if call[i] == ")":
+            depth += 1
+        elif call[i] == "(":
+            depth -= 1
+            # found the balanced paren, can stop here
+            if depth == 0:
+                return (call[0:i], arg_count)
+        else:
+            if depth == 1 and call[i] == ",":
+                arg_count += 1
+
+            # skip lists
+            if call[i] == "]":
+                i -= 1
+                inner_depth = 1
+                while inner_depth > 0:
+                    if call[i] == "]":
+                        inner_depth += 1
+                    elif call[i] == "[":
+                        inner_depth -= 1
+                        if inner_depth == 0:
+                            break
+                    i -= 1
+
+            # skip dicts
+            if call[i] == "}":
+                i -= 1
+                inner_depth = 1
+                while inner_depth > 0:
+                    if call[i] == "}":
+                        inner_depth += 1
+                    elif call[i] == "{":
+                        inner_depth -= 1
+                    i -= 1
+
+        i -= 1
+
+    # if we failed, return nothing
+    return ("", -1)
+
+
 class _target_in_gen(ast.AST):
     target: ast.AST
     gen: ast.comprehension
@@ -1884,6 +1940,36 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
             else:
                 raise RuntimeError(
                     f"expected trailing expr of '{inval}' to be '{expected}' but got '{actual}'"
+                )
+
+        func_tests = [
+            # direct cases
+            ("func()", ("func", 0)),
+            ("func()", ("func", 0)),
+            ("func(param)", ("func", 0)),
+            ("func(param,)", ("func", 1)),
+            ("func(param, p)", ("func", 1)),
+            # cases with complex arguments
+            ("func(param, (1, 2))", ("func", 1)),
+            ("func(param, [1, 2])", ("func", 1)),
+            ("func(param, func2())", ("func", 1)),
+            ("func(param, func2(), c)", ("func", 2)),
+            ("func(param, func2([1,2],(3,4)), c)", ("func", 2)),
+            # failure cases
+            ("not_a_call", ("", -1)),
+            ("[1, 2, 3, func()]", ("", -1)),
+            ("(tuple,with,params)", ("", -1)),
+            ("call(a, b).with.trail", ("", -1)),
+        ]
+
+        for inval, expected in func_tests:
+            actual = _get_func_arg(inval)
+
+            if actual == expected:
+                passed += 1
+            else:
+                raise RuntimeError(
+                    f"For '{inval}' expected argument {expected[1]} in '{expected[0]}' but got {actual[1]} in '{actual[0]}'"
                 )
 
         print(f"{passed} tests passed!")
