@@ -199,6 +199,15 @@ def _nopstrings(string: str) -> str:
     return "".join(text)
 
 
+class _target_in_gen(ast.AST):
+    target: ast.AST
+    gen: ast.comprehension
+
+    def __init__(self, t: ast.AST, g: ast.comprehension):
+        self.target = t
+        self.gen = g
+
+
 # a given instance of an identifier and its type
 class Ident:
     # first line this ident is valid
@@ -422,6 +431,44 @@ class PyReflector:
             return "@@" + err.replace("@", "") + "@@"
         return Any
 
+    def _add_extras_for_gen(
+        self,
+        scope: Scope,
+        tmp_types: Optional[Dict[str, Any]],
+        generators: List[ast.comprehension],
+    ) -> Dict[str, Any]:
+        if tmp_types is None:
+            extras = {}
+        else:
+            extras = tmp_types.copy()
+
+        for g in generators:
+            iter: Any = self._get_type(scope, g.iter, tmp_types)
+
+            if _is_generic(List, iter):
+                iter_type = iter.__args__[0]
+            elif _is_generic(Tuple, iter):
+                if len(set(iter.__args__)) == 1:
+                    iter_type = iter.__args__[0]
+                else:
+                    raise TypeError(f"Ambiguous tuple list comp on {iter}")
+            else:
+                raise TypeError(f"Unhandled iter list comp on {iter}")
+
+            if isinstance(g.target, ast.Name):
+                extras[g.target.id] = iter_type
+            elif (
+                isinstance(g.target, ast.Tuple)
+                and _is_generic(Tuple, iter_type)
+                and len(g.target.elts) == len(iter_type.__args__)
+            ):
+                for i, e in enumerate(g.target.elts):
+                    if not isinstance(e, ast.Name):
+                        raise TypeError(f"Failed unpacking list comp {i} on {e}")
+                    extras[e.id] = iter_type.__args__[i]
+
+        return extras
+
     def _get_type(
         self,
         scope: Scope,
@@ -469,6 +516,14 @@ class PyReflector:
 
                 return ident.type_obj
             return ident
+
+        if isinstance(parsed, _target_in_gen):
+            try:
+                extras = self._add_extras_for_gen(scope, tmp_types, [parsed.gen])
+            except TypeError as err:
+                return self._type_failure(str(err))
+
+            return self._get_type(scope, parsed.target, extras)
 
         if isinstance(parsed, ast.Attribute):
             # detect single-level self.foo and look up in parent if it exists
@@ -804,39 +859,10 @@ class PyReflector:
 
         # for list comprehensions / generators we generate a tmp type for the iterator value
         if isinstance(parsed, ast.ListComp) or isinstance(parsed, ast.GeneratorExp):
-            if tmp_types is None:
-                extras = {}
-            else:
-                extras = tmp_types.copy()
-
-            for g in parsed.generators:
-                iter = self._get_type(scope, g.iter, tmp_types)
-
-                if _is_generic(List, iter):
-                    iter_type = iter.__args__[0]
-                elif _is_generic(Tuple, iter):
-                    if len(set(iter.__args__)) == 1:
-                        iter_type = iter.__args__[0]
-                    else:
-                        return self._type_failure(
-                            f"Ambiguouos tuple list comp on {iter}"
-                        )
-                else:
-                    return self._type_failure(f"Unhandle iter list comp on {iter}")
-
-                if isinstance(g.target, ast.Name):
-                    extras[g.target.id] = iter_type
-                elif (
-                    isinstance(g.target, ast.Tuple)
-                    and _is_generic(Tuple, iter_type)
-                    and len(g.target.elts) == len(iter_type.__args__)
-                ):
-                    for i, e in enumerate(g.target.elts):
-                        if not isinstance(e, ast.Name):
-                            return self._type_failure(
-                                f"Failed unpacking list comp {i} on {e}"
-                            )
-                        extras[e.id] = iter_type.__args__[i]
+            try:
+                extras = self._add_extras_for_gen(scope, tmp_types, parsed.generators)
+            except TypeError as err:
+                return self._type_failure(str(err))
 
             inner = self._get_type(scope, parsed.elt, extras)
             if isinstance(inner, str):
@@ -1336,7 +1362,6 @@ class PyReflector:
         multi_fields = [
             "orelse",
             "finalbody",
-            "generators",
             "bases",
             "decorator_list",
             "targets",
@@ -1348,6 +1373,21 @@ class PyReflector:
             "keys",
             "names",
         ]
+
+        # handle listcomps/generators specially so we can return a hacky thing saying
+        # which generator to use
+        if isinstance(parsed, ast.ListComp) or isinstance(parsed, ast.GeneratorExp):
+            for g in parsed.generators:
+                ret = self._get_atom_expr(g.target, line, col)
+                if ret is not None:
+                    return _target_in_gen(ret, g)
+                ret = self._get_atom_expr(g.iter, line, col)
+                if ret is not None:
+                    return ret
+                for ifg in g.ifs:
+                    ret = self._get_atom_expr(ifg, line, col)
+                    if ret is not None:
+                        return ret
 
         if not isinstance(parsed, ast.Lambda):
             multi_fields += ["body"]
@@ -1802,10 +1842,20 @@ if __name__ == "impossible":
     #   ^    # TYPE: List[Tuple[int,str]]
 
     unpack_comp = [x for x, y in tuple_list]
-    #   ^    # TYPE: List[int]
+    #   ^                          # TYPE: List[int]
+    #                    ^         # TYPE: int
+    #                       ^      # TYPE: str
 
     unpack_comp = [y for x, y in tuple_list]
     #   ^    # TYPE: List[str]
+
+    ## Iterators we treat as lists for simplicity
+
+    iter_comp = (x * 2 for x in range(10))
+    #   ^            # TYPE: List[int]
+
+    iter_comp = next(x * 2 for x in range(10))
+    #   ^            # TYPE: int
 
     ## subscript/attribute accesses
 
