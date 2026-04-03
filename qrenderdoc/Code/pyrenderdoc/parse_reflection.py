@@ -1375,6 +1375,45 @@ class PyReflector:
         return Any
 
 
+    # try to get a friendly name for a type based on its parent class and module
+    def get_name(self, obj: Any) -> str:
+        name = ""
+
+        if hasattr(obj, "__objclass__"):
+            cl = obj.__objclass__
+
+            if hasattr(cl, "__name__"):
+                name = f"{cl.__name__}."
+
+            membernames = [x for x in dir(cl) if getattr(cl, x) == obj]
+
+            if len(membernames) != 1:
+                return ""
+
+            name += membernames[0]
+
+            if hasattr(cl, "__module__") and cl.__module__ != "builtins":
+                name = f"{cl.__module__}.{name}"
+        elif hasattr(obj, "__module__"):
+            mod = obj.__module__
+
+            if mod not in sys.modules:
+                return ""
+
+            mod = sys.modules[mod]
+
+            membernames = [x for x in dir(mod) if getattr(mod, x) == obj]
+
+            if len(membernames) != 1:
+                return ""
+
+            if obj.__module__ == "builtins":
+                return membernames[0]
+
+            name = f"{obj.__module__}.{membernames[0]}"
+
+        return name
+
     # print all scopes and identifiers with their types
     def dump(self):
         seen = set()
@@ -1448,12 +1487,39 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
         # find automatic test prompts
         lines = refl.parsed_text.splitlines()
         for i, line_text in enumerate(lines):
+            if "# NAME:" in line_text and not "#exclude" in line_text:
+                col = line_text.index("^")
+
+                # allow multiple checks on the same line
+                while lines[i - 1].lstrip()[0] == "#":
+                    i -= 1
+
+                # this naturally targets the previous line due to 1-based and 0-based
+                line = i
+
+                actual = refl.get_location_type(line, col)
+
+                actual = refl.get_name(actual)
+
+                expect = line_text[line_text.index("NAME: ") + 6 :]
+
+                if actual == expect:
+                    passed += 1  # name match
+                else:
+                    raise RuntimeError(
+                        f"{file}:{line}:{col+1} expected name '{actual}' to match '{expect}'\n"
+                        + refl.get_line_source(line)
+                        + "\n"
+                        + (" " * col)
+                        + "^"
+                    )
+
             # quick check to make sure we don't match this if here
             if "# TYPE:" in line_text and not "#exclude" in line_text:
                 col = line_text.index("^")
 
                 # allow multiple checks on the same line
-                while "TYPE:" in lines[i - 1]:
+                while lines[i - 1].lstrip()[0] == "#":
                     i -= 1
 
                 # this naturally targets the previous line due to 1-based and 0-based
@@ -1803,11 +1869,13 @@ if __name__ == "impossible":
 
     a = pickyourpoison([1, 2, 3])
     #       ^  # TYPE: random.choice
+    #       ^  # NAME: random.choice
 
     import base64 as base32times2
 
     a = base32times2.b64encode(b"hello")
     #                    ^  # TYPE: base64.b64encode
+    #                    ^  # NAME: base64.b64encode
 
     ## class methods and properties
 
@@ -1870,3 +1938,15 @@ if __name__ == "impossible":
                 return 4.321
 
             return self.value * self.other
+
+    ## test names
+    # mostly not useful here with only builtins to check
+    # as this does not handle user-defined types
+
+    list_item = []
+    list_item.index(5)
+    #           ^  # NAME: list.index
+
+    dict_item = {}
+    dict_item.update({})
+    #           ^  # NAME: dict.update
