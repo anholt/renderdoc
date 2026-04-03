@@ -109,6 +109,96 @@ def _commentlines(text, first_comment_line):
     return "\n".join(lines)
 
 
+# replace the contents of all strings with 'x' so that
+# they don't affect any bracket/brace/etc parsing.
+# respect escaping
+def _nopstrings(string: str) -> str:
+    # split to list so it's mutable
+    text = list(string)
+
+    insingle = indouble = False
+    i = 0
+    while i < len(text):
+        if text[i] == "'":
+            # if we see a ' in a double-quoted string, it's just a character
+            if indouble:
+                text[i] = "x"
+            else:
+                insingle = not insingle
+
+            i += 1
+        elif text[i] == '"':
+            if insingle:
+                text[i] = "x"
+            else:
+                indouble = not indouble
+            i += 1
+        elif not insingle and not indouble:
+            # if we're not in a string, ignore the char
+            i += 1
+        else:
+            # in a string of some kind
+
+            # if not an escape character just nop it.
+            if text[i] != "\\":
+                text[i] = "x"
+                i += 1
+            else:
+                # escaping something. First nop the \\ char
+                text[i] = "x"
+                i += 1
+
+                # octal character
+                if text[i].isdigit():
+                    # convert current char to x
+                    text[i] = "x"
+                    i += 1
+                    # and up to 3 digits
+                    end = i + 3
+                    while text[i] in "0123457" and i < end:
+                        text[i] = "x"
+                        i += 1
+                # hex character
+                elif text[i] == "x":
+                    i += 1  # already is an x!
+                    for x in range(2):  # exactly two hex digits
+                        text[i] = "x"
+                        i += 1
+                elif text[i] == "u":
+                    text[i] = "x"
+                    i += 1
+                    for x in range(4):  # exactly four hex digits
+                        text[i] = "x"
+                        i += 1
+                elif text[i] == "U":
+                    text[i] = "x"
+                    i += 1
+                    for x in range(8):  # exactly eight hex digits
+                        text[i] = "x"
+                        i += 1
+                elif text[i] == "N":
+                    # named unicode literal
+                    text[i] = "x"
+                    i += 1
+
+                    # remove the {
+                    text[i] = "x"
+                    i += 1
+
+                    # find the next }
+                    end = text.index("}", i)
+                    while i <= end:
+                        text[i] = "x"
+                        i += 1
+                else:
+                    # just nop the next char
+                    text[i] = "x"
+                    i += 1
+
+    # rejoin into string
+    return "".join(text)
+
+
 # a given instance of an identifier and its type
 class Ident:
     # first line this ident is valid
@@ -1543,6 +1633,45 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
                         + (" " * col)
                         + "^"
                     )
+
+        # some manual tests
+        nop_tests = [
+            # edge case
+            ("", ""),
+            # no translation, even with brackets or \\ chars
+            ("simple", "simple"),
+            ("some_expression([foo: {}])", "some_expression([foo: {}])"),
+            ("expression with \\ somehow", "expression with \\ somehow"),
+            # plain strings
+            ("expr('blah')", "expr('xxxx')"),
+            ('expr("blah")', 'expr("xxxx")'),
+            # strings with alternate quotes
+            ("expr('bl \"a \"h')", "expr('xxxxxxxx')"),
+            ("expr(\"bl 'a 'h\")", 'expr("xxxxxxxx")'),
+            # string with escaped quotes
+            ("expr('blah\\', foo')", "expr('xxxxxxxxxxx')"),
+            ('expr("blah\\", foo")', 'expr("xxxxxxxxxxx")'),
+            # strings of both types
+            (
+                'expr("blah", \'foo\', "bar \' blah")',
+                'expr("xxxx", \'xxx\', "xxxxxxxxxx")',
+            ),
+            # escape characters
+            (
+                'expr("blah\\123 \\05 \\h5F \\h5f \\u63fb44 \\U008270fF \\N{SNAKE}")',
+                'expr("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")',
+            ),
+        ]
+
+        for inval, expected in nop_tests:
+            actual = _nopstrings(inval)
+
+            if actual == expected:
+                passed += 1
+            else:
+                raise RuntimeError(
+                    f"expected {inval} to nop out to {expected} but got {actual}"
+                )
 
         print(f"{passed} tests passed!")
 
