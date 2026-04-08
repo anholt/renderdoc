@@ -3,7 +3,7 @@ import inspect
 import sys
 import struct
 import builtins
-from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional
+from typing import List, Dict, Any, Tuple, Set, Callable, TypeVar, Optional
 
 
 # return whether an object is a specialisation of the given generic,
@@ -473,6 +473,11 @@ class PyReflector:
         # annotations
         self.pending: List[Tuple[Optional[Scope], ast.AST]] = []
 
+        # the last ident processed in _get_type, used for user function completion. A bit
+        # of a hack to avoid needing a full parallel _get_type equivalent for looking
+        # up identifiers, or making _get_type do both
+        self._last_ident: Optional[Ident] = None
+
         # try to parse the text
         self._parse_text(text)
 
@@ -618,6 +623,8 @@ class PyReflector:
         parsed: Optional[ast.AST],
         tmp_types: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        self._last_ident = None
+
         # simple protection and helps the type checker, silently drop None
         if parsed is None:
             return None
@@ -657,6 +664,7 @@ class PyReflector:
                             self._process_pending(i)
                             break
 
+                self._last_ident = ident
                 return ident.type_obj
             return ident
 
@@ -698,6 +706,7 @@ class PyReflector:
                                 self._process_pending(i)
                                 break
 
+                    self._last_ident = ret
                     return ret.type_obj
 
             # get the type of the base object that we're looking up
@@ -734,6 +743,7 @@ class PyReflector:
                         )
 
                         if attr_ident is not None:
+                            self._last_ident = attr_ident
                             return attr_ident.type_obj
                 return self._type_failure(
                     f"Attribute {parsed.attr} not found in {parsed.value}"
@@ -1647,6 +1657,135 @@ class PyReflector:
             pass
         return Any
 
+    def get_autocompletion(self, line: int, expr: str) -> Tuple[List[str], int]:
+        expr = _get_trailing_expr(expr).strip()
+
+        if expr == "":
+            return [], 0
+
+        trailing_dot = expr[-1] == "."
+        if trailing_dot:
+            expr = expr[:-1]
+
+        # fake the line it's on
+        src = "\n" * (line - 1) + expr
+
+        try:
+            node = ast.parse(src)
+            if not isinstance(node, ast.Module):
+                return [], 0
+            node = node.body[0]
+            if not isinstance(node, ast.Expr):
+                return [], 0
+            node = node.value
+
+            curscope = self.scopes[min(len(self.scopes) - 1, line)]
+
+            # for just a name, filter the identifiers at this point if there was no trailing dot
+            if isinstance(node, ast.Name) and not trailing_dot:
+                idents = []
+                while curscope is not None:
+                    for k, v in curscope.identifiers.items():
+                        if any([x.line <= line for x in v]):
+                            idents.append(k)
+                    curscope = curscope.parent
+                return list(
+                    filter(lambda x: x.lower().startswith(node.id.lower()), idents)
+                ), len(node.id)
+
+            # we provide completion for attribute access, which can either look like just a
+            # name (if there was a trailing dot so we didn't hit the case above)
+            base_type = Any
+            attr_filter = ""
+            if isinstance(node, ast.Name) or trailing_dot:
+                base_type = self._get_type(curscope, node)
+            elif isinstance(node, ast.Attribute):
+                base_type = self._get_type(curscope, node.value)
+                attr_filter = node.attr
+            else:
+                return [], 0
+
+            # if the base type is unknown in some fashion, nothing to do
+            if base_type is Any or base_type is None:
+                return [], 0
+
+            # if this is a user type, look up its identifiers from our list
+            if isinstance(base_type, TypeVar):
+                base_ident = curscope.get_ident(base_type.__name__, line, -1)
+                if base_ident is not None:
+                    base_scope = self.scopes[base_ident.line]
+                    return list(
+                        filter(
+                            lambda x: x.lower().startswith(attr_filter.lower()),
+                            base_scope.identifiers.keys(),
+                        )
+                    ), len(attr_filter)
+
+                return [], 0
+
+            # pre-python 3.8 Dict, List etc are not the real types, substitute here
+            if sys.version_info < (3, 9):
+                if _is_generic(Dict, base_type):
+                    base_type = dict
+                if _is_generic(List, base_type):
+                    base_type = list
+                if _is_generic(Tuple, base_type):
+                    base_type = tuple
+                if _is_generic(Set, base_type):
+                    base_type = set
+
+            # otherwise filter dir()
+            return list(
+                filter(
+                    lambda x: x.lower().startswith(attr_filter.lower()), dir(base_type)
+                )
+            ), len(attr_filter)
+
+        except:
+            pass
+        return [], 0
+
+    def get_funccompletion(self, line: int, expr: str) -> Tuple[str, str, int]:
+        func, argidx = _get_func_arg(_get_trailing_expr(expr + ")"))
+
+        try:
+            # fake the line it's on
+            src = "\n" * (line - 1) + func
+
+            node = ast.parse(src)
+            if not isinstance(node, ast.Module) or len(node.body) == []:
+                return "", "", -1
+            node = node.body[0]
+
+            curscope = self.scopes[min(len(self.scopes) - 1, line)]
+
+            func_type = self._get_type(curscope, node)
+
+            if func_type == Any:
+                return "", "", -1
+
+            if _is_generic(Callable, func_type) and self._last_ident is not None:
+                func_scope = self.scopes[self._last_ident.line]
+                # skip invisible self, when looking at methods
+                if func_scope.parent is not None and func_scope.parent.is_class:
+                    argidx += 1
+                if isinstance(func_scope.parsed, ast.FunctionDef):
+                    func_node = func_scope.parsed
+                    if argidx < len(func_node.args.args):
+                        return func, func_node.args.args[argidx].arg, argidx
+                return func, f"arg{argidx+1}", argidx
+
+            sig = inspect.signature(func_type)
+
+            if argidx < len(sig.parameters):
+                # skip invisible self, when looking at methods
+                if list(sig.parameters)[0] == 'self':
+                    argidx += 1
+                return func, list(sig.parameters)[argidx], argidx
+        except:
+            pass
+
+        return "", "", -1
 
     # try to get a friendly name for a type based on its parent class and module
     def get_name(self, obj: Any) -> str:
@@ -1757,6 +1896,14 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
 
         passed = 0
 
+        # for auto complete
+        entry = ""
+        calltype = ""
+        param = ""
+        expected_prefix_len = 0
+        expected_results = []
+        expected_missing = []
+
         # find automatic test prompts
         lines = refl.parsed_text.splitlines()
         for i, line_text in enumerate(lines):
@@ -1816,6 +1963,72 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
                         + (" " * col)
                         + "^"
                     )
+
+            if "# ENTRY" in line_text and not "#exclude" in line_text:
+                entry = line_text[line_text.index("ENTRY: ") + 7 :]
+
+            # for autocomplete, results we expect and must not see
+            if "# RESULT" in line_text and not "#exclude" in line_text:
+                expected_results.append(line_text[line_text.index("RESULT: ") + 8 :])
+            if "# MISSING" in line_text and not "#exclude" in line_text:
+                expected_missing.append(line_text[line_text.index("MISSING: ") + 9 :])
+            if "# PREFIX" in line_text and not "#exclude" in line_text:
+                expected_prefix_len = int(line_text[line_text.index("PREFIX: ") + 8 :])
+
+            # for function completion the type of the callable, and the current parameter
+            if "# CALLTYPE" in line_text and not "#exclude" in line_text:
+                calltype = line_text[line_text.index("CALLTYPE: ") + 10 :]
+            if "# PARAM" in line_text and not "#exclude" in line_text:
+                param = line_text[line_text.index("PARAM: ") + 7 :]
+
+            if "# AUTOCOMPLETE TEST" in line_text and not "#exclude" in line_text:
+                line = i + 1
+
+                completions, prefix_len = refl.get_autocompletion(line, entry)
+
+                if expected_prefix_len != prefix_len:
+                    raise RuntimeError(
+                        f"{file}:{line} expected prefix length of '{expected_prefix_len}' for '{entry}', got '{prefix_len}'"
+                    )
+
+                for r in expected_results:
+                    if r not in completions:
+                        raise RuntimeError(
+                            f"{file}:{line} expected entry '{r}' in autocompletion for '{entry}'"
+                        )
+                    passed += 1
+
+                for m in expected_missing:
+                    if m in completions:
+                        raise RuntimeError(
+                            f"{file}:{line} unexpected entry '{m}' in autocompletion for '{entry}'"
+                        )
+                    passed += 1
+
+                # reset lists
+                expected_results = []
+                expected_missing = []
+
+            if "# FUNCCOMPLETE TEST" in line_text and not "#exclude" in line_text:
+                line = i
+
+                actual_calltype, actual_param, _ = refl.get_funccompletion(line, entry)
+
+                if actual_calltype != calltype:
+                    raise RuntimeError(
+                        f"{file}:{line} expected function '{calltype}' in function completion for '{entry}', got '{actual_calltype}'"
+                    )
+                else:
+                    passed += 1
+
+                if actual_param != param:
+                    raise RuntimeError(
+                        f"{file}:{line} expected parameter '{param}' in function completion for '{entry}', got '{actual_param}'"
+                    )
+                else:
+                    passed += 1
+
+                pass
 
         # some manual tests
         nop_tests = [
@@ -2388,3 +2601,132 @@ if __name__ == "impossible":
     dict_item = {}
     dict_item.update({})
     #           ^  # NAME: dict.update
+
+    # ENTRY: foo(
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: dict_item.
+    # RESULT: update
+    # RESULT: clear
+    # RESULT: keys
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: if dict_item.
+    # RESULT: update
+    # RESULT: clear
+    # RESULT: keys
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: for dict_item.
+    # RESULT: update
+    # RESULT: clear
+    # RESULT: keys
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: dict_item.po
+    # RESULT: pop
+    # RESULT: popitem
+    # MISSING: keys
+    # PREFIX: 2
+    # AUTOCOMPLETE TEST
+
+    autocomplete_var1 = 5
+    autocomplete_var2 = "hi"
+    autonotcomplete_var3 = (1, 1)
+
+    # ENTRY: auto
+    # RESULT: autocomplete_var1
+    # RESULT: autocomplete_var2
+    # RESULT: autonotcomplete_var3
+    # PREFIX: 4
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: autocomp
+    # RESULT: autocomplete_var1
+    # RESULT: autocomplete_var2
+    # MISSING: autonotcomplete_var3
+    # PREFIX: 8
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: outer_list[0].
+    # RESULT: inner
+    # RESULT: val
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: outer_list[0].inner.
+    # RESULT: foo
+    # RESULT: bar
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: outer_list[0].inner.f
+    # RESULT: foo
+    # MISSING: bar
+    # PREFIX: 1
+    # AUTOCOMPLETE TEST
+    def auto_function(param1, foobar, blah) -> bool: ...
+
+    class FooClass:
+        def method(self, param1, foobar, blah): ...
+
+    foo = FooClass()
+
+    # ENTRY: randint(
+    # CALLTYPE: randint
+    # PARAM: a
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: blah(randint(
+    # CALLTYPE: randint
+    # PARAM: a
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: randint(0,
+    # CALLTYPE: randint
+    # PARAM: b
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: auto_function(
+    # CALLTYPE: auto_function
+    # PARAM: param1
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: auto_function(,
+    # CALLTYPE: auto_function
+    # PARAM: foobar
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: auto_function(blah.asd
+    # CALLTYPE: auto_function
+    # PARAM: param1
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: auto_function(func()
+    # CALLTYPE: auto_function
+    # PARAM: param1
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: auto_function(func(),
+    # CALLTYPE: auto_function
+    # PARAM: foobar
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: foo.method(func(),
+    # CALLTYPE: foo.method
+    # PARAM: foobar
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: foo.method(func(), randint(
+    # CALLTYPE: randint
+    # PARAM: a
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: randint(foo.method(func(),
+    # CALLTYPE: foo.method
+    # PARAM: foobar
+    # FUNCCOMPLETE TEST
