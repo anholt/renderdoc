@@ -147,6 +147,7 @@ static PyMethodDef OutputRedirector_methods[] = {
 PyObject *PythonContext::main_dict = NULL;
 PyObject *PythonContext::m_DebugPy = NULL;
 PyObject *PythonContext::m_CallWrapper = NULL;
+PyObject *PythonContext::m_Reflector = NULL;
 PyObject *PythonContext::m_CallWrapperGlobals = NULL;
 PythonContext *PythonContext::m_ExtensionContext = NULL;
 QMap<rdcstr, PyObject *> PythonContext::extensions;
@@ -644,7 +645,11 @@ void PythonContext::GlobalInit(PersistantConfig &config)
   }
 #endif
 
+  // release GIL so that python work can now happen on any thread
+  PyEval_SaveThread();
+
   // load debugpy from installed vscode if we find it. This requires a minimum of python 3.8
+  std::function<void()> initDebugPy;
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 8
   if(config.Python_DebugEnabled)
   {
@@ -751,10 +756,8 @@ void PythonContext::GlobalInit(PersistantConfig &config)
       else
       {
         QObject *invokeObj = new QObject();
-        LambdaThread *thread = new LambdaThread([syspath, debugpy_path, invokeObj]() {
+        initDebugPy = [syspath, debugpy_path, invokeObj]() {
           qInfo() << "Importing debugpy from" << debugpy_path;
-
-          PyGILState_STATE gil = PyGILState_Ensure();
 
           PyObject *str = PyUnicode_FromString(debugpy_path.toUtf8().data());
 
@@ -838,8 +841,6 @@ void PythonContext::GlobalInit(PersistantConfig &config)
 
           RemoveDebuggableThread();
 
-          PyGILState_Release(gil);
-
           if(m_DebugPy)
           {
             GUIInvoke::defer(invokeObj, [invokeObj]() {
@@ -889,18 +890,125 @@ except:
               invokeObj->deleteLater();
             });
           }
-        });
-
-        thread->setName(lit("Python debug initialisation"));
-        thread->selfDelete(true);
-        thread->start();
+        };
       }
     }
   }
 #endif
 
-  // release GIL so that python work can now happen on any thread
-  PyEval_SaveThread();
+  LambdaThread *thread = new LambdaThread([initDebugPy, sysobj]() {
+    PyGILState_STATE gil = PyGILState_Ensure();
+
+    if(initDebugPy)
+      initDebugPy();
+
+    {
+      QByteArray parse_reflection;
+      {
+        QFile file(lit(":/py/parse_reflection.py"));
+
+        file.open(QFile::ReadOnly);
+        parse_reflection = file.readAll();
+        file.close();
+      }
+
+      QString filename = lit("parse_reflection.py");
+      // in debug, to allow attaching with local builds, set the expected/typical real path to the py file
+#if !defined(RELEASE)
+      {
+        QDir dir(QApplication::applicationDirPath());
+        dir.cdUp();
+        dir.cdUp();
+        dir.cd(lit("qrenderdoc"));
+        dir.cd(lit("Code"));
+        dir.cd(lit("pyrenderdoc"));
+        filename = dir.absoluteFilePath(lit("parse_reflection.py"));
+      }
+#endif
+
+      PyObject *parse_compiled =
+          Py_CompileString(parse_reflection.data(), filename.toUtf8().data(), Py_file_input);
+      PyObject *parse_module = PyImport_ExecCodeModule("__rd_refl", parse_compiled);
+      Py_XDECREF(parse_compiled);
+
+      m_Reflector = PyObject_GetAttrString(parse_module, "PyReflector");
+      Py_XDECREF(parse_module);
+    }
+
+    if(m_Reflector)
+    {
+      bool found = false;
+      // take the first standard location that works, these should be in priority order
+      // and typically the first one is writeable as normal.
+      for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+      {
+        QStringList paths = GetPystubsLocations(path + lit("/pystubs"));
+        if(paths.empty())
+          continue;
+
+        found = true;
+
+        QDir versioned_stubpath(paths[0]);
+        // move up to the parent path to ensure we can import without conflicting with the real module
+        versioned_stubpath.cdUp();
+
+        PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
+
+        PyObject *str = PyUnicode_FromString(versioned_stubpath.absolutePath().toUtf8().data());
+        PyList_Append(syspath, str);
+        Py_DecRef(str);
+
+        Py_XDECREF(syspath);
+
+        PyObject *stub_rd = PyImport_ImportModule(QFormatStr("v%1_%2.renderdoc")
+                                                      .arg(RENDERDOC_VERSION_MAJOR)
+                                                      .arg(RENDERDOC_VERSION_MINOR)
+                                                      .toUtf8()
+                                                      .data());
+
+        if(!stub_rd)
+        {
+          qCritical() << "Failed importing stubs for renderdoc";
+          HandleException(NULL);
+        }
+
+        PyObject *stub_qrd = PyImport_ImportModule(QFormatStr("v%1_%2.qrenderdoc")
+                                                       .arg(RENDERDOC_VERSION_MAJOR)
+                                                       .arg(RENDERDOC_VERSION_MINOR)
+                                                       .toUtf8()
+                                                       .data());
+
+        if(!stub_qrd)
+        {
+          qCritical() << "Failed importing stubs for qrenderdoc";
+          HandleException(NULL);
+        }
+
+        PyObject *alias_modules = PyObject_SafeGetAttrString(m_Reflector, "alias_modules");
+
+        if(stub_rd)
+          PyDict_SetItemString(alias_modules, "renderdoc", stub_rd);
+
+        if(stub_qrd)
+          PyDict_SetItemString(alias_modules, "qrenderdoc", stub_qrd);
+
+        Py_XDECREF(stub_rd);
+        Py_XDECREF(stub_qrd);
+        Py_XDECREF(alias_modules);
+
+        break;
+      }
+
+      if(!found)
+        qCritical() << "Couldn't find valid stubs path";
+    }
+
+    PyGILState_Release(gil);
+  });
+
+  thread->setName(lit("Python deferred initialisation"));
+  thread->selfDelete(true);
+  thread->start();
 
   // this will leak effectively
   m_ExtensionContext = new PythonContext(true, NULL);

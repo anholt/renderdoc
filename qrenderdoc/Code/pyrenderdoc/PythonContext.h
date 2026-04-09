@@ -157,6 +157,9 @@ private:
   static PyObject *m_CallWrapper;
   static PyObject *m_CallWrapperGlobals;
 
+  // the PyReflector from parse_reflection
+  static PyObject *m_Reflector;
+
   // a statically created PythonContext for extension events/output.
   // each extension has its own dictionary but this is used so that users can connect to it and receieve events
   static PythonContext *m_ExtensionContext;

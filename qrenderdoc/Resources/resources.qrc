@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/py">
         <file alias="stubgen.py">../../docs/stubgen.py</file>
+        <file alias="parse_reflection.py">../Code/pyrenderdoc/parse_reflection.py</file>
     </qresource>
     <qresource prefix="/">
         <file>logo.svg</file>

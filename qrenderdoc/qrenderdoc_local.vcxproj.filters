@@ -1204,6 +1204,9 @@
     <None Include="Code\AppleUtils.mm">
       <Filter>Code</Filter>
     </None>
+    <None Include="Code\pyrenderdoc\parse_reflection.py">
+      <Filter>Code\pyrenderdoc</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resources\qrenderdoc.rc">
