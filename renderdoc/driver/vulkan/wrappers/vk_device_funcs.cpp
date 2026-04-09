@@ -2392,13 +2392,17 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
 
         m_MultiView |= ext->multiview != VK_FALSE;
 
-        if(avail.multiviewGeometryShader)
-          ext->multiviewGeometryShader = true;
-        else
-          RDCWARN(
-              "multiviewGeometryShader = false, triangle size overlay with multiview unavailable");
+        if(m_MultiView)
+        {
+          if(avail.multiviewGeometryShader)
+            ext->multiviewGeometryShader = true;
+          else
+            RDCWARN(
+                "multiviewGeometryShader = false, triangle size overlay with multiview "
+                "unavailable");
 
-        m_MultiViewGeometryShaders |= ext->multiviewGeometryShader != VK_FALSE;
+          m_MultiViewGeometryShaders |= ext->multiviewGeometryShader != VK_FALSE;
+        }
       }
       END_PHYS_EXT_CHECK();
 
