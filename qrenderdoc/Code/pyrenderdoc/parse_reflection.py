@@ -30,6 +30,14 @@ def _is_scope_node(node):
     )
 
 
+def _lookup_attrpath(x: Any, path: str) -> Any:
+    paths = path.split(".")
+    while x is not None and len(paths) > 0:
+        x = getattr(x, paths[0], None)
+        paths.pop(0)
+    return x
+
+
 # get all the return statements immediately inside a function without going into nested
 # functions
 def _get_return_statements(node: ast.AST, root: bool = True):
@@ -438,6 +446,10 @@ class Scope:
 # lookups of the types of expressions as well as auto-completion
 # of partial expressions
 class PyReflector:
+    # a lookup of modules to alias, e.g. to a stubs module that has better docs
+    # and type hints
+    alias_modules: Dict[str, Any] = {}
+
     def __init__(self, text: str, starting_globals: Dict[str, Any], debug_types: bool):
         # the parsed module, or None if parsing completely failed
         self.module: Optional[ast.Module]
@@ -453,9 +465,17 @@ class PyReflector:
         self.parse_error: Optional[str]
 
         # the starting set of globals to consider the module populated with
-        self.starting_globals = starting_globals
+        self.starting_globals = starting_globals.copy()
         if self.starting_globals is None:
-            self.starting_globals = globals()
+            self.starting_globals = globals().copy()
+
+        # apply module aliases
+        for k in self.starting_globals.keys():
+            if (
+                k in PyReflector.alias_modules
+                and self.starting_globals[k] == sys.modules[k]
+            ):
+                self.starting_globals[k] = PyReflector.alias_modules[k]
 
         # whether or not type-processing should be debugged. Instead of falling back
         # to `typing.Any` for unknown types, instead a string bounded by "@@" is returned.
@@ -617,6 +637,43 @@ class PyReflector:
 
         return extras
 
+    def _handle_aliases(self, in_type: Any) -> Any:
+        out_type = in_type
+
+        # see if this type looks like it's in one of the modules we're aliasing from
+        # and look up the desired type. This is generally expected to have better
+        # type annotations
+
+        for mod in PyReflector.alias_modules.keys():
+            if mod not in sys.modules:
+                continue
+
+            if hasattr(in_type, "__qualname__"):
+                attrpath = getattr(in_type, "__qualname__")
+
+                x = _lookup_attrpath(sys.modules[mod], getattr(in_type, "__qualname__"))
+
+                if x == in_type:
+                    return _lookup_attrpath(
+                        PyReflector.alias_modules[mod], getattr(in_type, "__qualname__")
+                    )
+
+            elif hasattr(in_type, "__class__"):
+                cl = getattr(in_type, "__class__")
+
+                names = [
+                    x
+                    for x in dir(sys.modules[mod])
+                    if getattr(sys.modules[mod], x) == cl
+                ]
+
+                if len(names) == 1:
+                    cl_name = names[0]
+
+                    return getattr(PyReflector.alias_modules[mod], cl_name)
+
+        return out_type
+
     def _get_type(
         self,
         scope: Scope,
@@ -665,7 +722,7 @@ class PyReflector:
                             break
 
                 self._last_ident = ident
-                return ident.type_obj
+                return self._handle_aliases(ident.type_obj)
             return ident
 
         if isinstance(parsed, _target_in_gen):
@@ -707,7 +764,7 @@ class PyReflector:
                                 break
 
                     self._last_ident = ret
-                    return ret.type_obj
+                    return self._handle_aliases(ret.type_obj)
 
             # get the type of the base object that we're looking up
             base = self._get_type(scope, parsed.value, tmp_types)
@@ -744,12 +801,23 @@ class PyReflector:
 
                         if attr_ident is not None:
                             self._last_ident = attr_ident
-                            return attr_ident.type_obj
+                            return self._handle_aliases(attr_ident.type_obj)
                 return self._type_failure(
                     f"Attribute {parsed.attr} not found in {parsed.value}"
                 )
 
             ret = getattr(base, parsed.attr)
+
+            # if we got to a getset descriptor, try to see if we can reverse lookup our aliases to find the documented type
+            if inspect.isgetsetdescriptor(ret):
+                if hasattr(ret, "__objclass__") and hasattr(ret, "__name__"):
+                    obj = ret.__objclass__
+
+                    for k in PyReflector.alias_modules.keys():
+                        for x in dir(sys.modules[k]):
+                            if getattr(sys.modules[k], x) == obj:
+                                doc_obj = getattr(PyReflector.alias_modules[k], x)
+                                ret = getattr(doc_obj, ret.__name__)
 
             # if this is a property return the type that calling the property getter would return
             if isinstance(ret, property) and ret.fget is not None:
@@ -848,7 +916,7 @@ class PyReflector:
                 # assume this is a builtin with missing docs
                 if sig.return_annotation == inspect.Signature.empty:
                     return Any
-                return sig.return_annotation
+                return self._handle_aliases(sig.return_annotation)
             except:
                 return self._type_failure(f"Failed to inspect signature of {func}")
 
@@ -1202,7 +1270,10 @@ class PyReflector:
                 id = Ident()
                 id.line = parsed.lineno
                 try:
-                    id.type_obj = __import__(alias.name, globals(), locals())
+                    if alias.name in PyReflector.alias_modules:
+                        id.type_obj = PyReflector.alias_modules[alias.name]
+                    else:
+                        id.type_obj = __import__(alias.name, globals(), locals())
                 except ImportError:
                     if self.debug_types:
                         print(f"Couldn't import {alias.name}")
@@ -1213,13 +1284,16 @@ class PyReflector:
             module = None
             if parsed.module is not None:
                 try:
-                    module = __import__(
-                        parsed.module,
-                        globals(),
-                        locals(),
-                        [a.name for a in parsed.names],
-                        parsed.level,
-                    )
+                    if parsed.module in PyReflector.alias_modules:
+                        module = PyReflector.alias_modules[parsed.module]
+                    else:
+                        module = __import__(
+                            parsed.module,
+                            globals(),
+                            locals(),
+                            [a.name for a in parsed.names],
+                            parsed.level,
+                        )
                 except ImportError:
                     if self.debug_types:
                         print(f"Couldn't import {parsed.module}")
@@ -1233,9 +1307,12 @@ class PyReflector:
                 id.line = parsed.lineno
                 if module is None:
                     try:
-                        id.type_obj = __import__(
-                            alias.name, globals(), locals(), [], parsed.level
-                        )
+                        if parsed.module in PyReflector.alias_modules:
+                            id.type_obj = PyReflector.alias_modules[alias.name]
+                        else:
+                            id.type_obj = __import__(
+                                alias.name, globals(), locals(), [], parsed.level
+                            )
                     except ImportError:
                         if self.debug_types:
                             print(f"Couldn't import {alias.name}")
@@ -1681,6 +1758,9 @@ class PyReflector:
 
             curscope = self.scopes[min(len(self.scopes) - 1, line)]
 
+            ret: List[str] = []
+            prefix_filter = ""
+
             # for just a name, filter the identifiers at this point if there was no trailing dot
             if isinstance(node, ast.Name) and not trailing_dot:
                 idents = []
@@ -1689,57 +1769,61 @@ class PyReflector:
                         if any([x.line <= line for x in v]):
                             idents.append(k)
                     curscope = curscope.parent
-                return list(
-                    filter(lambda x: x.lower().startswith(node.id.lower()), idents)
-                ), len(node.id)
-
-            # we provide completion for attribute access, which can either look like just a
-            # name (if there was a trailing dot so we didn't hit the case above)
-            base_type = Any
-            attr_filter = ""
-            if isinstance(node, ast.Name) or trailing_dot:
-                base_type = self._get_type(curscope, node)
-            elif isinstance(node, ast.Attribute):
-                base_type = self._get_type(curscope, node.value)
-                attr_filter = node.attr
+                ret = idents
+                prefix_filter = node.id
             else:
-                return [], 0
+                # we provide completion for attribute access, which can either look like just a
+                # name (if there was a trailing dot so we didn't hit the case above)
+                base_type = Any
+                prefix_filter = ""
+                if isinstance(node, ast.Name) or trailing_dot:
+                    base_type = self._get_type(curscope, node)
+                elif isinstance(node, ast.Attribute):
+                    base_type = self._get_type(curscope, node.value)
+                    prefix_filter = node.attr
+                else:
+                    return [], 0
 
-            # if the base type is unknown in some fashion, nothing to do
-            if base_type is Any or base_type is None:
-                return [], 0
+                # if the base type is unknown in some fashion, nothing to do
+                if base_type is Any or base_type is None:
+                    return [], 0
 
-            # if this is a user type, look up its identifiers from our list
-            if isinstance(base_type, TypeVar):
-                base_ident = curscope.get_ident(base_type.__name__, line, -1)
-                if base_ident is not None:
-                    base_scope = self.scopes[base_ident.line]
-                    return list(
-                        filter(
-                            lambda x: x.lower().startswith(attr_filter.lower()),
-                            base_scope.identifiers.keys(),
-                        )
-                    ), len(attr_filter)
+                # if this is a user type, look up its identifiers from our list
+                if isinstance(base_type, TypeVar):
+                    base_ident = curscope.get_ident(base_type.__name__, line, -1)
+                    if base_ident is not None:
+                        base_scope = self.scopes[base_ident.line]
+                        ret = list(base_scope.identifiers.keys())
+                    else:
+                        return [], 0
+                else:
+                    # pre-python 3.8 Dict, List etc are not the real types, substitute here
+                    if sys.version_info < (3, 9):
+                        if _is_generic(Dict, base_type):
+                            base_type = dict
+                        if _is_generic(List, base_type):
+                            base_type = list
+                        if _is_generic(Tuple, base_type):
+                            base_type = tuple
+                        if _is_generic(Set, base_type):
+                            base_type = set
 
-                return [], 0
+                    # otherwise filter dir()
+                    ret = dir(base_type)
 
-            # pre-python 3.8 Dict, List etc are not the real types, substitute here
-            if sys.version_info < (3, 9):
-                if _is_generic(Dict, base_type):
-                    base_type = dict
-                if _is_generic(List, base_type):
-                    base_type = list
-                if _is_generic(Tuple, base_type):
-                    base_type = tuple
-                if _is_generic(Set, base_type):
-                    base_type = set
+            # apply the prefix filter
+            ret = list(
+                filter(lambda x: x.upper().startswith(prefix_filter.upper()), ret)
+            )
 
-            # otherwise filter dir()
-            return list(
-                filter(
-                    lambda x: x.lower().startswith(attr_filter.lower()), dir(base_type)
-                )
-            ), len(attr_filter)
+            # unless we already started typing _, remove __ items
+            if not prefix_filter.startswith("_"):
+                ret = list(filter(lambda x: not x.startswith("__"), ret))
+
+            # sort alphabetically, case-insensitively
+            ret = sorted(ret, key=lambda x: x.upper())
+
+            return ret, len(prefix_filter)
 
         except:
             pass
