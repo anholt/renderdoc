@@ -804,7 +804,7 @@ void D3D12RTManager::Verify(PatchedRayDispatch &r)
         (WrappedID3D12DescriptorHeap *)m_wrappedDevice->GetResourceManager()
             ->GetResAs<ID3D12DescriptorHeap>(heapId);
 
-    if(heap->GetDescriptors()->GetType() == D3D12DescriptorType::Sampler)
+    if(heap->GetDesc().Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
       sampHeap = heap;
     else
       resHeap = heap;
@@ -1690,7 +1690,7 @@ PatchedRayDispatch D3D12RTManager::PatchRayDispatch(ID3D12GraphicsCommandList4 *
         (WrappedID3D12DescriptorHeap *)m_wrappedDevice->GetResourceManager()
             ->GetResAs<ID3D12DescriptorHeap>(heapId);
 
-    if(heap->GetDescriptors()->GetType() == D3D12DescriptorType::Sampler)
+    if(heap->GetDesc().Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
     {
       cbufferData.wrapped_sampHeapBase = heap->GetOriginalGPUBase();
       cbufferData.unwrapped_sampHeapBase = heap->GetGPU(0).ptr;
@@ -1959,7 +1959,7 @@ PatchedRayDispatch D3D12RTManager::PatchIndirectRayDispatch(
         (WrappedID3D12DescriptorHeap *)m_wrappedDevice->GetResourceManager()
             ->GetResAs<ID3D12DescriptorHeap>(heapId);
 
-    if(heap->GetDescriptors()->GetType() == D3D12DescriptorType::Sampler)
+    if(heap->GetDesc().Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
     {
       cbufferData.wrapped_sampHeapBase = heap->GetOriginalGPUBase();
       cbufferData.unwrapped_sampHeapBase = heap->GetGPU(0).ptr;
