@@ -1831,7 +1831,7 @@ rdcarray<Descriptor> D3D12Replay::GetDescriptors(ResourceId descriptorStore,
         WrappedID3D12Resource::GetResIDFromAddr(cbv.BufferLocation, ret[dst].resource,
                                                 ret[dst].byteOffset);
 
-        ret[dst].resource = ret[dst].resource;
+        ret[dst].type = DescriptorType::ConstantBuffer;
         ret[dst].byteSize = cbv.SizeInBytes;
       }
       else if(desc->GetType() == D3D12DescriptorType::Sampler)
