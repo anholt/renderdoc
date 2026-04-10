@@ -670,7 +670,9 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
   {
     ResourceId uavId = descriptor.GetResResourceId();
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(uavId);
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = descriptor.GetUAV();
 
     if(uavDesc.ViewDimension == D3D12_UAV_DIMENSION_UNKNOWN)
@@ -779,7 +781,9 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
   {
     ResourceId srvId = descriptor.GetResResourceId();
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(srvId);
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = descriptor.GetSRV();
     if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_UNKNOWN)
       srvDesc = MakeSRVDesc(resDesc);
@@ -949,7 +953,9 @@ ShaderVariable D3D12ShaderDebug::GetSampleInfo(WrappedID3D12Device *device,
 
     ResourceId srvId = descriptor.GetResResourceId();
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(srvId);
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = descriptor.GetSRV();
     if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_UNKNOWN)
       srvDesc = MakeSRVDesc(resDesc);
@@ -987,7 +993,9 @@ ShaderVariable D3D12ShaderDebug::GetRenderTargetSampleInfo(WrappedID3D12Device *
       res = rs.rts[0].GetResResourceId();
 
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(res);
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
     result.value.u32v[0] = resDesc.SampleDesc.Count;
     result.value.u32v[1] = 0;
     result.value.u32v[2] = 0;
@@ -1004,7 +1012,11 @@ DXGI_FORMAT D3D12ShaderDebug::GetUAVResourceFormat(const D3D12_UNORDERED_ACCESS_
     return uavDesc.Format;
 
   // Typeless UAV get format from the underlying resource
-  D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+  D3D12_RESOURCE_DESC resDesc = {};
+  if(pResource)
+    resDesc = pResource->GetDesc();
+  else
+    RDCERR("Unexpected NULL resource with unknown-format descriptor");
   return resDesc.Format;
 }
 
@@ -1505,7 +1517,9 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
      type != DXBCBytecode::TYPE_UNORDERED_ACCESS_VIEW)
   {
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(descriptor.GetResResourceId());
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = descriptor.GetSRV();
     if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_UNKNOWN)
@@ -1522,7 +1536,9 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
      type == DXBCBytecode::TYPE_UNORDERED_ACCESS_VIEW)
   {
     ID3D12Resource *pResource = rm->GetResAs<ID3D12Resource>(descriptor.GetResResourceId());
-    D3D12_RESOURCE_DESC resDesc = pResource->GetDesc();
+    D3D12_RESOURCE_DESC resDesc = {};
+    if(pResource)
+      resDesc = pResource->GetDesc();
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = descriptor.GetUAV();
 
