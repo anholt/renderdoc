@@ -320,7 +320,7 @@ EntryPointInterface::ResourceBase::ResourceBase(ResourceClass resourceClass, con
     srv.shape = getival<ResourceKind>(md->children[(size_t)ResField::SRVShape]);
     srv.sampleCount = getival<uint32_t>(md->children[(size_t)ResField::SRVSampleCount]);
     srv.compType = ComponentType::Invalid;
-    srv.elementStride = ~0U;
+    srv.elementStride = (srv.shape == DXIL::ResourceKind::RawBuffer) ? 1 : ~0U;
     const Metadata *tags = md->children[(size_t)ResField::SRVTags];
     for(size_t t = 0; tags && t < tags->children.size(); t += 2)
     {
@@ -348,7 +348,7 @@ EntryPointInterface::ResourceBase::ResourceBase(ResourceClass resourceClass, con
     uav.rasterizerOrderedView =
         (getival<uint32_t>(md->children[(size_t)ResField::UAVRasterOrder]) == 1);
     uav.compType = ComponentType::Invalid;
-    uav.elementStride = ~0U;
+    uav.elementStride = (uav.shape == DXIL::ResourceKind::RawBuffer) ? 1 : ~0U;
     uav.samplerFeedback = SamplerFeedbackType::LastEntry;
     uav.atomic64Use = false;
 
