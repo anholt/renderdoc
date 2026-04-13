@@ -248,6 +248,7 @@ Buffer<float4> rgb_srv : register(t103);
 SamplerState linearclamp : register(s0);
 
 StructuredBuffer<MyStruct> rootsrv : register(t20);
+ByteAddressBuffer rootbytesrv : register(t21);
 StructuredBuffer<MyStruct> appendsrv : register(t40);
 Texture2D<float> dimtex_edge : register(t41);
 #if (SM_6_2 || SM_6_6) && HAS_16BIT_SHADER_OPS 
@@ -1144,6 +1145,14 @@ float4 main(v2f IN) : SV_Target0
       Color = float4(1.0, 1.0, 1.0, 1.0);
 
     return Color;
+  }
+  if(IN.tri == 112)
+  {
+    // use this to ensure the compiler doesn't know we're using fixed locations
+    uint z = intval - IN.tri - 7;
+
+    return float4(asfloat(rootbytesrv.Load(z+0).x), asfloat(rootbytesrv.Load(z+4).x),
+                  asfloat(rootbytesrv.Load(z+8).x), float(rootbytesrv.Load(z+12).x));
   }
   return float4(0.4f, 0.4f, 0.4f, 0.4f);
 }
@@ -2081,6 +2090,7 @@ void main(uint3 inDTID : SV_DispatchThreadID, uint3 inGID : SV_GroupThreadID, ui
             uavParam(D3D12_SHADER_VISIBILITY_PIXEL, 0, 21),
             srvParam(D3D12_SHADER_VISIBILITY_PIXEL, 0, 20),
             tableParam(D3D12_SHADER_VISIBILITY_PIXEL, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0, 9, 3, 100),
+            srvParam(D3D12_SHADER_VISIBILITY_PIXEL, 0, 21),
         },
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, 1, &staticSamp);
 
@@ -2524,6 +2534,9 @@ void main(uint3 inDTID : SV_DispatchThreadID, uint3 inGID : SV_GroupThreadID, ui
         .NumElements(5)
         .StructureStride(11 * sizeof(float))
         .CreateGPU(35);
+    ID3D12ResourcePtr rootbytesrv = MakeBuffer().Data(structdata);
+    rootbytesrv->SetName(L"rootbytesrv");
+    MakeSRV(rootbytesrv).ByteAddressed().Format(DXGI_FORMAT_R32_TYPELESS).NumElements(16).CreateGPU(37);
     ID3D12ResourcePtr rootDummy = MakeBuffer().Data(structdata);
     rootDummy->SetName(L"rootDummy");
 
@@ -2891,6 +2904,8 @@ void main(uint3 inDTID : SV_DispatchThreadID, uint3 inGID : SV_GroupThreadID, ui
           cmd->SetGraphicsRootShaderResourceView(
               6, rootStruct->GetGPUVirtualAddress() + renderDataSize);
           cmd->SetGraphicsRootDescriptorTable(7, m_CBVUAVSRV->GetGPUDescriptorHandleForHeapStart());
+          cmd->SetGraphicsRootShaderResourceView(
+              8, rootbytesrv->GetGPUVirtualAddress() + renderDataSize);
 
           // Add a marker so we can easily locate this draw
           std::string markerName = markers[i];
