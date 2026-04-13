@@ -553,6 +553,12 @@ bool D3D12InitParams::IsSupportedVersion(uint64_t ver)
   if(ver == 0x16)
     return true;
 
+  // 0x17 -> 0x20 - converted serialised page table to be 64-bit
+  //                version jump was to match vulkan version, as page table is agnostic.
+  //                Version numbers are arbitrary and just have to be increasing
+  if(ver == 0x17)
+    return true;
+
   return false;
 }
 

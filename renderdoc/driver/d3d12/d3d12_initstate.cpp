@@ -782,7 +782,7 @@ SparseBinds::SparseBinds(const Sparse::PageTable &table)
     }
     else
     {
-      Sparse::Coord texelShape = table.calcSubresourcePageDim(sub);
+      Sparse::Coord32 texelShape = table.calcSubresourcePageDim32(sub);
 
       // march the pages for this subresource in linear order
       for(uint32_t page = 0; page < mapping.pages.size(); page++)

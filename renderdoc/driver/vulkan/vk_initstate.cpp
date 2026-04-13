@@ -867,7 +867,7 @@ SparseBinding::SparseBinding(WrappedVulkan *vk, VkImage unwrappedImage,
       return;
     }
 
-    Sparse::Coord blockSize = table.getPageTexelSize();
+    Sparse::Coord32 blockSize = table.getPageTexelSize();
     VkExtent3D gran = reqs[a].formatProperties.imageGranularity;
 
     // can't apply if the page texel dimension has changed
@@ -939,7 +939,7 @@ SparseBinding::SparseBinding(WrappedVulkan *vk, VkImage unwrappedImage,
       if(aspect & VK_IMAGE_ASPECT_METADATA_BIT)
         bind.flags = VK_SPARSE_MEMORY_BIND_METADATA_BIT;
 
-      const Sparse::Coord texDim = table.getResourceSize();
+      const Sparse::Coord32 texDim = table.getResourceTexelDim();
 
       for(uint32_t slice = 0; slice < table.getArraySize(); slice++)
       {
@@ -955,13 +955,13 @@ SparseBinding::SparseBinding(WrappedVulkan *vk, VkImage unwrappedImage,
 
           const Sparse::PageRangeMapping &mapping = table.getSubresource(sub);
 
-          Sparse::Coord mipDim = {
+          Sparse::Coord32 mipDim = {
               RDCMAX(1U, texDim.x >> mip),
               RDCMAX(1U, texDim.y >> mip),
               RDCMAX(1U, texDim.z >> mip),
           };
 
-          Sparse::Coord dim = table.calcSubresourcePageDim(sub);
+          Sparse::Coord32 dim = table.calcSubresourcePageDim32(sub);
 
           if(mapping.hasSingleMapping())
           {

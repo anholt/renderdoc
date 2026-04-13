@@ -127,7 +127,7 @@ void STDMETHODCALLTYPE WrappedID3D12CommandQueue::UpdateTileMappings(
 #define RANGE_SIZE(i) (pRangeTileCounts ? pRangeTileCounts[i] : ~0U)
 
     const UINT pageSize = 64 * 1024;
-    const Sparse::Coord texelShape = pageTable.getPageTexelSize();
+    const Sparse::Coord32 texelShape = pageTable.getPageTexelSize();
 
     // this persists from loop to loop. The effective offset is rangeBaseOffset +
     // curRelativeRangeOffset. That allows us to partially use a range in one region then another.
@@ -143,11 +143,11 @@ void STDMETHODCALLTYPE WrappedID3D12CommandQueue::UpdateTileMappings(
 
       // sanitise the region size according to the dimensions of the texture
       // clamp inputs that may be invalid for buffers or 2D to sensible values
-      regionSize.Width = RDCCLAMP(1U, regionSize.Width, pageTable.getResourceSize().x);
+      regionSize.Width = RDCCLAMP(1U, regionSize.Width, pageTable.getResourceTexelDim().x);
       regionSize.Height =
-          (uint16_t)RDCCLAMP(1U, (uint32_t)regionSize.Height, pageTable.getResourceSize().y);
+          (uint16_t)RDCCLAMP(1U, (uint32_t)regionSize.Height, pageTable.getResourceTexelDim().y);
       regionSize.Depth =
-          (uint16_t)RDCCLAMP(1U, (uint32_t)regionSize.Depth, pageTable.getResourceSize().z);
+          (uint16_t)RDCCLAMP(1U, (uint32_t)regionSize.Depth, pageTable.getResourceTexelDim().z);
 
       UINT rangeBaseOffset = RANGE_OFFSET(curRange);
       UINT rangeSize = RANGE_SIZE(curRange);
@@ -413,11 +413,11 @@ void STDMETHODCALLTYPE WrappedID3D12CommandQueue::CopyTileMappings(
         return;
 
       // clamp inputs that may be invalid for buffers or 2D to sensible values
-      size.Width = RDCCLAMP(1U, pRegionSize->Width, dstPageTable.getResourceSize().x);
-      size.Height =
-          (uint16_t)RDCCLAMP(1U, (uint32_t)pRegionSize->Height, dstPageTable.getResourceSize().y);
+      size.Width = RDCCLAMP(1U, pRegionSize->Width, dstPageTable.getResourceTexelDim().x);
+      size.Height = (uint16_t)RDCCLAMP(1U, (uint32_t)pRegionSize->Height,
+                                       dstPageTable.getResourceTexelDim().y);
       size.Depth =
-          (uint16_t)RDCCLAMP(1U, (uint32_t)pRegionSize->Depth, dstPageTable.getResourceSize().z);
+          (uint16_t)RDCCLAMP(1U, (uint32_t)pRegionSize->Depth, dstPageTable.getResourceTexelDim().z);
 
       dstPageTable.copyImageBoxRange(
           dstSub,
