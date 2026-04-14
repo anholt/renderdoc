@@ -249,3 +249,29 @@ class D3D12_Execute_Indirect(rdtest.TestCase):
             self.check_pixel_history_succeeds()
             action = action.next
         rdtest.log.success("Fully used argument buffer with multiple states + draws replayed")
+
+        for drawNum in range(2):
+            action = self.find_action("Two Single Draws")
+            action = self.find_action("IndirectDraw", action.eventId)
+            if drawNum == 1:
+                action = self.find_action("IndirectDraw", action.eventId+1)
+
+            self.controller.SetFrameEvent(action.eventId, False)
+            pipe = self.controller.GetPipelineState()
+            if len(pipe.GetOutputTargets()) != 1:
+                raise rdtest.TestFailureException(
+                    f"With event {action.eventId} selected we should have one output target but there is {len(pipe.GetOutputTargets())}")
+            self.check_pixel_history_succeeds()
+
+            overlay = rd.DebugOverlay.QuadOverdrawPass
+            tex = rd.TextureDisplay()
+            col_tex: rd.ResourceId = pipe.GetOutputTargets()[0].resource
+            tex.resourceId = col_tex
+            tex.overlay = overlay
+            tex.subresource.sample = 0
+
+            out: rd.ReplayOutput = self.controller.CreateOutput(rd.CreateHeadlessWindowingData(100, 100), rd.ReplayOutputType.Texture)
+            out.SetTextureDisplay(tex)
+            out.Display()
+            out.Shutdown()
+        rdtest.log.success("Two Single Draws QuadOverdraw (Pass) replayed correctly");
