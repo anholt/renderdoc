@@ -4420,7 +4420,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
 
           if(m_Cmd->m_FirstEventID > 1)
           {
-            const uint32_t argidx = (curEID - baseEventID - 1);
+            const uint32_t argidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
             const uint32_t execidx = argidx / comSig->sig.arguments.count();
 
             argOffset += comSig->sig.ByteStride * execidx;
@@ -4516,7 +4516,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
           }
           else
           {
-            const uint32_t argidx = (curEID - baseEventID - 1);
+            const uint32_t argidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
             const uint32_t execidx = argidx / comSig->sig.arguments.count();
 
             // don't do anything when selecting the final popmarker as well - everything will have
