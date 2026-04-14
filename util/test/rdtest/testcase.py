@@ -1100,6 +1100,12 @@ class TestCase:
         variables = {}
         for i in range(len(allChanges)):
             for c in allChanges[i]:
+                if len(c.after.name) == 0 and len(c.before.name) == 0:
+                    if c.before.type == rd.VarType.ReadOnlyResource or c.before.type == rd.VarType.ReadWriteResource:
+                        continue
+                    if c.after.type == rd.VarType.ReadOnlyResource or c.after.type == rd.VarType.ReadWriteResource:
+                        continue
+
                 if len(c.after.name) == 0:
                     if variables.get(c.before.name) is None:
                         raise TestFailureException(f"Step {i} ShaderVariableChange for '{c.before.name}' not found in existing variables")
@@ -1127,6 +1133,12 @@ class TestCase:
         # Step Backwards
         for i in reversed(range(len(allChanges))):
             for c in allChanges[i]:
+                if len(c.after.name) == 0 and len(c.before.name) == 0:
+                    if c.before.type == rd.VarType.ReadOnlyResource or c.before.type == rd.VarType.ReadWriteResource:
+                        continue
+                    if c.after.type == rd.VarType.ReadOnlyResource or c.after.type == rd.VarType.ReadWriteResource:
+                        continue
+
                 if len(c.before.name) == 0:
                     if variables.get(c.after.name) is None:
                         raise TestFailureException(f"Step {i} ShaderVariableChange for '{c.after.name}' not found in existing variables")
