@@ -2784,11 +2784,24 @@ void ShaderViewer::applyBackwardsChange()
         }
       }
 #if SHADER_VARIABLE_CHANGE_CONSISTENCY_CHECKS
-      if(!found)
-        qCritical("ShaderVariableChange for '%s' not found in existing variables",
-                  c.after.name.c_str());
-      if(!ValidationShaderVariable(c.after))
-        qCritical("ShaderVariableChange for '%s' after is not well formed", c.after.name.c_str());
+      bool check = true;
+      if(c.after.name.empty())
+      {
+        if((c.before.type == VarType::ReadOnlyResource) ||
+           (c.before.type == VarType::ReadWriteResource))
+          check = false;
+        if((c.after.type == VarType::ReadOnlyResource) ||
+           (c.after.type == VarType::ReadWriteResource))
+          check = false;
+      }
+      if(check)
+      {
+        if(!found)
+          qCritical("ShaderVariableChange for '%s' not found in existing variables",
+                    c.after.name.c_str());
+        if(!ValidationShaderVariable(c.after))
+          qCritical("ShaderVariableChange for '%s' after is not well formed", c.after.name.c_str());
+      }
 #endif    // #if SHADER_VARIABLE_CHANGE_CONSISTENCY_CHECKS
     }
     else
@@ -2874,11 +2887,25 @@ void ShaderViewer::applyForwardsChange()
         }
       }
 #if SHADER_VARIABLE_CHANGE_CONSISTENCY_CHECKS
-      if(!found)
-        qCritical("ShaderVariableChange for '%s' not found in existing variables",
-                  c.before.name.c_str());
-      if(!ValidationShaderVariable(c.before))
-        qCritical("ShaderVariableChange for '%s' before is not well formed", c.before.name.c_str());
+      bool check = true;
+      if(c.before.name.empty())
+      {
+        if((c.before.type == VarType::ReadOnlyResource) ||
+           (c.before.type == VarType::ReadWriteResource))
+          check = false;
+        if((c.after.type == VarType::ReadOnlyResource) ||
+           (c.after.type == VarType::ReadWriteResource))
+          check = false;
+      }
+
+      if(check)
+      {
+        if(!found)
+          qCritical("ShaderVariableChange for '%s' not found in existing variables",
+                    c.before.name.c_str());
+        if(!ValidationShaderVariable(c.before))
+          qCritical("ShaderVariableChange for '%s' before is not well formed", c.before.name.c_str());
+      }
 #endif    // #if SHADER_VARIABLE_CHANGE_CONSISTENCY_CHECKS
     }
     else
@@ -3574,8 +3601,8 @@ const RDTreeWidgetItem *ShaderViewer::evaluateVar(const RDTreeWidgetItem *item, 
       mapping.columns = reg->columns;
       mapping.type = reg->type;
 
-      // add a mapping for each component in the resulting variable referenced. Swizzles are handled
-      // separately
+      // add a mapping for each component in the resulting variable referenced. Swizzles are
+      // handled separately
       for(uint8_t c = 0; c < std::max(1, reg->rows * reg->columns); c++)
       {
         ref.component = c;
@@ -3702,8 +3729,8 @@ const RDTreeWidgetItem *ShaderViewer::getVarFromPath(const rdcstr &path, const R
 
   if(root->childCount() == 0)
   {
-    // if there are no children but we got here instead of earlying out elsewhere, there might be a
-    // trailing swizzle
+    // if there are no children but we got here instead of earlying out elsewhere, there might be
+    // a trailing swizzle
     QRegularExpression swizzleRE(lit("^(.*)\\.([xyzwrgba][xyzwrgba]?[xyzwrgba]?[xyzwrgba]?)$"));
 
     QRegularExpressionMatch match = swizzleRE.match(path);
@@ -3765,9 +3792,9 @@ const RDTreeWidgetItem *ShaderViewer::getVarFromPath(const rdcstr &path, ShaderV
     root = path;
 
   // we do a 'breadth first' type search. First look for any direct descendents which match the
-  // first part of the path we're looking for. If that doesn't find anything, look for any children
-  // of the top level items that match. This fixes issues with e.g. constant buffer names where they
-  // aren't actually namespaced
+  // first part of the path we're looking for. If that doesn't find anything, look for any
+  // children of the top level items that match. This fixes issues with e.g. constant buffer names
+  // where they aren't actually namespaced
   for(int pass = 0; pass < 2; pass++)
   {
     for(RDTreeWidget *w : widgets)
@@ -4079,8 +4106,8 @@ void ShaderViewer::updateDebugState()
             if(line == (sptr_t)lineInfo.lineEnd && lineInfo.colEnd != 0)
               len = lineInfo.colEnd;
 
-            // if we're on the start of the range (which may also be the last line above too), shift
-            // inwards towards the first column
+            // if we're on the start of the range (which may also be the last line above too),
+            // shift inwards towards the first column
             if(line == (sptr_t)lineInfo.lineStart)
             {
               pos += lineInfo.colStart - 1;
@@ -4135,8 +4162,8 @@ void ShaderViewer::updateDebugState()
       ui->constants->addTopLevelItem(fakeroot.takeChild(0));
 
     // add any raw registers that weren't mapped with something better. We assume for inputs that
-    // everything has a source mapping, even if it's faked from reflection info, but just to be sure
-    // we add any remainders here. Constants might be un-touched by reflection info
+    // everything has a source mapping, even if it's faked from reflection info, but just to be
+    // sure we add any remainders here. Constants might be un-touched by reflection info
     for(int i = 0; i < m_Trace->constantBlocks.count(); i++)
     {
       rdcstr name = m_Trace->constantBlocks[i].name;
@@ -4448,8 +4475,8 @@ void ShaderViewer::updateDebugState()
         hasNonError |= (GetDebugVariable(v) != NULL);
 
       // don't display source variables that map to non-existant debug variables. This can happen
-      // when flow control means those debug variables were never created, but they would be mapped
-      // at this point.
+      // when flow control means those debug variables were never created, but they would be
+      // mapped at this point.
       if(!hasNonError)
         continue;
 
@@ -4625,9 +4652,9 @@ bool ShaderViewer::updateWatchVariable(RDTreeWidgetItem *watchItem, const RDTree
   }
   else
   {
-    // if the node has no children, clear any stale children we might have had from a previous node
-    // (note if a struct disappears entirely, we won't have a varNode here so the node will just be
-    // marked stale. We get here if we have a non-struct)
+    // if the node has no children, clear any stale children we might have had from a previous
+    // node (note if a struct disappears entirely, we won't have a varNode here so the node will
+    // just be marked stale. We get here if we have a non-struct)
     watchItem->clear();
   }
 
@@ -5143,8 +5170,8 @@ RDTreeWidgetItem *ShaderViewer::makeSourceVariableNode(const SourceVariableMappi
         {
           if(!reg->members.empty())
           {
-            // if the register we were pointed at is a complex type (struct/array/etc), embed it as
-            // a child
+            // if the register we were pointed at is a complex type (struct/array/etc), embed it
+            // as a child
             typeName = QString();
             value = QString();
 
@@ -5524,8 +5551,8 @@ void ShaderViewer::ToggleBreakpointOnInstruction(int32_t instruction)
       auto it = m_Location2Inst.lowerBound(sourceLine);
 
       // find the next source location that has an instruction mapped. If there was an exact match
-      // this won't loop, if the lower bound was earlier we'll step at most once to get to the next
-      // line past it.
+      // this won't loop, if the lower bound was earlier we'll step at most once to get to the
+      // next line past it.
       if(it != m_Location2Inst.end() && (sptr_t)it.key().lineEnd < i)
         it++;
 
@@ -6436,8 +6463,8 @@ bool ShaderViewer::ProcessIncludeDirectives(QString &source, const rdcstrpairs &
             allIncluded.push_back(kv.first);
 
             // recurse and do not allow this to be re-included. This assumes #pragma once / header
-            // guard behaviour to prevent recursion but allows the same file to be included multiple
-            // times in the same parent (if that's done intentionally)
+            // guard behaviour to prevent recursion but allows the same file to be included
+            // multiple times in the same parent (if that's done intentionally)
             rdcarray<rdcstr> childExclude = exclude;
             childExclude.push_back(kv.first);
             ProcessIncludeDirectives(fileText, files, allIncluded, childExclude);
@@ -6766,8 +6793,8 @@ void ShaderViewer::find(bool down)
   {
     sptr_t maxOffset = down ? 0 : m_FindState.end;
 
-    // if we're at offset 0 searching down, there are no results. Same for offset max and searching
-    // up
+    // if we're at offset 0 searching down, there are no results. Same for offset max and
+    // searching up
     if(m_FindState.offset == maxOffset)
       return;
 
