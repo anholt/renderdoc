@@ -299,6 +299,7 @@ class DebugAPIWrapper
 public:
   virtual ~DebugAPIWrapper() {}
 
+  virtual ShaderValue CBVLoad(const BindingSlot &slot, uint32_t regIndex) const = 0;
   virtual ShaderValue TypedUAVLoad(const BindingSlot &slot, const DXILDebug::ViewFmt &fmt,
                                    uint64_t dataOffset) const = 0;
   virtual ShaderValue TypedSRVLoad(const BindingSlot &slot, const DXILDebug::ViewFmt &fmt,
@@ -309,6 +310,7 @@ public:
                              uint64_t dataOffset, const ShaderValue &value) = 0;
 
   // These will fetch the data on demand.
+  virtual void GetCBV(const BindingSlot &slot) = 0;
   virtual UAVInfo GetUAV(const BindingSlot &slot) = 0;
   virtual SRVInfo GetSRV(const BindingSlot &slot) = 0;
 
@@ -332,6 +334,7 @@ public:
   virtual ShaderDirectAccess GetShaderDirectAccess(DescriptorType type,
                                                    const DXDebug::BindingSlot &slot) = 0;
 
+  virtual bool IsCBVCached(const DXDebug::BindingSlot &slot) const = 0;
   virtual bool IsSRVCached(const DXDebug::BindingSlot &slot) const = 0;
   virtual bool IsUAVCached(const DXDebug::BindingSlot &slot) const = 0;
   virtual bool IsResourceInfoCached(const DXDebug::BindingSlot &slot, uint32_t mipLevel) = 0;
@@ -932,6 +935,7 @@ public:
   bool TypedResourceStore(DXIL::ResourceClass resClass, const BindingSlot &slot,
                           const DXILDebug::ViewFmt &fmt, uint64_t dataOffset, ShaderValue &value);
 
+  DeviceOpResult LoadCBVData(const BindingSlot &slot, uint32_t regIndex, ShaderValue &value);
   DeviceOpResult GetUAV(const BindingSlot &slot, UAVInfo &uavInfo) const;
   DeviceOpResult GetSRV(const BindingSlot &slot, SRVInfo &srvInfo) const;
 

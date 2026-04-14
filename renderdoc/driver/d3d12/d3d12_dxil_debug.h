@@ -43,6 +43,7 @@ public:
 
   void FetchConstantBufferData(const D3D12RenderState::RootSignature &rootsig);
 
+  ShaderValue CBVLoad(const BindingSlot &slot, uint32_t dataOffset) const override;
   ShaderValue TypedUAVLoad(const BindingSlot &slot, const DXILDebug::ViewFmt &fmt,
                            uint64_t dataOffset) const override;
   ShaderValue TypedSRVLoad(const BindingSlot &slot, const DXILDebug::ViewFmt &fmt,
@@ -51,6 +52,7 @@ public:
                      const ShaderValue &value) override;
   bool TypedSRVStore(const BindingSlot &slot, const DXILDebug::ViewFmt &fmt, uint64_t dataOffset,
                      const ShaderValue &value) override;
+  void GetCBV(const BindingSlot &slot) override;
   UAVInfo GetUAV(const BindingSlot &slot) override;
   SRVInfo GetSRV(const BindingSlot &slot) override;
 
@@ -75,6 +77,7 @@ public:
   ShaderDirectAccess GetShaderDirectAccess(DescriptorType type,
                                            const DXDebug::BindingSlot &slot) override;
 
+  bool IsCBVCached(const DXDebug::BindingSlot &slot) const override;
   bool IsSRVCached(const DXDebug::BindingSlot &slot) const override;
   bool IsUAVCached(const DXDebug::BindingSlot &slot) const override;
   bool IsResourceInfoCached(const DXDebug::BindingSlot &slot, uint32_t mipLevel) override;
@@ -138,6 +141,8 @@ private:
   SRVInfo FetchSRV(const BindingSlot &slot);
   SRVInfo FetchSRV(const D3D12Descriptor *resDescriptor, const BindingSlot &slot);
 
+  void FetchCBV(const BindingSlot &slot);
+
   UAVInfo FetchUAV(const BindingSlot &slot);
   UAVInfo FetchUAV(const D3D12Descriptor *resDescriptor, const BindingSlot &slot);
 
@@ -177,6 +182,8 @@ private:
     }
   };
 
+  mutable Threading::RWLock m_CBVsLock;
+  std::map<BindingSlot, bytebuf> m_CBVBuffers;
   mutable Threading::RWLock m_UAVsLock;
   std::map<BindingSlot, UAVInfo> m_UAVInfos;
   std::map<BindingSlot, bytebuf> m_UAVBuffers;

@@ -2351,7 +2351,6 @@ bool ThreadState::ExecuteInstruction(const rdcarray<ThreadState> &workgroup)
               SetStepNeedsDeviceThread();
               break;
             }
-            RDCASSERT(m_DirectHeapAccessBindings.count(resultId) == 0);
             m_DirectHeapAccessBindings[resultId] = resRefInfo;
 
             // Default to unannotated handle
@@ -2377,7 +2376,6 @@ bool ThreadState::ExecuteInstruction(const rdcarray<ThreadState> &workgroup)
               // Update m_DirectHeapAccessBindings for the annotated handle
               // to use the data from the source resource
               RDCASSERT(m_DirectHeapAccessBindings.count(baseResourceId) > 0);
-              RDCASSERT(m_DirectHeapAccessBindings.count(resultId) == 0);
               m_DirectHeapAccessBindings[resultId] = m_DirectHeapAccessBindings.at(baseResourceId);
             }
             else
@@ -2431,16 +2429,19 @@ bool ThreadState::ExecuteInstruction(const rdcarray<ThreadState> &workgroup)
             }
             else if(resKind == ResourceKind::CBuffer)
             {
-              // Create the cbuffer handle reference for the annotated handle
-              auto it = m_ConstantBlockHandles.find(baseResourceId);
-              if(it != m_ConstantBlockHandles.end())
+              if(!resource.IsDirectAccess())
               {
-                m_ConstantBlockHandles[resultId] = it->second;
-              }
-              else
-              {
-                RDCERR("Annotated handle resName:%s %s has no cbuffer handle reference %u",
-                       resName.c_str(), baseResource.c_str(), baseResourceId);
+                // Create the cbuffer handle reference for the annotated handle
+                auto it = m_ConstantBlockHandles.find(baseResourceId);
+                if(it != m_ConstantBlockHandles.end())
+                {
+                  m_ConstantBlockHandles[resultId] = it->second;
+                }
+                else
+                {
+                  RDCERR("Annotated handle resName:%s %s has no cbuffer handle reference %u",
+                         resName.c_str(), baseResource.c_str(), baseResourceId);
+                }
               }
             }
             // Store the annotate properties for the result
@@ -2648,42 +2649,63 @@ bool ThreadState::ExecuteInstruction(const rdcarray<ThreadState> &workgroup)
             uint32_t regIndex = arg.value.u32v[0];
 
             RDCASSERT(m_Live[handleId]);
-            const ShaderVariable &handleVar = m_Variables[handleId];
+            ShaderVariable handleVar;
+
+            bool annotatedHandle = false;
+            ResourceReferenceInfo resRefInfo = GetResource(handleId, annotatedHandle, handleVar);
+            if(!resRefInfo.Valid())
+            {
+              RDCERR("Invalid cbuffer resource %u", handleId);
+              break;
+            }
 
             result.value.u32v[0] = 0;
             result.value.u32v[1] = 0;
             result.value.u32v[2] = 0;
             result.value.u32v[3] = 0;
-            auto constantBlockRefIt = m_ConstantBlockHandles.find(handleId);
-            if(constantBlockRefIt != m_ConstantBlockHandles.end())
+            if(handleVar.IsDirectAccess())
             {
-              const ConstantBlockReference &constantBlockRef = constantBlockRefIt->second;
-              auto it = m_GlobalState.constantBlocksDatas.find(constantBlockRef);
-              if(it != m_GlobalState.constantBlocksDatas.end())
+              const BindingSlot &slot = resRefInfo.binding;
+              if(m_Debugger.LoadCBVData(slot, regIndex, result.value) == DeviceOpResult::NeedsDevice)
               {
-                const bytebuf &cbufferData = it->second;
-                const uint32_t bufferSize = (uint32_t)cbufferData.size();
-                const uint32_t maxIndex = AlignUp16(bufferSize) / 16;
-                RDCASSERTMSG("Out of bounds cbuffer load", regIndex < maxIndex, regIndex, maxIndex);
-                if(regIndex < maxIndex)
-                {
-                  const uint32_t dataOffset = regIndex * 16;
-                  const uint32_t byteWidth = 4;
-                  const byte *base = cbufferData.data() + dataOffset;
-                  const uint32_t *data = (const uint32_t *)base;
-                  const uint32_t numComps = RDCMIN(4U, (bufferSize - dataOffset) / byteWidth);
-                  for(uint32_t c = 0; c < numComps; c++)
-                    result.value.u32v[c] = data[c];
-                }
-              }
-              else
-              {
-                RDCERR("Failed to find data for constant block data for %s", handleVar.name.c_str());
+                SetStepNeedsDeviceThread();
+                break;
               }
             }
             else
             {
-              RDCERR("Failed to find data for cbuffer %s", handleVar.name.c_str());
+              auto constantBlockRefIt = m_ConstantBlockHandles.find(handleId);
+              if(constantBlockRefIt != m_ConstantBlockHandles.end())
+              {
+                const ConstantBlockReference &constantBlockRef = constantBlockRefIt->second;
+                auto it = m_GlobalState.constantBlocksDatas.find(constantBlockRef);
+                if(it != m_GlobalState.constantBlocksDatas.end())
+                {
+                  const bytebuf &cbufferData = it->second;
+                  const uint32_t bufferSize = (uint32_t)cbufferData.size();
+                  const uint32_t maxIndex = AlignUp16(bufferSize) / 16;
+                  RDCASSERTMSG("Out of bounds cbuffer load", regIndex < maxIndex, regIndex, maxIndex);
+                  if(regIndex < maxIndex)
+                  {
+                    const uint32_t dataOffset = regIndex * 16;
+                    const uint32_t byteWidth = 4;
+                    const byte *base = cbufferData.data() + dataOffset;
+                    const uint32_t *data = (const uint32_t *)base;
+                    const uint32_t numComps = RDCMIN(4U, (bufferSize - dataOffset) / byteWidth);
+                    for(uint32_t c = 0; c < numComps; c++)
+                      result.value.u32v[c] = data[c];
+                  }
+                }
+                else
+                {
+                  RDCERR("Failed to find data for constant block data for %s",
+                         handleVar.name.c_str());
+                }
+              }
+              else
+              {
+                RDCERR("Failed to find data for cbuffer %s", handleVar.name.c_str());
+              }
             }
 
             // DXIL will create a vector of a single type with total size of 16-bytes
@@ -10450,6 +10472,18 @@ bool Debugger::TypedResourceStore(DXIL::ResourceClass resClass, const BindingSlo
   }
   RDCERR("Unexpected resource class %s", ToStr(resClass).c_str());
   return false;
+}
+
+// Called from any thread
+DeviceOpResult Debugger::LoadCBVData(const BindingSlot &slot, uint32_t regIndex, ShaderValue &value)
+{
+  if(!IsDeviceThread() && !m_ApiWrapper->IsCBVCached(slot))
+    return DeviceOpResult::NeedsDevice;
+
+  m_ApiWrapper->GetCBV(slot);
+
+  value = m_ApiWrapper->CBVLoad(slot, regIndex);
+  return DeviceOpResult::Succeeded;
 }
 
 // Called from any thread
