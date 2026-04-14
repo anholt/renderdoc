@@ -1047,7 +1047,8 @@ ShaderValue D3D12APIWrapper::TypedSRVLoad(const BindingSlot &slot, const DXILDeb
   auto it = m_SRVBuffers.find(slot);
   if(it == m_SRVBuffers.end())
   {
-    RDCERR("Load SRV slot %u space %u no cached data", slot.shaderRegister, slot.registerSpace);
+    RDCERR("Load SRV slot %u space %u desc Index %u no cached data", slot.shaderRegister,
+           slot.registerSpace, slot.descriptorIndex);
     return ShaderValue();
   }
   const bytebuf &data = it->second;
@@ -1063,7 +1064,8 @@ bool D3D12APIWrapper::TypedSRVStore(const BindingSlot &slot, const DXILDebug::Vi
   auto it = m_SRVBuffers.find(slot);
   if(it == m_SRVBuffers.end())
   {
-    RDCERR("Store SRV slot %u space %u no cached data", slot.shaderRegister, slot.registerSpace);
+    RDCERR("Store SRV slot %u space %u desc Index %u no cached data", slot.shaderRegister,
+           slot.registerSpace, slot.descriptorIndex);
     return false;
   }
   bytebuf &data = it->second;
@@ -1304,7 +1306,8 @@ ShaderValue D3D12APIWrapper::TypedUAVLoad(const BindingSlot &slot, const DXILDeb
   auto it = m_UAVBuffers.find(slot);
   if(it == m_UAVBuffers.end())
   {
-    RDCERR("Load UAV slot %u space %u no cached data", slot.shaderRegister, slot.registerSpace);
+    RDCERR("Load UAV slot %u space %u desc Index %u no cached data", slot.shaderRegister,
+           slot.registerSpace, slot.descriptorIndex);
     return ShaderValue();
   }
   const bytebuf &data = it->second;
@@ -1320,7 +1323,8 @@ bool D3D12APIWrapper::TypedUAVStore(const BindingSlot &slot, const DXILDebug::Vi
   auto it = m_UAVBuffers.find(slot);
   if(it == m_UAVBuffers.end())
   {
-    RDCERR("Store UAV slot %u space %u no cached data", slot.shaderRegister, slot.registerSpace);
+    RDCERR("Store UAV slot %u space %u desc Index %u no cached data", slot.shaderRegister,
+           slot.registerSpace, slot.descriptorIndex);
     return false;
   }
   bytebuf &data = it->second;
