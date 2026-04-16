@@ -69,7 +69,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        fetch-depth: 5
+        fetch-depth: 0
     - name: Run clang-format
       run: |
         bash ./util/clang_format_all.sh
@@ -83,6 +83,24 @@ jobs:
           git diff;) | tr '\n' '\001' | sed -e 's#\x01#%0A#g';
           exit 1;
         )
+    - name: Check commit messages (PR)
+      if: ${{ github.event_name == 'pull_request' }}
+      run: |
+        git log --oneline origin/${{github.base_ref}}.. > a
+        echo "Changing individual clang-format commits:"
+        cat a
+        awk '{print $1}' a > b
+        for COMMIT in $(cat b); do
+          git checkout $COMMIT
+          ./util/clang_format_all.sh --head-commit
+          git diff --quiet || (
+            (echo -n "::error::";
+            echo "commit $COMMIT has clang-format issues. See CONTRIBUTING.md for more information.";
+            echo;
+            git diff;) | tr '\n' '\001' | sed -e 's#\x01#%0A#g';
+            exit 1;
+          )
+        done
   cmake-minimum:
     name: Baseline cmake check
     needs: [commit-msg, clang-format]
