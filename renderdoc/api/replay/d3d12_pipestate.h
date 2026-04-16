@@ -627,17 +627,6 @@ struct OM
 :type: bool
 )");
   bool stencilReadOnly = false;
-
-  DOCUMENT(R"(The sample count used for rendering.
-
-:type: int
-)");
-  uint32_t multiSampleCount = 1;
-  DOCUMENT(R"(The MSAA quality level used for rendering.
-
-:type: int
-)");
-  uint32_t multiSampleQuality = 0;
 };
 
 DOCUMENT("Describes the current state that a sub-resource is in.");

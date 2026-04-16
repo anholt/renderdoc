@@ -3139,6 +3139,28 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
 
     QVariantList row = exportViewHTML(used.descriptor, false, shaderInput, QString());
 
+    QString regname;
+    if(shaderInput)
+    {
+      if(!spacesUsed)
+        regname = QFormatStr("%1").arg(shaderInput->fixedBindNumber);
+      else
+        regname = QFormatStr("space%1, %2")
+                      .arg(shaderInput->fixedBindSetOrSpace)
+                      .arg(shaderInput->fixedBindNumber);
+
+      if(!shaderInput->name.empty())
+        regname += lit(": ") + shaderInput->name;
+
+      if(shaderInput->bindArraySize > 1)
+        regname += QFormatStr("[%1]").arg(used.access.arrayElement);
+    }
+    else if(used.access.index == DescriptorAccess::NoShaderBinding)
+    {
+      regname = m_Locations[{used.access.descriptorStore, used.access.byteOffset}].logicalBindName;
+    }
+    row.push_front(regname);
+
     rowsRO.push_back(row);
   }
 
@@ -3153,6 +3175,28 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
       shaderInput = &sh.reflection->readWriteResources[used.access.index];
 
     QVariantList row = exportViewHTML(used.descriptor, true, shaderInput, QString());
+
+    QString regname;
+    if(shaderInput)
+    {
+      if(!spacesUsed)
+        regname = QFormatStr("%1").arg(shaderInput->fixedBindNumber);
+      else
+        regname = QFormatStr("space%1, %2")
+                      .arg(shaderInput->fixedBindSetOrSpace)
+                      .arg(shaderInput->fixedBindNumber);
+
+      if(!shaderInput->name.empty())
+        regname += lit(": ") + shaderInput->name;
+
+      if(shaderInput->bindArraySize > 1)
+        regname += QFormatStr("[%1]").arg(used.access.arrayElement);
+    }
+    else if(used.access.index == DescriptorAccess::NoShaderBinding)
+    {
+      regname = m_Locations[{used.access.descriptorStore, used.access.byteOffset}].logicalBindName;
+    }
+    row.push_front(regname);
 
     rowsRW.push_back(row);
   }
@@ -3264,8 +3308,19 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
     xml.writeEndElement();
 
     m_Common.exportHTMLTable(
+        xml, {tr("Base Shading Rate"), tr("Shading Rate Combiners"), tr("Shading Rate Image")},
+        {QFormatStr("%1x%2").arg(rs.state.baseShadingRate.first).arg(rs.state.baseShadingRate.second),
+         QFormatStr("%1, %2")
+             .arg(ToQStr(rs.state.shadingRateCombiners.first, GraphicsAPI::D3D12))
+             .arg(ToQStr(rs.state.shadingRateCombiners.second, GraphicsAPI::D3D12)),
+         m_Ctx.GetResourceName(rs.state.shadingRateImage)});
+
+    xml.writeStartElement(lit("p"));
+    xml.writeEndElement();
+
+    m_Common.exportHTMLTable(
         xml,
-        {tr("Line Rasteriztion"), tr("Forced Sample Count"), tr("Conservative Raster"),
+        {tr("Line Rasterization"), tr("Forced Sample Count"), tr("Conservative Raster"),
          tr("Sample Mask")},
         {ToQStr(rs.state.lineRasterMode), rs.state.forcedSampleCount,
          rs.state.conservativeRasterization != ConservativeRaster::Disabled ? tr("Yes") : tr("No"),
@@ -3334,12 +3389,10 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
                               .arg(om.blendState.blendFactor[2], 0, 'f', 2)
                               .arg(om.blendState.blendFactor[3], 0, 'f', 2);
 
-    m_Common.exportHTMLTable(xml,
-                             {tr("Independent Blend Enable"), tr("Alpha to Coverage"),
-                              tr("Blend Factor"), tr("Multisampling Rate")},
-                             {om.blendState.independentBlend ? tr("Yes") : tr("No"),
-                              om.blendState.alphaToCoverage ? tr("Yes") : tr("No"), blendFactor,
-                              tr("%1x %2 qual").arg(om.multiSampleCount).arg(om.multiSampleQuality)});
+    m_Common.exportHTMLTable(
+        xml, {tr("Independent Blend Enable"), tr("Alpha to Coverage"), tr("Blend Factor")},
+        {om.blendState.independentBlend ? tr("Yes") : tr("No"),
+         om.blendState.alphaToCoverage ? tr("Yes") : tr("No"), blendFactor});
 
     xml.writeStartElement(lit("h3"));
     xml.writeCharacters(tr("Target Blends"));
@@ -3476,7 +3529,7 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
     m_Common.exportHTMLTable(xml,
                              {
                                  tr("Slot"),
-                                 tr("Name"),
+                                 tr("Resource"),
                                  tr("View Type"),
                                  tr("Resource Type"),
                                  tr("Width"),
@@ -3508,7 +3561,7 @@ void D3D12PipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const D3D12Pipe
 
     m_Common.exportHTMLTable(xml,
                              {
-                                 tr("Name"),
+                                 tr("Resource"),
                                  tr("View Type"),
                                  tr("Resource Type"),
                                  tr("Width"),
