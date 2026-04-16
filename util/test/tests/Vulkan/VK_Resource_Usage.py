@@ -24,12 +24,18 @@ class VK_Resource_Usage(rdtest.TestCase):
         for res in resources:
             self.resourceUsages[res.resourceId] = self.controller.GetUsage(res.resourceId)
 
+        drawIndirectCount = self.find_action("Draw Indirect Count") is not None
+        rdtest.log.print(f"Has Draw Indirect Count: {'Yes' if drawIndirectCount else 'No'}")
+
         nestedSecondaries = self.find_action("Nested Secondary Command Buffer") is not None
         rdtest.log.print(f"Has Nested Secondary Command Buffer: {'Yes' if nestedSecondaries else 'No'}")
+
         descBuffer = self.find_action("Descriptor Buffer") is not None
         rdtest.log.print(f"Has Descriptor Buffer: {'Yes' if descBuffer else 'No'}")
-        countNested = 35 if nestedSecondaries else 0
-        countDescBuffer = 18 if descBuffer else 0
+
+        countDrawIndirectCount = 30 if drawIndirectCount else 0
+        countNested = 39 if nestedSecondaries else 0
+        countDescBuffer = 21 if descBuffer else 0
 
         action = self.find_action("Draw")
         self.controller.SetFrameEvent(action.eventId, False)
@@ -56,30 +62,47 @@ class VK_Resource_Usage(rdtest.TestCase):
                                      (45,rd.ResourceUsage.ColorTarget), 
                                      (59,rd.ResourceUsage.ColorTarget), 
                                      (62,rd.ResourceUsage.ColorTarget), 
-                                     (104,rd.ResourceUsage.ColorTarget), 
                                      (105,rd.ResourceUsage.ColorTarget), 
-                                     (106,rd.ResourceUsage.ColorTarget), 
-                                     (107,rd.ResourceUsage.ColorTarget), 
+                                     (109,rd.ResourceUsage.ColorTarget), 
+                                     (110,rd.ResourceUsage.ColorTarget), 
+                                     (111,rd.ResourceUsage.ColorTarget), 
                                      (112,rd.ResourceUsage.ColorTarget), 
-                                     (113,rd.ResourceUsage.ColorTarget), 
-                                     (114,rd.ResourceUsage.ColorTarget), 
-                                     (145,rd.ResourceUsage.ColorTarget), 
-                                     (146,rd.ResourceUsage.ColorTarget), 
-                                     (147,rd.ResourceUsage.ColorTarget), 
-                                     (148,rd.ResourceUsage.ColorTarget), 
-                                     (153,rd.ResourceUsage.ColorTarget), 
-                                     (154,rd.ResourceUsage.ColorTarget), 
-                                     (155,rd.ResourceUsage.ColorTarget)] 
+                                     (117,rd.ResourceUsage.ColorTarget), 
+                                     (118,rd.ResourceUsage.ColorTarget), 
+                                     (119,rd.ResourceUsage.ColorTarget), 
+                                     (155,rd.ResourceUsage.ColorTarget), 
+                                     (159,rd.ResourceUsage.ColorTarget), 
+                                     (160,rd.ResourceUsage.ColorTarget), 
+                                     (161,rd.ResourceUsage.ColorTarget), 
+                                     (162,rd.ResourceUsage.ColorTarget), 
+                                     (167,rd.ResourceUsage.ColorTarget), 
+                                     (168,rd.ResourceUsage.ColorTarget), 
+                                     (169,rd.ResourceUsage.ColorTarget), 
+                                     (186,rd.ResourceUsage.ColorTarget), 
+                                     (190,rd.ResourceUsage.ColorTarget), 
+                                     (191,rd.ResourceUsage.ColorTarget), 
+                                     (192,rd.ResourceUsage.ColorTarget), 
+                                     (193,rd.ResourceUsage.ColorTarget), 
+                                     (198,rd.ResourceUsage.ColorTarget), 
+                                     (199,rd.ResourceUsage.ColorTarget), 
+                                     (200,rd.ResourceUsage.ColorTarget)] 
+                    if drawIndirectCount:
+                        expectedUsage += [
+                                     (221,rd.ResourceUsage.ColorTarget), 
+                                     (222,rd.ResourceUsage.ColorTarget), 
+                                     (223,rd.ResourceUsage.ColorTarget), 
+                                     (228,rd.ResourceUsage.ColorTarget), 
+                                     (229,rd.ResourceUsage.ColorTarget)]
                     if nestedSecondaries:
                         expectedUsage += [
-                                     (175,rd.ResourceUsage.ColorTarget), 
-                                     (178,rd.ResourceUsage.ColorTarget)] 
+                                     (224+countDrawIndirectCount,rd.ResourceUsage.ColorTarget), 
+                                     (227+countDrawIndirectCount,rd.ResourceUsage.ColorTarget)] 
                     if descBuffer:
                         expectedUsage += [
-                                     (170+countNested,rd.ResourceUsage.ColorTarget), 
-                                     (173+countNested,rd.ResourceUsage.ColorTarget)] 
+                                     (219+countDrawIndirectCount+countNested,rd.ResourceUsage.ColorTarget), 
+                                     (222+countDrawIndirectCount+countNested,rd.ResourceUsage.ColorTarget)] 
 
-                    expectedUsage += [(162+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
+                    expectedUsage += [(208+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
                 else:
                     expectedUsage = []
             elif res.type == rd.ResourceType.RenderPass:
@@ -104,78 +127,133 @@ class VK_Resource_Usage(rdtest.TestCase):
                                      (45,rd.ResourceUsage.VertexBuffer),
                                      (59,rd.ResourceUsage.VertexBuffer), 
                                      (62,rd.ResourceUsage.VertexBuffer), 
-                                     (104,rd.ResourceUsage.VertexBuffer), 
                                      (105,rd.ResourceUsage.VertexBuffer), 
-                                     (106,rd.ResourceUsage.VertexBuffer), 
-                                     (107,rd.ResourceUsage.VertexBuffer), 
+                                     (109,rd.ResourceUsage.VertexBuffer), 
+                                     (110,rd.ResourceUsage.VertexBuffer), 
+                                     (111,rd.ResourceUsage.VertexBuffer), 
                                      (112,rd.ResourceUsage.VertexBuffer), 
-                                     (113,rd.ResourceUsage.VertexBuffer), 
-                                     (114,rd.ResourceUsage.VertexBuffer), 
-                                     (145,rd.ResourceUsage.VertexBuffer), 
-                                     (146,rd.ResourceUsage.VertexBuffer), 
-                                     (147,rd.ResourceUsage.VertexBuffer), 
-                                     (148,rd.ResourceUsage.VertexBuffer), 
-                                     (153,rd.ResourceUsage.VertexBuffer), 
-                                     (154,rd.ResourceUsage.VertexBuffer), 
-                                     (155,rd.ResourceUsage.VertexBuffer)] 
+                                     (117,rd.ResourceUsage.VertexBuffer), 
+                                     (118,rd.ResourceUsage.VertexBuffer), 
+                                     (119,rd.ResourceUsage.VertexBuffer), 
+                                     (155,rd.ResourceUsage.VertexBuffer), 
+                                     (159,rd.ResourceUsage.VertexBuffer), 
+                                     (160,rd.ResourceUsage.VertexBuffer), 
+                                     (161,rd.ResourceUsage.VertexBuffer), 
+                                     (162,rd.ResourceUsage.VertexBuffer), 
+                                     (167,rd.ResourceUsage.VertexBuffer), 
+                                     (168,rd.ResourceUsage.VertexBuffer), 
+                                     (169,rd.ResourceUsage.VertexBuffer), 
+                                     (186,rd.ResourceUsage.VertexBuffer), 
+                                     (190,rd.ResourceUsage.VertexBuffer), 
+                                     (191,rd.ResourceUsage.VertexBuffer), 
+                                     (192,rd.ResourceUsage.VertexBuffer), 
+                                     (193,rd.ResourceUsage.VertexBuffer), 
+                                     (198,rd.ResourceUsage.VertexBuffer), 
+                                     (199,rd.ResourceUsage.VertexBuffer), 
+                                     (200,rd.ResourceUsage.VertexBuffer)]
+                    if drawIndirectCount:
+                        expectedUsage += [
+                                     (221,rd.ResourceUsage.VertexBuffer), 
+                                     (222,rd.ResourceUsage.VertexBuffer), 
+                                     (223,rd.ResourceUsage.VertexBuffer), 
+                                     (228,rd.ResourceUsage.VertexBuffer), 
+                                     (229,rd.ResourceUsage.VertexBuffer)]
                     if nestedSecondaries:
                         expectedUsage += [
-                                     (175,rd.ResourceUsage.VertexBuffer), 
-                                     (178,rd.ResourceUsage.VertexBuffer)]
+                                     (224+countDrawIndirectCount,rd.ResourceUsage.VertexBuffer), 
+                                     (227+countDrawIndirectCount,rd.ResourceUsage.VertexBuffer)]
                     if descBuffer:
                         expectedUsage += [
-                                     (170+countNested,rd.ResourceUsage.VertexBuffer), 
-                                     (173+countNested,rd.ResourceUsage.VertexBuffer)]
+                                     (219+countDrawIndirectCount+countNested,rd.ResourceUsage.VertexBuffer), 
+                                     (222+countDrawIndirectCount+countNested,rd.ResourceUsage.VertexBuffer)]
                 if (res.name == "Index Buffer"):
                     expectedUsage = [(35,rd.ResourceUsage.IndexBuffer),
                                      (45,rd.ResourceUsage.IndexBuffer),
                                      (62,rd.ResourceUsage.IndexBuffer),
-                                     (112,rd.ResourceUsage.IndexBuffer),
-                                     (113,rd.ResourceUsage.IndexBuffer),
-                                     (114,rd.ResourceUsage.IndexBuffer),
-                                     (153,rd.ResourceUsage.IndexBuffer),
-                                     (154,rd.ResourceUsage.IndexBuffer),
-                                     (155,rd.ResourceUsage.IndexBuffer)]
+                                     (117,rd.ResourceUsage.IndexBuffer),
+                                     (118,rd.ResourceUsage.IndexBuffer),
+                                     (119,rd.ResourceUsage.IndexBuffer),
+                                     (167,rd.ResourceUsage.IndexBuffer),
+                                     (168,rd.ResourceUsage.IndexBuffer),
+                                     (169,rd.ResourceUsage.IndexBuffer),
+                                     (198,rd.ResourceUsage.IndexBuffer),
+                                     (199,rd.ResourceUsage.IndexBuffer),
+                                     (200,rd.ResourceUsage.IndexBuffer)]
+                    if drawIndirectCount:
+                        expectedUsage += [
+                                     (228,rd.ResourceUsage.IndexBuffer),
+                                     (229,rd.ResourceUsage.IndexBuffer)]
                     if nestedSecondaries:
                         expectedUsage += [
-                                     (178,rd.ResourceUsage.IndexBuffer)]
+                                     (227+countDrawIndirectCount,rd.ResourceUsage.IndexBuffer)]
                     if descBuffer:
                         expectedUsage += [
-                                     (173+countNested,rd.ResourceUsage.IndexBuffer)]
+                                     (222+countDrawIndirectCount+countNested,rd.ResourceUsage.IndexBuffer)]
                 if (res.name == "Compute Buffer In"):
                     expectedUsage += [(73,rd.ResourceUsage.CS_Constants),
                                      (80,rd.ResourceUsage.CS_Constants)]
                     if nestedSecondaries:
-                        expectedUsage += [(191,rd.ResourceUsage.CS_Constants)]
+                        expectedUsage += [(240+countDrawIndirectCount,rd.ResourceUsage.CS_Constants)]
                     if descBuffer:
-                        expectedUsage += [(178+countNested,rd.ResourceUsage.CS_Constants)]
+                        expectedUsage += [(227+countDrawIndirectCount+countNested,rd.ResourceUsage.CS_Constants)]
                 if (res.name == "Compute Buffer Out"):
                     expectedUsage += [(73,rd.ResourceUsage.CS_RWResource),
                                      (80,rd.ResourceUsage.CS_RWResource)]
                     if nestedSecondaries:
-                        expectedUsage += [(191,rd.ResourceUsage.CS_RWResource)]
+                        expectedUsage += [(240+countDrawIndirectCount,rd.ResourceUsage.CS_RWResource)]
                     if descBuffer:
-                        expectedUsage += [(178+countNested,rd.ResourceUsage.CS_RWResource)]
+                        expectedUsage += [(227+countDrawIndirectCount+countNested,rd.ResourceUsage.CS_RWResource)]
                 if (res.name == "Indirect Data"):
                     expectedUsage += [(14,rd.ResourceUsage.Barrier),
                                      (15,rd.ResourceUsage.Clear),
                                      (16,rd.ResourceUsage.Barrier),
                                      (20,rd.ResourceUsage.CS_RWResource),
                                      (21,rd.ResourceUsage.Barrier),
-                                     (91,rd.ResourceUsage.CS_RWResource),
-                                     (91,rd.ResourceUsage.Indirect),
-                                     (92,rd.ResourceUsage.Barrier),
-                                     (103,rd.ResourceUsage.Indirect),
-                                     (111,rd.ResourceUsage.Indirect),
-                                     (121,rd.ResourceUsage.Barrier),
-                                     (122,rd.ResourceUsage.Clear),
-                                     (123,rd.ResourceUsage.Barrier),
-                                     (127,rd.ResourceUsage.CS_RWResource),
-                                     (130,rd.ResourceUsage.CS_RWResource),
-                                     (130,rd.ResourceUsage.Indirect),
-                                     (131,rd.ResourceUsage.Barrier),
-                                     (144,rd.ResourceUsage.Indirect),
-                                     (152,rd.ResourceUsage.Indirect)]
+                                     (81,rd.ResourceUsage.Barrier),
+                                     (92,rd.ResourceUsage.CS_RWResource),
+                                     (92,rd.ResourceUsage.Indirect),
+                                     (93,rd.ResourceUsage.Barrier),
+                                     (105,rd.ResourceUsage.Indirect),
+                                     (108,rd.ResourceUsage.Indirect),
+                                     (116,rd.ResourceUsage.Indirect),
+                                     (122,rd.ResourceUsage.Barrier),
+                                     (127,rd.ResourceUsage.Barrier),
+                                     (128,rd.ResourceUsage.Clear),
+                                     (129,rd.ResourceUsage.Barrier),
+                                     (133,rd.ResourceUsage.CS_RWResource),
+                                     (135,rd.ResourceUsage.Barrier),
+                                     (137,rd.ResourceUsage.CS_RWResource),
+                                     (137,rd.ResourceUsage.Indirect),
+                                     (138,rd.ResourceUsage.CS_RWResource),
+                                     (138,rd.ResourceUsage.Indirect),
+                                     (139,rd.ResourceUsage.Barrier),
+                                     (140,rd.ResourceUsage.CS_RWResource),
+                                     (140,rd.ResourceUsage.Indirect),
+                                     (141,rd.ResourceUsage.Barrier),
+                                     (155,rd.ResourceUsage.Indirect),
+                                     (158,rd.ResourceUsage.Indirect),
+                                     (166,rd.ResourceUsage.Indirect),
+                                     (186,rd.ResourceUsage.Indirect),
+                                     (189,rd.ResourceUsage.Indirect),
+                                     (197,rd.ResourceUsage.Indirect)]
+                    if drawIndirectCount:
+                        expectedUsage += [
+                                     (205,rd.ResourceUsage.Indirect),
+                                     (205,rd.ResourceUsage.Indirect),
+                                     (208,rd.ResourceUsage.Indirect),
+                                     (208,rd.ResourceUsage.Indirect),
+                                     (212,rd.ResourceUsage.Indirect),
+                                     (212,rd.ResourceUsage.Indirect),
+                                     (216,rd.ResourceUsage.Indirect),
+                                     (216,rd.ResourceUsage.Indirect),
+                                     (220,rd.ResourceUsage.Indirect),
+                                     (220,rd.ResourceUsage.Indirect),
+                                     (227,rd.ResourceUsage.Indirect),
+                                     (227,rd.ResourceUsage.Indirect)]
+                    expectedUsage += [(204+countDrawIndirectCount,rd.ResourceUsage.Barrier)]
+                    if nestedSecondaries:
+                        expectedUsage += [
+                                     (241+countDrawIndirectCount,rd.ResourceUsage.Barrier)]
             elif res.type == rd.ResourceType.Texture:
                 if (res.name == "Offscreen MSAA Image"):
                     expectedUsage = [(11,rd.ResourceUsage.Barrier), 
@@ -187,24 +265,41 @@ class VK_Resource_Usage(rdtest.TestCase):
                                      (10,rd.ResourceUsage.Clear), 
                                      (42,rd.ResourceUsage.PS_Resource), 
                                      (45,rd.ResourceUsage.PS_Resource), 
-                                     (104,rd.ResourceUsage.PS_Resource), 
                                      (105,rd.ResourceUsage.PS_Resource), 
-                                     (106,rd.ResourceUsage.PS_Resource), 
-                                     (107,rd.ResourceUsage.PS_Resource), 
+                                     (109,rd.ResourceUsage.PS_Resource), 
+                                     (110,rd.ResourceUsage.PS_Resource), 
+                                     (111,rd.ResourceUsage.PS_Resource), 
                                      (112,rd.ResourceUsage.PS_Resource), 
-                                     (113,rd.ResourceUsage.PS_Resource), 
-                                     (114,rd.ResourceUsage.PS_Resource), 
-                                     (145,rd.ResourceUsage.PS_Resource), 
-                                     (146,rd.ResourceUsage.PS_Resource), 
-                                     (147,rd.ResourceUsage.PS_Resource), 
-                                     (148,rd.ResourceUsage.PS_Resource), 
-                                     (153,rd.ResourceUsage.PS_Resource), 
-                                     (154,rd.ResourceUsage.PS_Resource), 
-                                     (155,rd.ResourceUsage.PS_Resource)]
+                                     (117,rd.ResourceUsage.PS_Resource), 
+                                     (118,rd.ResourceUsage.PS_Resource), 
+                                     (119,rd.ResourceUsage.PS_Resource), 
+                                     (155,rd.ResourceUsage.PS_Resource), 
+                                     (159,rd.ResourceUsage.PS_Resource), 
+                                     (160,rd.ResourceUsage.PS_Resource), 
+                                     (161,rd.ResourceUsage.PS_Resource), 
+                                     (162,rd.ResourceUsage.PS_Resource), 
+                                     (167,rd.ResourceUsage.PS_Resource), 
+                                     (168,rd.ResourceUsage.PS_Resource), 
+                                     (169,rd.ResourceUsage.PS_Resource), 
+                                     (186,rd.ResourceUsage.PS_Resource), 
+                                     (190,rd.ResourceUsage.PS_Resource), 
+                                     (191,rd.ResourceUsage.PS_Resource), 
+                                     (192,rd.ResourceUsage.PS_Resource), 
+                                     (193,rd.ResourceUsage.PS_Resource), 
+                                     (198,rd.ResourceUsage.PS_Resource), 
+                                     (199,rd.ResourceUsage.PS_Resource), 
+                                     (200,rd.ResourceUsage.PS_Resource)]
+                    if drawIndirectCount:
+                        expectedUsage += [
+                                     (221,rd.ResourceUsage.PS_Resource), 
+                                     (222,rd.ResourceUsage.PS_Resource), 
+                                     (223,rd.ResourceUsage.PS_Resource), 
+                                     (228,rd.ResourceUsage.PS_Resource), 
+                                     (229,rd.ResourceUsage.PS_Resource)]
                     if descBuffer:
                         expectedUsage += [
-                                     (170+countNested,rd.ResourceUsage.PS_Resource), 
-                                     (173+countNested,rd.ResourceUsage.PS_Resource)]
+                                     (219+countDrawIndirectCount+countNested,rd.ResourceUsage.PS_Resource), 
+                                     (222+countDrawIndirectCount+countNested,rd.ResourceUsage.PS_Resource)]
             elif res.type == rd.ResourceType.CommandBuffer:
                 expectedUsage = [(0,rd.ResourceUsage.Unused)]
             elif res.type == rd.ResourceType.DescriptorStore:
