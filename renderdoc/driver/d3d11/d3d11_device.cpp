@@ -1952,7 +1952,7 @@ void WrappedID3D11Device::DestroyDeadObject(ID3D11DeviceChild *child)
       m_pImmediateContext->RemoveAnnotations(id);
 
     // clean up book-keeping
-    rm->RemoveWrapper(wrapped->GetReal());
+    rm->RemoveWrapper(wrapped, wrapped->GetReal());
     rm->ReleaseResource(id);
     D3D11ResourceRecord *record = GetResourceManager()->GetResourceRecord(id);
     if(record)

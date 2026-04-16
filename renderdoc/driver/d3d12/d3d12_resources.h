@@ -102,7 +102,7 @@ protected:
   void Shutdown()
   {
     if(m_pReal)
-      m_pDevice->GetResourceManager()->RemoveWrapper(m_pReal);
+      m_pDevice->GetResourceManager()->RemoveWrapper(this, m_pReal);
 
     m_pDevice->GetResourceManager()->ReleaseResource(GetResourceID());
     m_pDevice->ReleaseResource((NestedType *)this);

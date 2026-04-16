@@ -1458,7 +1458,7 @@ WrappedID3D12GraphicsCommandList::~WrappedID3D12GraphicsCommandList()
   m_UnusedCleanupCallbacks.clear();
 
   if(m_pList)
-    m_pDevice->GetResourceManager()->RemoveWrapper(m_pList);
+    m_pDevice->GetResourceManager()->RemoveWrapper(this, m_pList);
 
   if(m_CreationRecord)
     m_CreationRecord->Delete(m_pDevice->GetResourceManager());

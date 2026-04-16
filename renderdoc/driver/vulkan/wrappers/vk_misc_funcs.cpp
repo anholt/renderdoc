@@ -534,14 +534,14 @@ bool WrappedVulkan::ReleaseResource(WrappedVkRes *res)
       if(IsReplayMode(m_State))
       {
         GetResourceManager()->ReleaseResource(disp->id);
-        GetResourceManager()->RemoveWrapper(ToTypedHandle(disp->real.As<VkDevice>()));
+        GetResourceManager()->RemoveWrapper(res, ToTypedHandle(disp->real.As<VkDevice>()));
       }
       break;
     case eResInstance:
       if(IsReplayMode(m_State))
       {
         GetResourceManager()->ReleaseResource(disp->id);
-        GetResourceManager()->RemoveWrapper(ToTypedHandle(disp->real.As<VkInstance>()));
+        GetResourceManager()->RemoveWrapper(res, ToTypedHandle(disp->real.As<VkInstance>()));
       }
       break;
 
@@ -750,18 +750,8 @@ bool WrappedVulkan::Serialise_vkCreateSampler(SerialiserType &ser, VkDevice devi
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(samp)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(samp)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(samp));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroySampler(Unwrap(device), samp, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(Sampler, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(Sampler, Unwrap(device), samp);
 
@@ -966,18 +956,8 @@ bool WrappedVulkan::Serialise_vkCreateFramebuffer(SerialiserType &ser, VkDevice 
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(fb)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(fb)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(fb));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyFramebuffer(Unwrap(device), fb, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(Framebuffer, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(Framebuffer, Unwrap(device), fb);
 
@@ -1255,18 +1235,8 @@ bool WrappedVulkan::Serialise_vkCreateRenderPass(SerialiserType &ser, VkDevice d
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(rp)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(rp)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(rp));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyRenderPass(Unwrap(device), rp, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(RenderPass, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(RenderPass, Unwrap(device), rp);
 
@@ -1554,18 +1524,8 @@ bool WrappedVulkan::Serialise_vkCreateRenderPass2(SerialiserType &ser, VkDevice 
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(rp)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(rp)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(rp));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyRenderPass(Unwrap(device), rp, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(RenderPass, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(RenderPass, Unwrap(device), rp);
 
@@ -2284,18 +2244,8 @@ bool WrappedVulkan::Serialise_vkCreateSamplerYcbcrConversion(
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(conv)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(conv)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(conv));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroySamplerYcbcrConversion(Unwrap(device), conv, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(ycbcrConversion, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(ycbcrConversion, Unwrap(device), conv);
 

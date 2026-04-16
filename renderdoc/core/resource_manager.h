@@ -654,7 +654,8 @@ public:
   bool AddWrapper(WrappedResourceType wrap, RealResourceType real);
   bool HasWrapper(RealResourceType real);
   WrappedResourceType GetWrapper(RealResourceType real);
-  void RemoveWrapper(RealResourceType real);
+  void RemoveWrapper(WrappedResourceType wrapped, RealResourceType real);
+  void OverrideWrapper(RealResourceType real);
 
   void ResetLastWriteTimes();
   void ResetCaptureStartTime();
@@ -1784,18 +1785,38 @@ bool ResourceManager<Configuration>::AddWrapper(WrappedResourceType wrap, RealRe
 }
 
 template <typename Configuration>
-void ResourceManager<Configuration>::RemoveWrapper(RealResourceType real)
+void ResourceManager<Configuration>::RemoveWrapper(WrappedResourceType wrapped, RealResourceType real)
 {
   SCOPED_LOCK_OPTIONAL(m_Lock, m_Capturing);
 
-  if(real == (RealResourceType)RecordType::NullResource || !HasWrapper(real))
+  if(real == (RealResourceType)RecordType::NullResource)
   {
-    RDCERR(
-        "Invalid state removing resource wrapper - real resource is NULL or doesn't have wrapper");
+    RDCERR("Invalid state removing resource wrapper - real resource is NULL");
     return;
   }
 
-  m_WrapperMap.erase(m_WrapperMap.find(real));
+  auto it = m_WrapperMap.find(real);
+
+  // silently ignore/drop removals of non-canonical wrappers. This handles the case where we have
+  // multiple wrappers for the same object on replay, due to API deduplication between an internal
+  // object and an application-created object. Backends are expected to deduplicate during capture
+  // (See OverrideWrapper below)
+  if(it == m_WrapperMap.end() || it->second == wrapped)
+    m_WrapperMap.erase(it);
+}
+
+template <typename Configuration>
+void ResourceManager<Configuration>::OverrideWrapper(RealResourceType real)
+{
+  SCOPED_LOCK_OPTIONAL(m_Lock, m_Capturing);
+
+  // during replay we may find that we have extra duplicate wrappers because of internal resources,
+  // even though we trid to deduplicate on capture. For this case we remove the old wrapper and
+  // allow the new wrapper to become canonical.
+  auto it = m_WrapperMap.find(real);
+
+  if(it != m_WrapperMap.end())
+    m_WrapperMap.erase(it);
 }
 
 template <typename Configuration>

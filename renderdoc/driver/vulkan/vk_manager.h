@@ -376,7 +376,7 @@ public:
 
     if(IsReplayMode(m_State))
     {
-      ResourceManager::RemoveWrapper(ToTypedHandle(Unwrap(obj)));
+      ResourceManager::RemoveWrapper(GetWrapped(obj), ToTypedHandle(Unwrap(obj)));
     }
 
     ResourceManager::ReleaseResource(id);

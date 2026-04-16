@@ -2629,16 +2629,9 @@ bool WrappedID3D11Device::Serialise_CreateBlendState(SerialiserType &ser,
     }
     else
     {
-      if(GetResourceManager()->HasWrapper(ret))
-      {
-        ret->Release();
-        ret = (ID3D11BlendState *)GetResourceManager()->GetWrapper(ret);
-        ret->AddRef();
-      }
-      else
-      {
-        ret = new WrappedID3D11BlendState1(pState, ret, this);
-      }
+      GetResourceManager()->OverrideWrapper(ret);
+
+      ret = new WrappedID3D11BlendState1(pState, ret, this);
     }
 
     AddResource(pState, ResourceType::StateObject, "Blend State");
@@ -2740,16 +2733,9 @@ bool WrappedID3D11Device::Serialise_CreateDepthStencilState(
     }
     else
     {
-      if(GetResourceManager()->HasWrapper(ret))
-      {
-        ret->Release();
-        ret = (ID3D11DepthStencilState *)GetResourceManager()->GetWrapper(ret);
-        ret->AddRef();
-      }
-      else
-      {
-        ret = new WrappedID3D11DepthStencilState(pState, ret, this);
-      }
+      GetResourceManager()->OverrideWrapper(ret);
+
+      ret = new WrappedID3D11DepthStencilState(pState, ret, this);
     }
 
     AddResource(pState, ResourceType::StateObject, "Depth-Stencil State");
@@ -2849,16 +2835,9 @@ bool WrappedID3D11Device::Serialise_CreateRasterizerState(SerialiserType &ser,
     }
     else
     {
-      if(GetResourceManager()->HasWrapper(ret))
-      {
-        ret->Release();
-        ret = (ID3D11RasterizerState *)GetResourceManager()->GetWrapper(ret);
-        ret->AddRef();
-      }
-      else
-      {
-        ret = new WrappedID3D11RasterizerState2(pState, ret, this);
-      }
+      GetResourceManager()->OverrideWrapper(ret);
+
+      ret = new WrappedID3D11RasterizerState2(pState, ret, this);
     }
 
     AddResource(pState, ResourceType::StateObject, "Rasterizer State");
@@ -2958,16 +2937,9 @@ bool WrappedID3D11Device::Serialise_CreateSamplerState(SerialiserType &ser,
     }
     else
     {
-      if(GetResourceManager()->HasWrapper(ret))
-      {
-        ret->Release();
-        ret = (ID3D11SamplerState *)GetResourceManager()->GetWrapper(ret);
-        ret->AddRef();
-      }
-      else
-      {
-        ret = new WrappedID3D11SamplerState(pState, ret, this);
-      }
+      GetResourceManager()->OverrideWrapper(ret);
+
+      ret = new WrappedID3D11SamplerState(pState, ret, this);
     }
 
     AddResource(pState, ResourceType::Sampler, "Sampler State");

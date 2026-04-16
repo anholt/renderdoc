@@ -2393,18 +2393,8 @@ bool WrappedVulkan::Serialise_vkCreateBufferView(SerialiserType &ser, VkDevice d
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(view)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(view)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(view));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyBufferView(Unwrap(device), view, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(View, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(View, Unwrap(device), view);
 
@@ -3326,18 +3316,8 @@ bool WrappedVulkan::Serialise_vkCreateImageView(SerialiserType &ser, VkDevice de
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(view)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(view)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(view));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyImageView(Unwrap(device), view, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(View, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(View, Unwrap(device), view);
 
@@ -3976,18 +3956,8 @@ bool WrappedVulkan::Serialise_vkCreateAccelerationStructureKHR(
     {
       ResourceId live;
 
-      if(GetResourceManager()->HasWrapper(ToTypedHandle(acc)))
-      {
-        live = GetResourceManager()->GetNonDispWrapper(acc)->id;
+      GetResourceManager()->OverrideWrapper(ToTypedHandle(acc));
 
-        // destroy this instance of the duplicate, as we must have matching create/destroy
-        // calls and there won't be a wrapped resource hanging around to destroy this one.
-        ObjDisp(device)->DestroyAccelerationStructureKHR(Unwrap(device), acc, NULL);
-
-        // whenever the new ID is requested, return the old ID, via replacements.
-        GetResourceManager()->ReplaceResource(AccelerationStructure, live);
-      }
-      else
       {
         live = GetResourceManager()->WrapResource(AccelerationStructure, Unwrap(device), acc);
 
