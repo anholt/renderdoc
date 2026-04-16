@@ -3666,8 +3666,8 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
           length = buf->length;
       }
 
-      rows.push_back({i, vb.resourceId, (qulonglong)vb.byteOffset, (qulonglong)vb.byteStride,
-                      (qulonglong)length});
+      rows.push_back({i, m_Ctx.GetResourceName(vb.resourceId), (qulonglong)vb.byteOffset,
+                      (qulonglong)vb.byteStride, (qulonglong)length});
 
       i++;
     }
@@ -3724,6 +3724,10 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
 {
   const ShaderReflection *shaderDetails = sh.reflection;
 
+  const VKPipe::Pipeline &pipeline =
+      (sh.stage == ShaderStage::Compute ? m_Ctx.CurVulkanPipelineState()->compute
+                                        : m_Ctx.CurVulkanPipelineState()->graphics);
+
   {
     xml.writeStartElement(lit("h3"));
     xml.writeCharacters(tr("Shader"));
@@ -3736,22 +3740,23 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
     else
       shadername = m_Ctx.GetResourceName(sh.resourceId);
 
+    QString entryname = tr("Unknown");
     if(shaderDetails)
     {
       QString entryFunc = shaderDetails->entryPoint;
       const ShaderDebugInfo &dbg = shaderDetails->debugInfo;
       int entryFile = qMax(0, dbg.entryLocation.fileIndex);
-      if(entryFunc != lit("main"))
-        shadername = QFormatStr("%1()").arg(entryFunc);
-      else if(!dbg.files.isEmpty())
-        shadername = QFormatStr("%1() - %2")
-                         .arg(entryFunc)
-                         .arg(QFileInfo(dbg.files[entryFile].filename).fileName());
+      if(!dbg.files.isEmpty())
+        entryname = QFormatStr("%1() - %2")
+                        .arg(entryFunc)
+                        .arg(QFileInfo(dbg.files[entryFile].filename).fileName());
+      else
+        entryname = QFormatStr("%1()").arg(entryFunc);
     }
 
-    xml.writeStartElement(lit("p"));
-    xml.writeCharacters(shadername);
-    xml.writeEndElement();
+    m_Common.exportHTMLTable(
+        xml, {tr("Pipeline"), tr("Shader"), tr("Entry")},
+        {m_Ctx.GetResourceName(pipeline.pipelineResourceId), shadername, entryname});
 
     if(sh.resourceId == ResourceId())
       return;
@@ -3759,10 +3764,6 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
 
   if(!shaderDetails)
     return;
-
-  const VKPipe::Pipeline &pipeline =
-      (sh.stage == ShaderStage::Compute ? m_Ctx.CurVulkanPipelineState()->compute
-                                        : m_Ctx.CurVulkanPipelineState()->graphics);
 
   QList<QVariantList> uboRows;
   QList<QVariantList> roRows;
@@ -4003,7 +4004,7 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
       }
 
       sampRows.push_back(
-          {slotname, addressing, filter,
+          {slotname, m_Ctx.GetResourceName(descriptor.object), addressing, filter,
            QFormatStr("%1 - %2")
                .arg(descriptor.minLOD == -FLT_MAX ? lit("0") : QString::number(descriptor.minLOD))
                .arg(descriptor.maxLOD == FLT_MAX ? lit("FLT_MAX")
@@ -4044,9 +4045,10 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
     xml.writeCharacters(tr("Samplers"));
     xml.writeEndElement();
 
-    m_Common.exportHTMLTable(
-        xml, {tr("Binding"), tr("Addressing"), tr("Filter"), tr("LOD Clamp"), tr("LOD Bias")},
-        sampRows);
+    m_Common.exportHTMLTable(xml,
+                             {tr("Binding"), tr("Sampler"), tr("Addressing"), tr("Filter"),
+                              tr("LOD Clamp"), tr("LOD Bias")},
+                             sampRows);
   }
 
   if(!uboRows.empty())
@@ -4115,8 +4117,9 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
     xml.writeEndElement();
 
     m_Common.exportHTMLTable(
-        xml, {tr("Fill Mode"), tr("Cull Mode"), tr("Front CCW")},
-        {ToQStr(rs.fillMode), ToQStr(rs.cullMode), rs.frontCCW ? tr("Yes") : tr("No")});
+        xml, {tr("Fill Mode"), tr("Cull Mode"), tr("Front CCW"), tr("Provoking Vertex")},
+        {ToQStr(rs.fillMode), ToQStr(rs.cullMode), rs.frontCCW ? tr("Yes") : tr("No"),
+         rs.provokingVertexFirst ? tr("First") : tr("Last")});
 
     xml.writeStartElement(lit("p"));
     xml.writeEndElement();
@@ -4146,6 +4149,39 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
                                  Formatter::Format(rs.slopeScaledDepthBias),
                                  Formatter::Format(rs.lineWidth),
                              });
+  }
+
+  {
+    xml.writeStartElement(lit("h3"));
+    xml.writeCharacters(tr("Line Stipple"));
+    xml.writeEndElement();
+
+    m_Common.exportHTMLTable(
+        xml, {tr("Factor"), tr("Pattern")},
+        {ToQStr(rs.lineStippleFactor), QString::number(rs.lineStipplePattern, 2)});
+  }
+
+  {
+    xml.writeStartElement(lit("h3"));
+    xml.writeCharacters(tr("Conservative Raster"));
+    xml.writeEndElement();
+
+    m_Common.exportHTMLTable(xml, {tr("Mode"), tr("Over-estimation size")},
+                             {ToQStr(rs.conservativeRasterization),
+                              Formatter::Format(rs.extraPrimitiveOverestimationSize)});
+  }
+
+  {
+    xml.writeStartElement(lit("h3"));
+    xml.writeCharacters(tr("Variable Shading Rate"));
+    xml.writeEndElement();
+
+    m_Common.exportHTMLTable(
+        xml, {tr("Pipeline Shading Rate"), tr("Combiners")},
+        {QFormatStr("%1x%2").arg(rs.pipelineShadingRate.first).arg(rs.pipelineShadingRate.second),
+         QFormatStr("%1, %2")
+             .arg(ToQStr(rs.shadingRateCombiners.first, GraphicsAPI::Vulkan))
+             .arg(ToQStr(rs.shadingRateCombiners.second, GraphicsAPI::Vulkan))});
   }
 
   const VKPipe::MultiSample &msaa = m_Ctx.CurVulkanPipelineState()->multisample;
@@ -4472,6 +4508,23 @@ void VulkanPipelineStateViewer::exportHTML(QXmlStreamWriter &xml, const VKPipe::
       xml.writeEndElement();
     }
 
+    if(!pass.renderpass.multiviews.isEmpty())
+    {
+      QList<QVariantList> colors;
+
+      for(int i = 0; i < pass.renderpass.multiviews.count(); i++)
+        colors.push_back({pass.renderpass.multiviews[i]});
+
+      m_Common.exportHTMLTable(xml,
+                               {
+                                   tr("Multiview Mask"),
+                               },
+                               colors);
+
+      xml.writeStartElement(lit("p"));
+      xml.writeEndElement();
+    }
+
     if(pass.renderpass.depthstencilAttachment >= 0)
     {
       xml.writeStartElement(lit("p"));
@@ -4648,6 +4701,20 @@ const ShaderResource *VulkanPipelineStateViewer::exportDescriptorHTML(const Used
       viewParams += tr("Layers: %1-%2")
                         .arg(descriptor.firstSlice)
                         .arg(descriptor.firstSlice + descriptor.numSlices - 1);
+    }
+
+    if(descriptor.swizzle.red != TextureSwizzle::Red ||
+       descriptor.swizzle.green != TextureSwizzle::Green ||
+       descriptor.swizzle.blue != TextureSwizzle::Blue ||
+       descriptor.swizzle.alpha != TextureSwizzle::Alpha)
+    {
+      if(!viewParams.isEmpty())
+        viewParams += lit(", ");
+      viewParams += tr("swizzle[%1%2%3%4]")
+                        .arg(ToQStr(descriptor.swizzle.red))
+                        .arg(ToQStr(descriptor.swizzle.green))
+                        .arg(ToQStr(descriptor.swizzle.blue))
+                        .arg(ToQStr(descriptor.swizzle.alpha));
     }
   }
 
