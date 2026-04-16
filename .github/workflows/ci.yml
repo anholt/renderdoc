@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 100
     - name: Check commit messages (PR)
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
     - name: Run clang-format
@@ -92,7 +92,7 @@ jobs:
     strategy:
       fail-fast: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
     - name: Download minimum supported cmake version
@@ -150,7 +150,7 @@ jobs:
             platform: x64
             configuration: Release
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
 
@@ -265,7 +265,7 @@ jobs:
         curl https://renderdoc.org/qrenderdoc_3rdparty.zip -O
         7z x qrenderdoc_3rdparty.zip
     - name: Set up Visual Studio tools
-      uses: microsoft/setup-msbuild@v2
+      uses: microsoft/setup-msbuild@v3
     - name: Building solution
       run: msbuild.exe renderdoc.sln "/m" "/p:Configuration=${{ matrix.configuration }}" "/p:Platform=${{ matrix.platform }}" "/p:PlatformToolset=${{ matrix.toolset }}"
       shell: powershell
@@ -290,7 +290,7 @@ jobs:
     env:
       QT_SELECT: qt5
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
     - name: Install compilation dependencies
@@ -339,7 +339,7 @@ jobs:
             cxx: clang++-12
             type: Debug
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
     - name: Add LLVM apt repository
@@ -391,10 +391,10 @@ jobs:
     needs: [commit-msg, clang-format]
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
-    - uses: actions/setup-java@v4
+    - uses: actions/setup-java@v5
       with:
         distribution: 'zulu'
         java-version: '8'
@@ -437,7 +437,7 @@ jobs:
           - name: Release
             type: Release
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 5
     - name: Install Homebrew dependencies
