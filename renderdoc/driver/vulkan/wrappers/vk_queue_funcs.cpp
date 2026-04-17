@@ -351,16 +351,14 @@ void WrappedVulkan::ReplayQueueSubmit(VkQueue queue, VkSubmitInfo2 submitInfo, r
 
       {
         // pull in any remaining events on the command buffer that weren't added to an action
-        uint32_t i = 0;
-        for(APIEvent &apievent : cmdBufInfo.curEvents)
+        for(const APIEvent &event : cmdBufInfo.curEvents)
         {
+          APIEvent apievent(event);
           apievent.eventId += m_RootEventID;
 
           m_RootEvents.push_back(apievent);
           m_Events.resize(apievent.eventId + 1);
           m_Events[apievent.eventId] = apievent;
-
-          i++;
         }
 
         for(auto it = cmdBufInfo.resourceUsage.begin(); it != cmdBufInfo.resourceUsage.end(); ++it)
