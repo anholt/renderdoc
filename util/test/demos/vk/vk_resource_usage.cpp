@@ -453,6 +453,8 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
     VkDescriptorSetLayout compWriteDataSetLayout =
         createDescriptorSetLayout(vkh::DescriptorSetLayoutCreateInfo({
             {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+            {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
         }));
     setName(compWriteDataSetLayout, "Compute WriteData Descriptor Set Layout");
 
@@ -586,11 +588,26 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
         VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_GPU_ONLY}));
     setName(indirectData.buffer, "Indirect Data");
 
+    AllocatedBuffer barrierBuffer(this,
+                                  vkh::BufferCreateInfo(1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
+                                  VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_GPU_ONLY}));
+    setName(barrierBuffer.buffer, "Barrier Buffer");
+
+    AllocatedBuffer barrier2Buffer(this,
+                                   vkh::BufferCreateInfo(1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
+                                   VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_GPU_ONLY}));
+    setName(barrier2Buffer.buffer, "Barrier2 Buffer");
+
     vkh::updateDescriptorSets(
-        device, {
-                    vkh::WriteDescriptorSet(compWriteDataDescSet, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                            {vkh::DescriptorBufferInfo(indirectData.buffer)}),
-                });
+        device,
+        {
+            vkh::WriteDescriptorSet(compWriteDataDescSet, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                    {vkh::DescriptorBufferInfo(indirectData.buffer)}),
+            vkh::WriteDescriptorSet(compWriteDataDescSet, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                    {vkh::DescriptorBufferInfo(barrierBuffer.buffer)}),
+            vkh::WriteDescriptorSet(compWriteDataDescSet, 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                    {vkh::DescriptorBufferInfo(barrier2Buffer.buffer)}),
+        });
 
     VkDescriptorBufferBindingInfoEXT descBuffBind = {};
     AllocatedBuffer descBuf;
@@ -643,37 +660,74 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
     using uvec4 = uint32_t[4];
 
+    VkCommandPool barrierCmdPool;
+    CHECK_VKR(vkCreateCommandPool(
+        device,
+        vkh::CommandPoolCreateInfo(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, queueFamilyIndex),
+        NULL, &barrierCmdPool));
+    setName(barrierCmdPool, "BarrierCommand Pool");
+
+    VkCommandBuffer barrierCmd = VK_NULL_HANDLE;
+    CHECK_VKR(vkAllocateCommandBuffers(device, vkh::CommandBufferAllocateInfo(barrierCmdPool, 1),
+                                       &barrierCmd));
+    setName(barrierCmd, "Barrier Command Buffer");
+    vkBeginCommandBuffer(barrierCmd,
+                         vkh::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT));
+    vkh::cmdPipelineBarrier(
+        barrierCmd, {},
+        {vkh::BufferMemoryBarrier(VK_ACCESS_NONE, VK_ACCESS_NONE, barrierBuffer.buffer)});
+    vkEndCommandBuffer(barrierCmd);
+
+    VkFence barrerCmdSubmitFence;
+    CHECK_VKR(vkCreateFence(device, vkh::FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT), NULL,
+                            &barrerCmdSubmitFence));
+    setName(barrerCmdSubmitFence, "Barrier Command Submit Fence");
+
     while(Running())
     {
       viewPort = {0.0f, 0.0f, sqSize, sqSize, 0.0f, 1.0f};
 
-      VkCommandBuffer secCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
-      vkBeginCommandBuffer(
-          secCmd, vkh::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
-                                                  VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-                                              vkh::CommandBufferInheritanceInfo(renderPass, 0)));
+      VkCommandBuffer barrierSecCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+      vkBeginCommandBuffer(barrierSecCmd, vkh::CommandBufferBeginInfo(
+                                              VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+                                              vkh::CommandBufferInheritanceInfo(VK_NULL_HANDLE, 0)));
+      vkh::cmdPipelineBarrier(
+          barrierSecCmd, {},
+          {vkh::BufferMemoryBarrier(VK_ACCESS_NONE, VK_ACCESS_NONE, barrier2Buffer.buffer)});
+      vkEndCommandBuffer(barrierSecCmd);
 
-      pushMarker(secCmd, "No Descriptor Set");
+      VkCommandBuffer secCmdBuffers[2];
+      for(size_t i = 0; i < 2; i++)
       {
-        vkCmdSetScissor(secCmd, 0, 1, &mainWindow->scissor);
-        vkh::cmdBindVertexBuffers(secCmd, 0, {vb.buffer}, {0});
-        vkCmdBindIndexBuffer(secCmd, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindPipeline(secCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, noDescSetPipe);
+        VkCommandBuffer secCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+        vkBeginCommandBuffer(
+            secCmd, vkh::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
+                                                    VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+                                                vkh::CommandBufferInheritanceInfo(renderPass, 0)));
 
-        // Vertex draw
-        setMarker(secCmd, "Vertex Draw");
-        vkCmdSetViewport(secCmd, 0, 1, &viewPort);
-        vkCmdDraw(secCmd, 3, 1, 0, 0);
-        NextTest();
-        // Indexed draw
-        setMarker(secCmd, "Indexed Draw");
-        vkCmdSetViewport(secCmd, 0, 1, &viewPort);
-        vkCmdDrawIndexed(secCmd, 3, 1, 0, 0, 0);
-        NextTest();
+        pushMarker(secCmd, "No Descriptor Set");
+        {
+          vkCmdSetScissor(secCmd, 0, 1, &mainWindow->scissor);
+          vkh::cmdBindVertexBuffers(secCmd, 0, {vb.buffer}, {0});
+          vkCmdBindIndexBuffer(secCmd, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
+          vkCmdBindPipeline(secCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, noDescSetPipe);
+
+          // Vertex draw
+          setMarker(secCmd, "Vertex Draw");
+          vkCmdSetViewport(secCmd, 0, 1, &viewPort);
+          vkCmdDraw(secCmd, 3, 1, 0, 0);
+          NextTest();
+          // Indexed draw
+          setMarker(secCmd, "Indexed Draw");
+          vkCmdSetViewport(secCmd, 0, 1, &viewPort);
+          vkCmdDrawIndexed(secCmd, 3, 1, 0, 0, 0);
+          NextTest();
+        }
+        popMarker(secCmd);
+
+        vkEndCommandBuffer(secCmd);
+        secCmdBuffers[i] = secCmd;
       }
-      popMarker(secCmd);
-
-      vkEndCommandBuffer(secCmd);
 
       VkCommandBuffer nestedCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
       if(nestedSecondaries)
@@ -855,7 +909,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
           vkCmdBeginRenderPass(
               cmd, vkh::RenderPassBeginInfo(mainWindow->rp, mainWindow->GetFB(), mainWindow->scissor),
               VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-          vkCmdExecuteCommands(cmd, 1, &secCmd);
+          vkCmdExecuteCommands(cmd, 2, secCmdBuffers);
           vkCmdEndRenderPass(cmd);
         }
         popMarker(cmd);
@@ -1228,8 +1282,41 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
       Submit(0, 1, {cmd});
 
+      std::vector<VkCommandBuffer> cmds;
+      cmds.push_back(barrierCmd);
+      VkSubmitInfo submit = vkh::SubmitInfo(cmds);
+      for(uint32_t i = 0; i < 10; ++i)
+      {
+        if(i == 0)
+          setMarker(cmd, "Multiple Command Buffer Submits");
+        vkWaitForFences(device, 1, &barrerCmdSubmitFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &barrerCmdSubmitFence);
+        CHECK_VKR(vkQueueSubmit(queue, 1, &submit, barrerCmdSubmitFence));
+        vkWaitForFences(device, 1, &barrerCmdSubmitFence, VK_TRUE, UINT64_MAX);
+      }
+
+      cmd = GetCommandBuffer();
+
+      vkBeginCommandBuffer(cmd, vkh::CommandBufferBeginInfo());
+
+      pushMarker(cmd, "Multiple Secondary Command Buffer Executes");
+      {
+        vkCmdExecuteCommands(cmd, 1, &barrierSecCmd);
+        vkCmdExecuteCommands(cmd, 1, &barrierSecCmd);
+        vkCmdExecuteCommands(cmd, 1, &barrierSecCmd);
+        vkCmdExecuteCommands(cmd, 1, &barrierSecCmd);
+        popMarker(cmd);
+      }
+
+      vkEndCommandBuffer(cmd);
+
+      Submit(0, 1, {cmd});
+
       Present();
     }
+
+    vkDestroyFence(device, barrerCmdSubmitFence, NULL);
+    vkDestroyCommandPool(device, barrierCmdPool, NULL);
 
     return 0;
   }
