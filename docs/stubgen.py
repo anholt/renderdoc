@@ -403,7 +403,9 @@ def gen_class(file: Stream, class_obj: Type):
     file.println("")
     file.println("")
 
-    # enums have special handlin
+    enum_docs = {}
+
+    # enums have special handling
     if isinstance(class_obj, enum.EnumMeta):
         file.println("# Enum values")
         file.println("")
@@ -445,6 +447,7 @@ def gen_class(file: Stream, class_obj: Type):
                             f"Couldn't find enum docstring for {item_name}"
                         )
 
+                enum_docs[item_name] = enum_doc
                 file.println('"""')
                 file.printlines(enum_doc)
                 file.println('"""')
@@ -509,6 +512,16 @@ def gen_class(file: Stream, class_obj: Type):
                 )
 
     file.dedent()
+
+    if len(enum_docs) > 0:
+        file.println("")
+        file.println("# Assign __doc__ for enum values for easier introspection")
+        file.println("")
+    for val in enum_docs.keys():
+        file.println(f'{class_obj.__name__}.{val}.__doc__ = """')
+        file.printlines(enum_docs[val])
+        file.println('"""')
+        file.println("")
 
     # don't declare dependencies on ourselves even if we have recursive members or
     # functions
