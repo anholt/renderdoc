@@ -789,6 +789,12 @@
     <ClCompile Include="Windows\Dialogs\ProjectionGuessDialog.cpp">
       <Filter>Windows\Dialogs</Filter>
     </ClCompile>
+    <ClCompile Include="$(IntDir)generated\moc_RDToolTip.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Widgets\Extended\RDToolTip.cpp">
+      <Filter>Widgets\Extended</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="3rdparty\flowlayout\FlowLayout.h">
@@ -1615,6 +1621,9 @@
     </CustomBuild>
     <CustomBuild Include="Windows\Dialogs\ProjectionGuessDialog.ui">
       <Filter>Windows\Dialogs</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Widgets\Extended\RDToolTip.h">
+      <Filter>Widgets\Extended</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
