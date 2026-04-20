@@ -913,10 +913,15 @@ class PyReflector:
             # if it doesn't fall into the above cases, try to use inspect to get it from the signature
             try:
                 sig = inspect.signature(func)
+                ret = sig.return_annotation
                 # assume this is a builtin with missing docs
-                if sig.return_annotation == inspect.Signature.empty:
+                if ret == inspect.Signature.empty:
                     return Any
-                return self._handle_aliases(sig.return_annotation)
+                if isinstance(ret, str) and hasattr(func, "__module__"):
+                    mod: str = getattr(func, "__module__")
+                    if mod in sys.modules and hasattr(sys.modules[mod], ret):
+                        ret = getattr(sys.modules[mod], ret)
+                return self._handle_aliases(ret)
             except:
                 return self._type_failure(f"Failed to inspect signature of {func}")
 
