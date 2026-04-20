@@ -1133,6 +1133,18 @@ void VulkanGraphicsTest::setName(VkRenderPass obj, const std::string &name)
   setName(VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)obj, name);
 }
 
+template <>
+void VulkanGraphicsTest::setName(VkCommandBuffer obj, const std::string &name)
+{
+  setName(VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)obj, name);
+}
+
+template <>
+void VulkanGraphicsTest::setName(VkCommandPool obj, const std::string &name)
+{
+  setName(VK_OBJECT_TYPE_COMMAND_POOL, (uint64_t)obj, name);
+}
+
 void VulkanGraphicsTest::setName(VkObjectType objType, uint64_t obj, const std::string &name)
 {
   if(vkSetDebugUtilsObjectNameEXT)
