@@ -1,9 +1,10 @@
 import ast
 import inspect
 import sys
+import enum
 import struct
 import builtins
-from typing import List, Dict, Any, Tuple, Set, Callable, TypeVar, Optional
+from typing import List, Dict, Any, Tuple, Set, Union, Callable, TypeVar, Optional
 
 
 # return whether an object is a specialisation of the given generic,
@@ -28,6 +29,45 @@ def _is_scope_node(node):
         or isinstance(node, ast.FunctionDef)
         or isinstance(node, ast.AsyncFunctionDef)
     )
+
+
+def _expr_to_str(node) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.alias):
+        return f"{node.name} as {node.asname}"
+    if isinstance(node, ast.Attribute):
+        return _expr_to_str(node.value) + "." + node.attr
+    if isinstance(node, ast.NamedExpr):
+        return f"({_expr_to_str(node.target)} := {_expr_to_str(node.value)})"
+    if isinstance(node, ast.Constant):
+        return str(node.value)
+    if isinstance(node, ast.Subscript):
+        return f"{_expr_to_str(node.value)}[{_expr_to_str(node.slice)}]"
+    if isinstance(node, ast.Slice):
+        ret = f"{_expr_to_str(node.lower)}:{_expr_to_str(node.upper)}"
+        if node.step is not None:
+            ret += _expr_to_str(node.step)
+        return ret
+    if isinstance(node, ast.Tuple):
+        ret = ",".join([_expr_to_str(x) for x in node.elts])
+        return f"({ret})"
+    if isinstance(node, ast.List):
+        ret = ",".join([_expr_to_str(x) for x in node.elts])
+        return f"[{ret}]"
+
+    # legacy types before consolidation into constant
+    if sys.version_info < (3, 8):
+        if isinstance(node, ast.Num):
+            return str(node.value)
+        if isinstance(node, ast.Str):
+            return str(node.value)
+        if isinstance(node, ast.Bytes):
+            return str(node.value)
+        if isinstance(node, ast.NameConstant):
+            return str(node.value)
+
+    return "..."
 
 
 def _lookup_attrpath(x: Any, path: str) -> Any:
@@ -115,6 +155,27 @@ def _commentlines(text, first_comment_line):
         break
 
     return "\n".join(lines)
+
+
+# remove any common prefix of whitespace in all lines in the string
+def _remove_space_prefix(string: str, maxlines: int = 0) -> str:
+    if string is None:
+        return ""
+    lines = [l for l in string.splitlines() if l != ""]
+    prefix = -1
+    for l in lines:
+        if l.strip() == "":
+            continue
+        p = len(l) - len(l.lstrip())
+        if prefix == -1 or p < prefix:
+            prefix = p
+    if prefix == -1:
+        prefix = 0
+    if maxlines > 0:
+        if len(lines) > maxlines:
+            lines = lines[:maxlines]
+            lines.append((prefix * " ") + "...")
+    return "\n".join([l[prefix:] for l in lines if l != ""])
 
 
 # replace the contents of all strings with 'x' so that
@@ -1739,6 +1800,168 @@ class PyReflector:
             pass
         return Any
 
+    def get_location_tooltip(self, line: int, col: int) -> str:
+        if self.module is None:
+            return ""
+
+        try:
+            expr = self._get_atom_expr(self.module, line, col)
+            if expr is not None:
+                loctype = self._get_type(self.scopes[line], expr)
+            else:
+                return ""
+        except:
+            return ""
+
+        if loctype is Any:
+            return ""
+
+        if (
+            callable(loctype)
+            and not inspect.isclass(loctype)
+            and not _is_generic(List, loctype)
+            and not _is_generic(Tuple, loctype)
+            and not _is_generic(Dict, loctype)
+            and not _is_generic(Set, loctype)
+            and not _is_generic(Optional, loctype)
+        ):
+            return self._make_func_tooltip(loctype)
+
+        docappend = ""
+        ret = ""
+        if isinstance(expr, ast.Name):
+            ret = f"{expr.id}: "
+        elif isinstance(expr, ast.Attribute):
+            ret = f"{expr.attr}: "
+
+            try:
+                partype = self._get_type(self.scopes[line], expr.value)
+                ret = f"{self.get_name(partype)}.{expr.attr}: "
+                docappend = _remove_space_prefix(
+                    getattr(getattr(partype, expr.attr), "__doc__", ""), 20
+                )
+            except:
+                pass
+        else:
+            ret = "expression: "
+
+        ret += self.get_name(loctype)
+
+        if docappend != "":
+            ret += "\n\n"
+            ret += docappend
+
+        return ret.strip()
+
+    def _make_func_tooltip(self, functype: Any, arg_highlight: int = -1):
+        ret = ""
+
+        if _is_generic(Callable, functype):
+            args = functype.__args__
+
+            retType = args[-1]
+            if retType == type(None):
+                retType = None
+
+            ret = "Callable("
+            for idx, arg in enumerate(args[0:-1]):
+                argtext = f"arg{idx+1}"
+
+                argtext += f": {self.get_name(arg)}"
+
+                if idx == arg_highlight:
+                    argtext = f"<b><u>{argtext}</u></b>"
+
+                if idx != 0:
+                    ret += ", "
+                ret += argtext
+            ret += ")"
+            if retType is not None:
+                ret += f" -> {self.get_name(retType)}"
+            else:
+                ret += " -> None"
+            if arg_highlight >= 0:
+                ret = ret.replace("\n", "<br>\n")
+                ret = ret.replace("  ", "&nbsp;&nbsp;")
+            # no docs, we're done here
+            return ret
+
+        if isinstance(functype, ast.FunctionDef):
+            ret = functype.name + "("
+            for idx, arg in enumerate(functype.args.args):
+                argtext = arg.arg
+
+                if arg.annotation is not None:
+                    argtext += f": {_expr_to_str(arg.annotation)}"
+
+                if idx == arg_highlight:
+                    argtext = f"<b><u>{argtext}</u></b>"
+
+                if idx != 0:
+                    ret += ", "
+                ret += argtext
+            if len(functype.args.posonlyargs) > 0:
+                ret += ", /"
+                for arg in functype.args.posonlyargs:
+                    ret += ", "
+                    ret = arg.arg
+
+                    if arg.type_comment is not None:
+                        ret += f": {arg.type_comment}"
+            if len(functype.args.kwonlyargs) > 0:
+                ret += ", *"
+                for arg in functype.args.kwonlyargs:
+                    ret += ", "
+                    ret = arg.arg
+
+                    if arg.type_comment is not None:
+                        ret += f": {arg.type_comment}"
+            ret += ")"
+            if functype.returns is not None:
+                ret += f" -> {self.get_name(self._get_type(self.scopes[functype.lineno], functype.returns))}"
+            else:
+                ret += " -> None"
+            if arg_highlight >= 0:
+                ret = ret.replace("\n", "<br>\n")
+                ret = ret.replace("  ", "&nbsp;&nbsp;")
+            # no docs, we're done here
+            return ret
+
+        if not callable(functype):
+            return ret
+
+        try:
+            sig = inspect.signature(functype)
+            ret = self.get_name(functype) + "("
+            first = True
+            for idx, arg in enumerate(sig.parameters):
+                if first and arg == "self":
+                    continue
+                if not first:
+                    ret += ", "
+                first = False
+                argtext = arg
+                annot = sig.parameters[arg].annotation
+                if annot is not None and annot != "":
+                    argtext += f": {self.get_name(annot)}"
+
+                if idx == arg_highlight:
+                    argtext = f"<b><u>{argtext}</u></b>"
+
+                ret += argtext
+            ret += ")"
+            if sig.return_annotation is not inspect.Signature.empty:
+                ret += f" -> {self.get_name(sig.return_annotation)}"
+            else:
+                ret += " -> None"
+        except:
+            ret = self.get_name(functype) + "() # unknown signature"
+        ret += "\n\n"
+        ret += _remove_space_prefix(getattr(functype, "__doc__", ""), 20)
+        if arg_highlight >= 0:
+            ret = ret.replace("\n", "<br>\n")
+        return ret.strip()
+
     def get_autocompletion(self, line: int, expr: str) -> Tuple[List[str], int]:
         expr = _get_trailing_expr(expr).strip()
 
@@ -1834,7 +2057,7 @@ class PyReflector:
             pass
         return [], 0
 
-    def get_funccompletion(self, line: int, expr: str) -> Tuple[str, str, int]:
+    def get_funccompletion(self, line: int, expr: str) -> Tuple[str, str, str]:
         func, argidx = _get_func_arg(_get_trailing_expr(expr + ")"))
 
         try:
@@ -1843,7 +2066,7 @@ class PyReflector:
 
             node = ast.parse(src)
             if not isinstance(node, ast.Module) or len(node.body) == []:
-                return "", "", -1
+                return "", "", ""
             node = node.body[0]
 
             curscope = self.scopes[min(len(self.scopes) - 1, line)]
@@ -1851,7 +2074,7 @@ class PyReflector:
             func_type = self._get_type(curscope, node)
 
             if func_type == Any:
-                return "", "", -1
+                return "", "", ""
 
             if _is_generic(Callable, func_type) and self._last_ident is not None:
                 func_scope = self.scopes[self._last_ident.line]
@@ -1861,24 +2084,69 @@ class PyReflector:
                 if isinstance(func_scope.parsed, ast.FunctionDef):
                     func_node = func_scope.parsed
                     if argidx < len(func_node.args.args):
-                        return func, func_node.args.args[argidx].arg, argidx
-                return func, f"arg{argidx+1}", argidx
+                        return (
+                            func,
+                            func_node.args.args[argidx].arg,
+                            self._make_func_tooltip(func_node, argidx),
+                        )
+                    else:
+                        return (
+                            func,
+                            "",
+                            self._make_func_tooltip(func_node, -1),
+                        )
+                return (
+                    func,
+                    f"arg{argidx+1}",
+                    self._make_func_tooltip(func_type, argidx),
+                )
 
             sig = inspect.signature(func_type)
 
-            if argidx < len(sig.parameters):
-                # skip invisible self, when looking at methods
-                if list(sig.parameters)[0] == 'self':
-                    argidx += 1
-                return func, list(sig.parameters)[argidx], argidx
+            params = list(sig.parameters)
+            # skip invisible self, when looking at methods
+            if params[0] == "self":
+                argidx += 1
+            if argidx < len(params):
+                return func, params[argidx], self._make_func_tooltip(func_type, argidx)
+            return func, "", self._make_func_tooltip(func_type)
         except:
             pass
 
-        return "", "", -1
+        return "", "", ""
 
     # try to get a friendly name for a type based on its parent class and module
     def get_name(self, obj: Any) -> str:
+        if isinstance(obj, str):
+            return obj
+
         name = ""
+
+        generics = [
+            (Tuple, "Tuple"),
+            (List, "List"),
+            (Dict, "Dict"),
+            (Set, "Set"),
+        ]
+        for g, n in generics:
+            if _is_generic(g, obj):
+                args = ", ".join([self.get_name(a) for a in obj.__args__])
+                return f"{n}[{args}]"
+
+        if _is_generic(Callable, obj):
+            ret_type = self.get_name(obj.__args__[-1])
+            args = ", ".join([self.get_name(a) for a in obj.__args__[:-1]])
+            return f"Callable[[{args}], {ret_type}]"
+
+        # identify Optional[] looking like Union[x, None]
+        if _is_generic(Union, obj):
+            if len(obj.__args__) == 2:
+                non_none = [
+                    self.get_name(a)
+                    for a in obj.__args__
+                    if a is not None and a is not type(None)
+                ]
+                return f"Optional[{non_none[0]}]"
 
         if hasattr(obj, "__objclass__"):
             cl = obj.__objclass__
@@ -1889,29 +2157,69 @@ class PyReflector:
             membernames = [x for x in dir(cl) if getattr(cl, x) == obj]
 
             if len(membernames) != 1:
-                return ""
+                name = ""
+            else:
+                name += membernames[0]
 
-            name += membernames[0]
+                if hasattr(cl, "__module__") and cl.__module__ != "builtins":
+                    modname = getattr(cl, "__module__")
 
-            if hasattr(cl, "__module__") and cl.__module__ != "builtins":
-                name = f"{cl.__module__}.{name}"
-        elif hasattr(obj, "__module__"):
+                    for k in PyReflector.alias_modules.keys():
+                        if PyReflector.alias_modules[k] == sys.modules[modname]:
+                            modname = k
+                            break
+
+                    name = f"{modname}.{name}"
+
+        if name == "" and hasattr(obj, "__module__"):
             mod = obj.__module__
 
-            if mod not in sys.modules:
-                return ""
+            if mod in sys.modules:
+                mod = sys.modules[mod]
 
-            mod = sys.modules[mod]
+                qualname = getattr(obj, "__qualname__", "")
 
-            membernames = [x for x in dir(mod) if getattr(mod, x) == obj]
+                if _lookup_attrpath(mod, qualname) != obj:
+                    membernames = [x for x in dir(mod) if getattr(mod, x) == obj]
 
-            if len(membernames) != 1:
-                return ""
+                    if len(membernames) != 1:
+                        qualname = ""
+                    else:
+                        qualname = membernames[0]
 
-            if obj.__module__ == "builtins":
-                return membernames[0]
+                if qualname != "":
+                    if obj.__module__ == "builtins":
+                        return qualname.split(".")[-1]
 
-            name = f"{obj.__module__}.{membernames[0]}"
+                    modname = obj.__module__
+
+                    for k in PyReflector.alias_modules.keys():
+                        package = getattr(sys.modules[modname], "__package__", "")
+                        if PyReflector.alias_modules[k] == sys.modules[modname] or (
+                            package != ""
+                            and PyReflector.alias_modules[k] == sys.modules[package]
+                        ):
+                            modname = k
+                            break
+
+                    name = f"{modname}.{qualname}"
+
+        if (
+            name == ""
+            and hasattr(obj, "__qualname__")
+            and (not hasattr(obj, "__module__") or obj.__module__ != "typing")
+        ):
+            return getattr(obj, "__qualname__")
+
+        if name == "" and hasattr(obj, "__name__"):
+            name = getattr(obj, "__name__").split(".")[-1]
+
+            for k in PyReflector.alias_modules.keys():
+                if PyReflector.alias_modules[k] == obj:
+                    return k
+
+        if name == "":
+            name = str(obj)
 
         return name
 
@@ -2807,6 +3115,11 @@ if __name__ == "impossible":
 
     # ENTRY: foo.method(func(),
     # CALLTYPE: foo.method
+    # PARAM: foobar
+    # FUNCCOMPLETE TEST
+
+    # ENTRY: foo.  method(func(),
+    # CALLTYPE: foo.  method
     # PARAM: foobar
     # FUNCCOMPLETE TEST
 
