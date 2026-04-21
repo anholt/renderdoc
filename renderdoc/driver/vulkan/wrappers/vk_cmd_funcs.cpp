@@ -5547,6 +5547,15 @@ bool WrappedVulkan::Serialise_vkCmdExecuteCommands(SerialiserType &ser, VkComman
           parentCmdBufInfo.resourceUsage.back().second.eventId += parentCmdBufInfo.curEventID;
         }
 
+        // pull in any remaining events on the command buffer that weren't added to an action
+        for(const APIEvent &event : cmdBufInfo.curEvents)
+        {
+          APIEvent apievent(event);
+          apievent.eventId += parentCmdBufInfo.curEventID;
+
+          parentCmdBufInfo.curEvents.push_back(apievent);
+        }
+
         // Record execution of the secondary command buffer in the parent's CommandBufferNode
         // Only primary command buffers can be submitted
         CommandBufferExecuteInfo execInfo;
@@ -5559,18 +5568,6 @@ bool WrappedVulkan::Serialise_vkCmdExecuteCommands(SerialiserType &ser, VkComman
 
         parentCmdBufInfo.curEventID += cmdBufInfo.eventCount;
         parentCmdBufInfo.actionCount += cmdBufInfo.actionCount;
-
-        // pull in any remaining events on the command buffer that weren't added to an action
-        uint32_t i = 0;
-        for(APIEvent &apievent : cmdBufInfo.curEvents)
-        {
-          apievent.eventId = parentCmdBufInfo.curEventID - cmdBufInfo.curEvents.count() + i;
-
-          parentCmdBufInfo.curEvents.push_back(apievent);
-          i++;
-        }
-
-        cmdBufInfo.curEvents.clear();
 
         marker.customName = StringFormat::Fmt(
             "=> vkCmdExecuteCommands()[%u]: vkEndCommandBuffer(%s)", c, ToStr(cmd).c_str());
