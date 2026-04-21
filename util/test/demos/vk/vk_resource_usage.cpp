@@ -673,6 +673,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
     setName(barrierCmd, "Barrier Command Buffer");
     vkBeginCommandBuffer(barrierCmd,
                          vkh::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT));
+    setMarker(barrierCmd, "Multiple Command Buffer Submits");
     vkh::cmdPipelineBarrier(
         barrierCmd, {},
         {vkh::BufferMemoryBarrier(VK_ACCESS_NONE, VK_ACCESS_NONE, barrierBuffer.buffer)});
@@ -1208,7 +1209,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
       vkEndCommandBuffer(cmd);
 
-      Submit(0, 1, {cmd});
+      Submit(0, 3, {cmd});
 
       cmd = GetCommandBuffer();
 
@@ -1280,15 +1281,13 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
       vkEndCommandBuffer(cmd);
 
-      Submit(0, 1, {cmd});
+      Submit(1, 3, {cmd});
 
       std::vector<VkCommandBuffer> cmds;
       cmds.push_back(barrierCmd);
       VkSubmitInfo submit = vkh::SubmitInfo(cmds);
       for(uint32_t i = 0; i < 10; ++i)
       {
-        if(i == 0)
-          setMarker(cmd, "Multiple Command Buffer Submits");
         vkWaitForFences(device, 1, &barrerCmdSubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(device, 1, &barrerCmdSubmitFence);
         CHECK_VKR(vkQueueSubmit(queue, 1, &submit, barrerCmdSubmitFence));
@@ -1310,7 +1309,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
       vkEndCommandBuffer(cmd);
 
-      Submit(0, 1, {cmd});
+      Submit(2, 3, {cmd});
 
       Present();
     }

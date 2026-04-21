@@ -269,21 +269,21 @@ class VK_Resource_Usage(rdtest.TestCase):
                             expectedUsage += [
                                         (255+countDrawIndirectCount,rd.ResourceUsage.Barrier)]
                     if (res.name == "Barrier Buffer"):
-                        expectedUsage = [(228+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (235+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (242+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (249+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (256+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (263+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (270+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                        expectedUsage = [(229+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (237+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (245+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (253+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (261+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (269+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
                                         (277+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (284+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (291+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
+                                        (285+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (293+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (301+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
                     if (res.name == "Barrier2 Buffer"):
-                        expectedUsage = [(299+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (304+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (309+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
-                                        (314+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
+                        expectedUsage = [(309+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (314+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (319+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier),
+                                        (324+countDrawIndirectCount+countNested+countDescBuffer,rd.ResourceUsage.Barrier)]
                 elif res.type == rd.ResourceType.Texture:
                     if (res.name == "Offscreen MSAA Image"):
                         expectedUsage = [(11,rd.ResourceUsage.Barrier), 
