@@ -292,13 +292,13 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
     vkGetDescriptorEXT(device, &get, DescSize(type), dst);
   }
 
-  void BufferUpload(AllocatedBuffer & buffer, void *data, size_t countBytes)
+  void BufferUpload(AllocatedBuffer & buffer, void *data, size_t countBytes, size_t offset = 0)
   {
     VmaAllocationInfo alloc_info;
     vmaGetAllocationInfo(buffer.allocator, buffer.alloc, &alloc_info);
     uint16_t *dst = NULL;
     vkMapMemory(device, alloc_info.deviceMemory, alloc_info.offset, VK_WHOLE_SIZE, 0, (void **)&dst);
-    memcpy(dst, data, countBytes);
+    memcpy(dst + offset, data, countBytes);
     vkUnmapMemory(device, alloc_info.deviceMemory);
   }
 
@@ -584,9 +584,11 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
         this,
         vkh::BufferCreateInfo(indirectDataSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                                                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                                                     VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-        VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_GPU_ONLY}));
+        VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_CPU_TO_GPU}));
     setName(indirectData.buffer, "Indirect Data");
+    BufferUpload(indirectData, (void *)indices, sizeof(indices), 1024);
 
     AllocatedBuffer barrierBuffer(this,
                                   vkh::BufferCreateInfo(1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
@@ -611,16 +613,25 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
     VkDescriptorBufferBindingInfoEXT descBuffBind = {};
     AllocatedBuffer descBuf;
+    AllocatedBuffer descBackupBuf;
     if(descBuffer)
     {
       descBuf = AllocatedBuffer(
           this,
           vkh::BufferCreateInfo(0x1000, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR |
                                             VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
-                                            VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT),
+                                            VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
+                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                            VK_BUFFER_USAGE_TRANSFER_DST_BIT),
           VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_CPU_TO_GPU}));
-
       setName(descBuf.buffer, "Descriptor Buffer");
+      descBackupBuf =
+          AllocatedBuffer(this,
+                          vkh::BufferCreateInfo(0x1000, VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                                            VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+                          VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_GPU_ONLY}));
+
+      setName(descBackupBuf.buffer, "Descriptor Backup Buffer");
       VmaAllocationInfo alloc_info;
       vmaGetAllocationInfo(descBuf.allocator, descBuf.alloc, &alloc_info);
       byte *descBufMem = NULL;
@@ -1150,6 +1161,12 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
         vkCmdDrawIndexedIndirect(cmd, indirectData.buffer, offset, countDrawIndexed,
                                  strideDrawIndexed);
         NextTest();
+
+        vkCmdSetViewport(cmd, 0, 1, &viewPort);
+        vkCmdBindIndexBuffer(cmd, indirectData.buffer, 1024, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexedIndirect(cmd, indirectData.buffer, offset, 1, strideDrawIndexed);
+        vkCmdBindIndexBuffer(cmd, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
+        NextTest();
         offset += countDrawIndexed * strideDrawIndexed;
 
         if(draw_indirect_count)
@@ -1236,9 +1253,51 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
         popMarker(cmd);
       }
 
+      VkCommandBuffer backupDescBufCmd = VK_NULL_HANDLE;
+      VkCommandBuffer restoreDescBufCmd = VK_NULL_HANDLE;
+      std::vector<VkCommandBuffer> cmds;
+
       // Descriptor Buffer
       if(descBuffer)
       {
+        VkBufferCopy copyRegion;
+        copyRegion.srcOffset = 0;
+        copyRegion.dstOffset = 0;
+        copyRegion.size = 0x1000;
+
+        backupDescBufCmd = GetCommandBuffer();
+        vkBeginCommandBuffer(backupDescBufCmd, vkh::CommandBufferBeginInfo());
+        vkh::cmdPipelineBarrier(
+            backupDescBufCmd, {},
+            {
+                vkh::BufferMemoryBarrier(VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                                         descBuf.buffer),
+                vkh::BufferMemoryBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                         descBackupBuf.buffer),
+            });
+        vkCmdCopyBuffer(backupDescBufCmd, descBuf.buffer, descBackupBuf.buffer, 1, &copyRegion);
+        vkh::cmdPipelineBarrier(
+            backupDescBufCmd, {},
+            {
+                vkh::BufferMemoryBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                         descBuf.buffer),
+            });
+        vkCmdFillBuffer(backupDescBufCmd, descBuf.buffer, 0, 0x1000, 0);
+        vkEndCommandBuffer(backupDescBufCmd);
+
+        restoreDescBufCmd = GetCommandBuffer();
+        vkBeginCommandBuffer(restoreDescBufCmd, vkh::CommandBufferBeginInfo());
+        vkh::cmdPipelineBarrier(
+            restoreDescBufCmd, {},
+            {
+                vkh::BufferMemoryBarrier(VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                                         descBackupBuf.buffer),
+                vkh::BufferMemoryBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                         descBuf.buffer),
+            });
+        vkCmdCopyBuffer(restoreDescBufCmd, descBackupBuf.buffer, descBuf.buffer, 1, &copyRegion);
+        vkEndCommandBuffer(restoreDescBufCmd);
+
         pushMarker(cmd, "Descriptor Buffer");
         vkCmdSetScissor(cmd, 0, 1, &mainWindow->scissor);
         vkh::cmdBindVertexBuffers(cmd, 0, {vb.buffer}, {0});
@@ -1275,17 +1334,20 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
         vkCmdDispatch(cmd, 1, 1, 1);
 
         popMarker(cmd);
+        cmds.push_back(backupDescBufCmd);
+        cmds.push_back(restoreDescBufCmd);
       }
 
       FinishUsingBackbuffer(cmd, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
       vkEndCommandBuffer(cmd);
+      cmds.push_back(cmd);
 
-      Submit(1, 3, {cmd});
+      Submit(1, 3, cmds);
 
-      std::vector<VkCommandBuffer> cmds;
-      cmds.push_back(barrierCmd);
-      VkSubmitInfo submit = vkh::SubmitInfo(cmds);
+      std::vector<VkCommandBuffer> cmds2;
+      cmds2.push_back(barrierCmd);
+      VkSubmitInfo submit = vkh::SubmitInfo(cmds2);
       for(uint32_t i = 0; i < 10; ++i)
       {
         vkWaitForFences(device, 1, &barrerCmdSubmitFence, VK_TRUE, UINT64_MAX);
