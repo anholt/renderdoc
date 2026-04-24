@@ -26,6 +26,7 @@
 #include "replay_controller.h"
 #include <string.h>
 #include <time.h>
+#include <unordered_set>
 #include "common/dds_readwrite.h"
 #include "driver/ihv/amd/amd_isa.h"
 #include "driver/ihv/amd/amd_rgp.h"
@@ -2246,6 +2247,31 @@ RDResult ReplayController::PostCreateInit(IReplayDriver *device, RDCFile *rdc)
 
   if(m_FrameRecord.actionList.empty())
     return ResultCode::APIReplayFailed;
+
+  std::unordered_set<uint32_t> knownEventIds;
+  uint32_t maxEventId = 0;
+
+  rdcarray<ActionDescription> actions(m_FrameRecord.actionList);
+  while(!actions.empty())
+  {
+    const ActionDescription action = actions.back();
+    actions.pop_back();
+    maxEventId = RDCMAX(maxEventId, action.eventId);
+    for(const APIEvent &event : action.events)
+    {
+      uint32_t eid = event.eventId;
+      maxEventId = RDCMAX(maxEventId, eid);
+      if(knownEventIds.count(eid) > 0)
+        RDCERR("Duplicated EventId: %d", eid);
+      knownEventIds.insert(eid);
+    }
+    actions.append(action.children);
+  }
+  for(uint32_t eid = 1; eid <= maxEventId; ++eid)
+  {
+    if(knownEventIds.count(eid) == 0)
+      RDCERR("Missing EventId: %d Max: %d", eid, maxEventId);
+  }
 
   m_Actions.clear();
   SetupActionPointers(m_Actions, m_FrameRecord.actionList);
