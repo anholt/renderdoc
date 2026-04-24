@@ -1164,3 +1164,25 @@ class TestCase:
                         raise TestFailureException(f"Step {i} ShaderVariableChange for '{c.after.name}' before is not well formed")
 
         return True
+
+    def validate_eventids(self, controller: rd.ReplayController) -> bool:
+        actions = controller.GetRootActions()
+        eventIds = set()
+        maxEventId = 0
+        while len(actions) > 0:
+            action = actions.pop()
+            for event in action.events:
+                eid = event.eventId
+                if eid in eventIds:
+                    log.error(f"ERROR: Duplicated EventId: {eid} Action: {action.actionId} {action.customName}")
+                    return False
+                if eid > maxEventId:
+                    maxEventId = eid
+                eventIds.add(eid)
+            for child in action.children:
+                actions.append(child)
+        for eid in range(1, maxEventId+1):
+            if not eid in eventIds:
+                log.error(f"ERROR: Missing EventId: {eid}")
+                return False
+        return True
