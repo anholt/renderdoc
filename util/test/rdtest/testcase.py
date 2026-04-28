@@ -1166,7 +1166,7 @@ class TestCase:
         return True
 
     def validate_eventids(self, controller: rd.ReplayController) -> bool:
-        actions = controller.GetRootActions()
+        actions = controller.GetRootActions().copy()
         eventIds = set()
         maxEventId = 0
         while len(actions) > 0:
