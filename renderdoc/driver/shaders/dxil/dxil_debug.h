@@ -925,7 +925,7 @@ public:
   DebugAPIWrapper *GetAPIWrapper() const { return m_ApiWrapper; }
 
   static rdcstr GetResourceBaseName(const DXIL::Program *program,
-                                    const DXIL::ResourceReference *resRef);
+                                    const DXIL::EntryPointInterface::ResourceBase &resBase);
 
   static rdcstr GetResourceReferenceName(const DXIL::Program *program, DXIL::ResourceClass resClass,
                                          const BindingSlot &slot);

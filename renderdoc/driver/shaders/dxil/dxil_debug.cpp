@@ -2490,7 +2490,7 @@ bool ThreadState::ExecuteInstruction(const rdcarray<ThreadState> &workgroup)
               };
               RDCASSERT(list);
 
-              rdcstr resName = Debugger::GetResourceBaseName(&m_Program, resRef);
+              rdcstr resName = Debugger::GetResourceBaseName(&m_Program, resRef->resourceBase);
 
               const rdcarray<ShaderVariable> &resources = *list;
               result.name.clear();
@@ -7830,11 +7830,11 @@ Debugger::DebugInfo::~DebugInfo()
 
 // static helper function
 rdcstr Debugger::GetResourceBaseName(const DXIL::Program *program,
-                                     const DXIL::ResourceReference *resRef)
+                                     const DXIL::EntryPointInterface::ResourceBase &resourceBase)
 {
-  rdcstr resName = resRef->resourceBase.name;
+  rdcstr resName = resourceBase.name;
   // Special case for cbuffer arrays
-  if((resRef->resourceBase.resClass == ResourceClass::CBuffer) && (resRef->resourceBase.regCount > 1))
+  if((resourceBase.resClass == ResourceClass::CBuffer) && (resourceBase.regCount > 1))
   {
     // Remove any array suffix that might have been appended to the resource name
     int offs = resName.find('[');
@@ -7851,17 +7851,34 @@ rdcstr Debugger::GetResourceReferenceName(const DXIL::Program *program,
   RDCASSERT(program);
   for(const ResourceReference &resRef : program->m_ResourceReferences)
   {
-    if(resRef.resourceBase.resClass != resClass)
-      continue;
-    if(resRef.resourceBase.space != slot.registerSpace)
-      continue;
-    if(resRef.resourceBase.regBase > slot.shaderRegister)
-      continue;
-    if(resRef.resourceBase.regBase + resRef.resourceBase.regCount <= slot.shaderRegister)
+    const EntryPointInterface::ResourceBase &resBase = resRef.resourceBase;
+    if(resBase.resClass != resClass)
       continue;
 
-    return GetResourceBaseName(program, &resRef);
+    if(resBase.MatchesBinding(slot.shaderRegister, slot.shaderRegister, slot.registerSpace))
+      return GetResourceBaseName(program, resBase);
   }
+
+  const EntryPointInterface *entryPointIf = program->GetEntryPointInterface();
+  const rdcarray<EntryPointInterface::ResourceBase> *resList = NULL;
+  if(resClass == ResourceClass::CBuffer)
+    resList = &entryPointIf->cbuffers;
+  else if(resClass == ResourceClass::SRV)
+    resList = &entryPointIf->srvs;
+  else if(resClass == ResourceClass::UAV)
+    resList = &entryPointIf->uavs;
+  else if(resClass == ResourceClass::Sampler)
+    resList = &entryPointIf->samplers;
+
+  if(resList)
+  {
+    for(const EntryPointInterface::ResourceBase &resBase : *resList)
+    {
+      if(resBase.MatchesBinding(slot.shaderRegister, slot.shaderRegister, slot.registerSpace))
+        return GetResourceBaseName(program, resBase);
+    }
+  }
+
   RDCERR("Failed to find DXIL %s Resource Space %d Register %d", ToStr(resClass).c_str(),
          slot.registerSpace, slot.shaderRegister);
   return "UNKNOWN_RESOURCE_HANDLE";
