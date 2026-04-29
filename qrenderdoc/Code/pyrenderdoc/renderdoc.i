@@ -98,6 +98,13 @@ VA_IGNORE_REST_OF_FILE
   PyDateTime_IMPORT;
 %}
 
+%typemap(out) const SWIGTYPE & {
+  static_assert(false, "Const ref types must be explicitly allowed, to ensure proper copy semantics. " \
+                       "Consider returning by copy if reasonable, or explicitly set up copy typemap.");
+  //$ltype owned = new std::remove_pointer<$ltype>::type(indirect($1));
+  //$result = SWIG_NewPointerObj(SWIG_as_voidptr(owned), $descriptor, SWIG_POINTER_OWN |  0 );
+}
+
 %include "pyconversion.i"
 
 // typemaps for windowing data
@@ -230,6 +237,17 @@ VA_IGNORE_REST_OF_FILE
 
   // copy the values
   $1.assign(*$input);
+}
+
+// this is fine to return directly as it offers no mutable members
+%typemap(out) const PipeState & {
+  $result = SWIG_NewPointerObj(SWIG_as_voidptr($1), $descriptor, 0 );
+}
+
+// this is returned directly due to the size of the data contained in the type.
+// it's mostly "pythonic" to have an object returned that is considered mutable
+%typemap(out) const SDFile & {
+  $result = SWIG_NewPointerObj(SWIG_as_voidptr($1), $descriptor, 0 );
 }
 
 %typemap(ret) const ActionDescription * {

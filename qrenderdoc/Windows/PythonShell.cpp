@@ -484,8 +484,8 @@ struct CaptureContextInvoker : ObjectForwarder<ICaptureContext>
   {
     return m_Obj.GetCaptureModifications();
   }
-  virtual const FrameDescription &FrameInfo() override { return m_Obj.FrameInfo(); }
-  virtual const APIProperties &APIProps() override { return m_Obj.APIProps(); }
+  virtual FrameDescription FrameInfo() override { return m_Obj.FrameInfo(); }
+  virtual APIProperties APIProps() override { return m_Obj.APIProps(); }
   virtual rdcarray<ShaderEncoding> TargetShaderEncodings() override
   {
     return m_Obj.TargetShaderEncodings();

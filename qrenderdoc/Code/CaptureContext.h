@@ -155,8 +155,8 @@ public:
   ResultDetails GetFatalError() override { return m_Replay.GetFatalError(); }
   rdcstr GetCaptureFilename() override { return m_CaptureFile; }
   CaptureModifications GetCaptureModifications() override { return m_CaptureMods; }
-  const FrameDescription &FrameInfo() override { return m_FrameInfo; }
-  const APIProperties &APIProps() override { return m_APIProps; }
+  FrameDescription FrameInfo() override { return m_FrameInfo; }
+  APIProperties APIProps() override { return m_APIProps; }
   rdcarray<ShaderEncoding> CustomShaderEncodings() override { return m_CustomEncodings; }
   rdcarray<ShaderSourcePrefix> CustomShaderSourcePrefixes() override { return m_CustomPrefixes; }
   rdcarray<ShaderEncoding> TargetShaderEncodings() override { return m_TargetEncodings; }

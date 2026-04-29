@@ -2166,14 +2166,14 @@ the UI which aren't reflected in the capture file on disk.
 :return: The frame information.
 :rtype: renderdoc.FrameDescription
 )");
-  virtual const FrameDescription &FrameInfo() = 0;
+  virtual FrameDescription FrameInfo() = 0;
 
   DOCUMENT(R"(Retrieve the :class:`~renderdoc.APIProperties` for the currently loaded capture.
 
 :return: The API properties.
 :rtype: renderdoc.APIProperties
 )");
-  virtual const APIProperties &APIProps() = 0;
+  virtual APIProperties APIProps() = 0;
 
   DOCUMENT(R"(Retrieve the list of :class:`~renderdoc.ShaderEncoding` that are available for
 building target shaders for the currently loaded capture. See
