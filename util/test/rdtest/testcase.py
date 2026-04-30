@@ -817,18 +817,18 @@ class TestCase:
         remaining = ''
 
         # Otherwise, take off any child if we haven't started recursing
-        m = re.match("([a-zA-Z0-9_]+)(\[.*|\..*)", path)
+        m = re.match(r"([a-zA-Z0-9_]+)(\[.*|\..*)", path)
         if m:
             child = m.group(1)
             remaining = m.group(2)
         else:
             # array index
-            m = re.match("(\[[0-9]*\])(.*)", path)
+            m = re.match(r"(\[[0-9]*\])(.*)", path)
             if m:
                 child = m.group(1)
                 remaining = m.group(2)
             else:
-                m = re.match("\.([a-zA-Z0-9_]+)(.*)", path)
+                m = re.match(r"\.([a-zA-Z0-9_]+)(.*)", path)
                 if m:
                     child = m.group(1)
                     remaining = m.group(2)
