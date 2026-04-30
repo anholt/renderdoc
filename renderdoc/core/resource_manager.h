@@ -1801,7 +1801,7 @@ void ResourceManager<Configuration>::RemoveWrapper(WrappedResourceType wrapped, 
   // multiple wrappers for the same object on replay, due to API deduplication between an internal
   // object and an application-created object. Backends are expected to deduplicate during capture
   // (See OverrideWrapper below)
-  if(it == m_WrapperMap.end() || it->second == wrapped)
+  if(it != m_WrapperMap.end() && it->second == wrapped)
     m_WrapperMap.erase(it);
 }
 
