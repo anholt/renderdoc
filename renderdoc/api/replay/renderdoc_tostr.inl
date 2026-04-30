@@ -731,6 +731,7 @@ rdcstr DoStringise(const DescriptorType &el)
     STRINGISE_ENUM_CLASS_NAMED(Sampler, "Sampler");
     STRINGISE_ENUM_CLASS_NAMED(ImageSampler, "Image & Sampler");
     STRINGISE_ENUM_CLASS_NAMED(Image, "Image");
+    STRINGISE_ENUM_CLASS_NAMED(Buffer, "Buffer");
     STRINGISE_ENUM_CLASS_NAMED(TypedBuffer, "Typed Buffer");
     STRINGISE_ENUM_CLASS_NAMED(ReadWriteImage, "RW Image");
     STRINGISE_ENUM_CLASS_NAMED(ReadWriteTypedBuffer, "RW Typed Buffer");
