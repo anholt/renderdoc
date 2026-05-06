@@ -2789,14 +2789,19 @@ void WrappedVulkan::StartFrameCapture(DeviceOwnedWindow devWnd)
   // way of knowing how it's used
   for(auto it = forced.begin(); it != forced.end(); ++it)
   {
-    // reference the buffer/image
+    // reference the resource
     GetResourceManager()->MarkResourceFrameReferenced((*it)->GetResourceID(), eFrameRef_Read);
-    // and its backing memory
-    GetResourceManager()->MarkMemoryFrameReferenced((*it)->baseResourceMem, (*it)->memOffset,
-                                                    (*it)->memSize, eFrameRef_ReadBeforeWrite);
-    // and sparse memory (yuck yuck yuck)
-    if(((*it)->resType == eResBuffer || (*it)->resType == eResImage) && (*it)->resInfo)
-      GetResourceManager()->MarkSparseMapReferenced((*it)->resInfo);
+    // and backing memory for buffers
+    if((*it)->resType == eResBuffer)
+    {
+      ResourceId mem = (*it)->baseResourceMem;
+      if(mem != ResourceId())
+        GetResourceManager()->MarkMemoryFrameReferenced(mem, (*it)->memOffset, (*it)->memSize,
+                                                        eFrameRef_ReadBeforeWrite);
+      // and sparse memory (yuck yuck yuck)
+      if((*it)->resInfo)
+        GetResourceManager()->MarkSparseMapReferenced((*it)->resInfo);
+    }
   }
 }
 
