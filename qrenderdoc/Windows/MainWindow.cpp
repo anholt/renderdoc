@@ -729,6 +729,11 @@ void MainWindow::LoadFromFilename(const QString &filename, bool temporary)
   {
     LoadCapture(filename, m_Ctx.Config().DefaultReplayOptions, temporary, true);
   }
+  else if(ext == lit("py"))
+  {
+    m_Ctx.ShowPythonShell();
+    m_Ctx.GetPythonShell()->LoadScriptFromFilename(filename);
+  }
   else if(ext == lit("cap"))
   {
     OpenCaptureConfigFile(filename, false);
