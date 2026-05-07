@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <QDir>
 #include <QFrame>
 #include "Code/Interface/QRDInterface.h"
 #include "scintilla/include/qt/ScintillaEdit.h"
@@ -34,6 +35,8 @@ class RDToolTip;
 class QTimer;
 class QCompleter;
 class QStringListModel;
+class QFileSystemWatcher;
+class RDTreeWidgetItem;
 
 namespace Ui
 {
@@ -107,6 +110,8 @@ private slots:
   void on_abortRun_clicked();
   void on_outputContext_currentIndexChanged(int idx);
 
+  void on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int column);
+
   bool checkAllowClose();
 
   // manual slots
@@ -121,6 +126,10 @@ private slots:
   void editorTab_Changed(int index);
   void doSyntaxCheck();
 
+  void openFileModified(const QString &path);
+  void updateExtensionProjects();
+  void editorTab_Menu(const QPoint &pos);
+
 private:
   Ui::PythonShell *ui;
   ICaptureContext &m_Ctx;
@@ -133,6 +142,10 @@ private:
   intptr_t m_FuncTipLine = 0;
   bool m_ContextMenuVisible = false;
   bool m_HelpPrinting = false;
+
+  RDTreeWidgetItem *m_UIExtensions, *m_Examples, *m_RecentFiles;
+
+  QFileSystemWatcher *m_Watcher = NULL;
 
   QTimer *m_SyntaxCheckTimer;
 
@@ -161,9 +174,16 @@ private:
 
   QList<ScintillaEdit *> m_Scintillas;
 
+  void setupTabs();
+
   ScintillaEdit *curEditor();
-  ScintillaEdit *makeEditor();
+  ScintillaEdit *makeEditor(rdcstr filename);
   void updateEditorCloseButton();
+
+  void addRecentFile(rdcstr filename);
+  void updateRecentFiles(bool added);
+
+  void addExtensionDirItems(RDTreeWidgetItem *root, QDir dir);
 
   bool eventFilter(QObject *watched, QEvent *event) override;
 

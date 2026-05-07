@@ -25,6 +25,7 @@
 #include "PythonShell.h"
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QFileSystemWatcher>
 #include <QFontDatabase>
 #include <QKeyEvent>
 #include <QMenu>
@@ -32,6 +33,7 @@
 #include <QStringListModel>
 #include <QTimer>
 #include "Code/QRDUtils.h"
+#include "Code/Resources.h"
 #include "Code/ScintillaSyntax.h"
 #include "Code/pyrenderdoc/PythonContext.h"
 #include "Widgets/Extended/RDToolTip.h"
@@ -1123,17 +1125,77 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   on_clear_clicked();
   on_newScript_clicked();
 
-  ScintillaEdit *editor = m_Scintillas[0];
-
   ui->saveScript->setEnabled(false);
 
-  ToolWindowManagerArea *editorTabs = ui->docking->areaOf(editor);
-  QObject::connect(editorTabs, &QTabWidget::currentChanged, this, &PythonShell::editorTab_Changed);
+  setupTabs();
 
-  ui->docking->addToolWindow(ui->replGroup, ToolWindowManager::AreaReference(
-                                                ToolWindowManager::BottomOf, editorTabs, 0.3f));
+  ui->docking->addToolWindow(
+      ui->replGroup, ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
+                                                      ui->docking->areaOf(m_Scintillas[0]), 0.3f));
   ui->docking->setToolWindowProperties(
       ui->replGroup, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
+
+  ui->projectExplorer->setWindowTitle(tr("Project Explorer"));
+  ui->projectExplorer->setColumns({tr("Name")});
+  ui->projectExplorer->hideGridLines();
+
+  m_Watcher = new QFileSystemWatcher({}, this);
+
+  QObject::connect(m_Watcher, &QFileSystemWatcher::fileChanged, this, &PythonShell::openFileModified);
+  QObject::connect(m_Watcher, &QFileSystemWatcher::directoryChanged, this,
+                   &PythonShell::updateExtensionProjects);
+
+  ui->projectExplorer->beginUpdate();
+
+  m_Examples = new RDTreeWidgetItem({lit("Examples")});
+  m_Examples->setSelectable(false);
+  m_Examples->setBold(true);
+  m_Examples->setIcon(0, Icons::help());
+
+  const QPair<QString, QString> examples[] = {
+      {tr("Show a Buffer"), lit("Example will go here")},
+  };
+
+  for(const QPair<QString, QString> &example : examples)
+  {
+    RDTreeWidgetItem *ex = new RDTreeWidgetItem({example.first});
+
+    QFile file(example.second);
+
+    file.open(QFile::ReadOnly);
+    ex->setData(0, Qt::UserRole, QString::fromUtf8(file.readAll()));
+    file.close();
+
+    m_Examples->addChild(ex);
+  }
+
+  m_UIExtensions = new RDTreeWidgetItem({lit("UI Extensions")});
+  m_UIExtensions->setSelectable(false);
+  m_UIExtensions->setBold(true);
+  m_UIExtensions->setIcon(0, Icons::plugin());
+
+  m_RecentFiles = new RDTreeWidgetItem({lit("Recent files")});
+  m_RecentFiles->setSelectable(false);
+  m_RecentFiles->setBold(true);
+  m_RecentFiles->setIcon(0, Icons::page_white_edit());
+
+  ui->projectExplorer->addTopLevelItem(m_Examples);
+  ui->projectExplorer->addTopLevelItem(m_UIExtensions);
+  ui->projectExplorer->addTopLevelItem(m_RecentFiles);
+
+  updateRecentFiles(false);
+  updateExtensionProjects();
+
+  ui->projectExplorer->endUpdate();
+
+  ui->projectExplorer->expandItem(m_RecentFiles);
+
+  ui->docking->addToolWindow(ui->projectExplorer, ToolWindowManager::AreaReference(
+                                                      ToolWindowManager::LeftOf,
+                                                      ui->docking->areaOf(m_Scintillas[0]), 0.2f));
+  ui->docking->setToolWindowProperties(
+      ui->projectExplorer,
+      ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
 
   ui->docking->addToolWindow(ui->outputGroup,
                              ToolWindowManager::AreaReference(ToolWindowManager::AddTo,
@@ -1219,6 +1281,9 @@ void PythonShell::doSyntaxCheck()
   if(!editor)
     return;
 
+  if(editor->lexer() != SCLEX_PYTHON)
+    return;
+
   // don't syntax check while the user still seems to be editing, e.g. with autocomplete or a
   // function tooltip active. The syntax check timer will be restarted when these go away
   if(editor->autoCActive() || m_FuncTip)
@@ -1249,6 +1314,151 @@ void PythonShell::editorTab_Changed(int index)
   ui->saveScript->setEnabled(getEditorFilename(editor) != QString());
 }
 
+void PythonShell::openFileModified(const QString &path)
+{
+  for(ScintillaEdit *edit : m_Scintillas)
+  {
+    if(getEditorFilename(edit) == path)
+    {
+      // delay slightly to avoid reading while the file is being written or if it was deleted before
+      // being written as some editors do
+      QTimer::singleShot(150, [this, edit, path]() {
+        bool mod = isEditorModified(edit);
+
+        // re-add the path, it may have been removed if the file was deleted
+        m_Watcher->addPath(path);
+
+        if(!mod && !m_Ctx.Config().Python_PromptReloadUnchanged)
+        {
+          // unconditionally reload
+        }
+        else
+        {
+          QString prompt = tr("Reload from disk and overwrite your changes?");
+          if(!mod)
+            prompt = tr("Reload from disk?");
+
+          QMessageBox::StandardButton response = RDDialog::question(
+              this, tr("%1 has been modified on disk").arg(QFileInfo(path).fileName()),
+              tr("%1 has been modified on disk. %2").arg(QFileInfo(path).fileName()).arg(prompt));
+
+          if(response == QMessageBox::No)
+            return;
+        }
+
+        QFile f(path);
+        if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+          edit->setText(f.readAll().data());
+          markEditorModified(edit, false);
+          return;
+        }
+
+        RDDialog::critical(this, tr("Error reloading script"),
+                           tr("Couldn't open %1.\n%2").arg(path).arg(f.errorString()));
+      });
+    }
+  }
+}
+
+void PythonShell::editorTab_Menu(const QPoint &pos)
+{
+  ToolWindowManagerArea *editorTabs = ui->docking->areaOf(m_Scintillas[0]);
+
+  int tabIndex = editorTabs->tabBar()->tabAt(pos);
+
+  if(tabIndex == -1)
+    return;
+
+  if(editorTabs->count() == 1)
+    return;
+
+  QAction closeTab(tr("Close tab"), this);
+  QAction closeOtherTabs(tr("Close other tabs"), this);
+  QAction closeRightTabs(tr("Close tabs to the right"), this);
+
+  QMenu contextMenu(this);
+
+  contextMenu.addAction(&closeTab);
+  contextMenu.addAction(&closeOtherTabs);
+  contextMenu.addAction(&closeRightTabs);
+
+  QObject::connect(&closeTab, &QAction::triggered, [this, editorTabs, tabIndex]() {
+    // remove the tab at this index
+    delete editorTabs->widget(tabIndex);
+  });
+
+  QObject::connect(&closeRightTabs, &QAction::triggered, [this, editorTabs, tabIndex]() {
+    for(int i = editorTabs->count() - 1; i > tabIndex; i--)
+      delete editorTabs->widget(i);
+  });
+
+  QObject::connect(&closeOtherTabs, &QAction::triggered, [this, editorTabs, tabIndex]() {
+    for(int i = editorTabs->count() - 1; i >= 0; i--)
+      if(i != tabIndex)
+        delete editorTabs->widget(i);
+  });
+
+  RDDialog::show(&contextMenu, QCursor::pos());
+}
+
+void PythonShell::updateExtensionProjects()
+{
+  RDTreeViewExpansionState expansion;
+  ui->projectExplorer->saveExpansion(expansion, 0);
+
+  ui->projectExplorer->beginUpdate();
+
+  m_UIExtensions->clear();
+
+  for(const ExtensionMetadata &ext : m_Ctx.Extensions().GetInstalledExtensions())
+  {
+    RDTreeWidgetItem *root = new RDTreeWidgetItem({ext.name});
+
+    addExtensionDirItems(root, QDir(ext.filePath));
+
+    m_UIExtensions->addChild(root);
+  }
+
+  ui->projectExplorer->endUpdate();
+
+  ui->projectExplorer->applyExpansion(expansion, 0);
+}
+
+void PythonShell::addExtensionDirItems(RDTreeWidgetItem *root, QDir dir)
+{
+  m_Watcher->addPath(dir.absolutePath());
+  for(QString child : dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot))
+  {
+    QString path = dir.absoluteFilePath(child);
+    QFileInfo fileInfo(path);
+
+    // only show .py files, .md files (for README.md) and the extension.json
+    if(fileInfo.isFile() && fileInfo.suffix().toLower() != lit("py") &&
+       fileInfo.suffix().toLower() != lit("md") && child.toLower() != lit("extension.json"))
+      continue;
+
+    RDTreeWidgetItem *item = new RDTreeWidgetItem({child});
+    if(fileInfo.isDir())
+    {
+      // ignore some directories
+      if(child.toLower() == lit("__pycache__") || child.toLower() == lit(".git") ||
+         child.toLower() == lit(".vscode"))
+        continue;
+
+      item->setIcon(0, Icons::folder());
+
+      addExtensionDirItems(item, QDir(path));
+    }
+    else
+    {
+      item->setData(0, Qt::UserRole, path);
+    }
+
+    root->addChild(item);
+  }
+}
+
 ScintillaEdit *PythonShell::curEditor()
 {
   for(ScintillaEdit *edit : m_Scintillas)
@@ -1260,7 +1470,7 @@ ScintillaEdit *PythonShell::curEditor()
   return NULL;
 }
 
-ScintillaEdit *PythonShell::makeEditor()
+ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
 {
   ScintillaEdit *editor = new EditorWrapper(this);
 
@@ -1288,7 +1498,24 @@ ScintillaEdit *PythonShell::makeEditor()
   QObject::connect(editor, &ScintillaEdit::customContextMenuRequested, this,
                    &PythonShell::editor_contextMenu);
 
-  ConfigureSyntax(editor, SCLEX_PYTHON);
+  QString suffix;
+
+  if(!filename.isEmpty())
+    suffix = QFileInfo(filename).suffix().toLower();
+  if(suffix == lit("md"))
+  {
+    ConfigureSyntax(editor, SCLEX_NULL);
+    editor->setWrapMode(SC_WRAP_WORD);
+  }
+  else if(suffix.toLower() == lit("json"))
+  {
+    ConfigureSyntax(editor, SCLEX_JSON);
+    editor->setWrapMode(SC_WRAP_WORD);
+  }
+  else
+  {
+    ConfigureSyntax(editor, SCLEX_PYTHON);
+  }
 
   editor->setTabWidth(4);
   editor->setUseTabs(false);
@@ -1307,6 +1534,7 @@ ScintillaEdit *PythonShell::makeEditor()
 
   QObject::connect(editor, &QWidget::destroyed, [this, editor]() {
     m_Scintillas.removeOne(editor);
+    m_Watcher->removePath(getEditorFilename(editor));
     updateEditorCloseButton();
   });
 
@@ -1458,6 +1686,58 @@ void PythonShell::updateEditorCloseButton()
   }
 }
 
+void PythonShell::addRecentFile(rdcstr filename)
+{
+  // don't add recent files from UI extensions
+  for(const ExtensionMetadata &ext : m_Ctx.Extensions().GetInstalledExtensions())
+  {
+    if(QString(QFileInfo(filename).absolutePath())
+           .toLower()
+           .startsWith(QDir(ext.filePath).absolutePath().toLower()))
+    {
+      return;
+    }
+  }
+
+  m_Ctx.Config().Python_RecentFiles.removeIf([filename](const rdcstr &o) { return o == filename; });
+
+  if(m_Ctx.Config().Python_RecentFiles.size() == 10)
+    m_Ctx.Config().Python_RecentFiles.pop_back();
+
+  m_Ctx.Config().Python_RecentFiles.insert(0, filename);
+
+  m_Ctx.Config().Save();
+
+  updateRecentFiles(true);
+}
+
+void PythonShell::updateRecentFiles(bool added)
+{
+  ui->projectExplorer->beginUpdate();
+
+  bool expanded = ui->projectExplorer->isItemExpanded(m_RecentFiles);
+
+  // expand if we're adding the first recent file
+  if(m_Ctx.Config().Python_RecentFiles.size() == 1 && added)
+    expanded = true;
+
+  m_RecentFiles->clear();
+
+  for(rdcstr file : m_Ctx.Config().Python_RecentFiles)
+  {
+    RDTreeWidgetItem *recent = new RDTreeWidgetItem({QFileInfo(file).fileName()});
+    recent->setData(0, Qt::UserRole, QString(file));
+    m_RecentFiles->addChild(recent);
+  }
+
+  ui->projectExplorer->endUpdate();
+
+  if(expanded)
+    ui->projectExplorer->expandItem(m_RecentFiles);
+  else
+    ui->projectExplorer->collapseItem(m_RecentFiles);
+}
+
 bool PythonShell::eventFilter(QObject *watched, QEvent *event)
 {
   if(qobject_cast<ScintillaEdit *>(watched))
@@ -1492,6 +1772,14 @@ QVariant PythonShell::persistData()
 {
   QVariantMap state = ui->docking->saveState();
 
+  RDTreeViewExpansionState expansion;
+  ui->projectExplorer->saveExpansion(expansion, 0);
+
+  QVariantList expansionList;
+  for(uint x : expansion)
+    expansionList.append(x);
+  state[lit("projectExplorerExpansion")] = expansionList;
+
   return state;
 }
 
@@ -1501,8 +1789,25 @@ void PythonShell::setPersistData(const QVariant &persistData)
 
   ui->docking->restoreState(state);
 
+  ui->projectExplorer->collapseAll();
+
+  RDTreeViewExpansionState expansion;
+  for(QVariant x : state[lit("projectExplorerExpansion")].toList())
+    expansion.insert(x.toUInt());
+  ui->projectExplorer->applyExpansion(expansion, 0);
+
+  setupTabs();
+}
+
+void PythonShell::setupTabs()
+{
   ToolWindowManagerArea *editorTabs = ui->docking->areaOf(m_Scintillas[0]);
   QObject::connect(editorTabs, &QTabWidget::currentChanged, this, &PythonShell::editorTab_Changed);
+
+  editorTabs->tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
+
+  QObject::connect(editorTabs->tabBar(), &QTabBar::customContextMenuRequested, this,
+                   &PythonShell::editorTab_Menu);
 }
 
 PythonContext *PythonShell::GetScriptContext()
@@ -1522,12 +1827,16 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
     QFile f(filename);
     if(f.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-      ScintillaEdit *editor = makeEditor();
+      ScintillaEdit *editor = makeEditor(filename);
 
       editor->setText(f.readAll().data());
       editor->emptyUndoBuffer();
 
       ui->saveScript->setEnabled(true);
+
+      addRecentFile(filename);
+
+      m_Watcher->addPath(filename);
 
       setEditorFilename(editor, QString(filename));
       markEditorModified(editor, false);
@@ -1540,7 +1849,7 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
 
 void PythonShell::CreateNewScriptEditor(rdcstr name, rdcstr text)
 {
-  ScintillaEdit *editor = makeEditor();
+  ScintillaEdit *editor = makeEditor("");
 
   editor->setText(text.c_str());
   editor->emptyUndoBuffer();
@@ -1705,7 +2014,7 @@ void PythonShell::on_newScript_clicked()
 
   minidocHeader = QFormatStr("# %1\n\n").arg(minidocHeader);
 
-  ScintillaEdit *editor = makeEditor();
+  ScintillaEdit *editor = makeEditor("");
 
   ui->saveScript->setEnabled(false);
 
@@ -1826,6 +2135,69 @@ void PythonShell::on_outputContext_currentIndexChanged(int idx)
   updateScriptOutput(true);
 }
 
+void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int column)
+{
+  // ignore these, just let them collapse/expand
+  if(item == m_Examples || item == m_UIExtensions || item == m_RecentFiles)
+    return;
+
+  if(item->parent() == m_Examples)
+  {
+    QString filename = tr("Example: ") + item->text(0);
+    QString text = item->data(0, Qt::UserRole).toString();
+
+    for(ScintillaEdit *edit : m_Scintillas)
+    {
+      if(getEditorFilename(edit) == filename)
+      {
+        ToolWindowManager::raiseToolWindow(edit);
+        return;
+      }
+    }
+
+    CreateNewScriptEditor(filename, text);
+  }
+  else
+  {
+    // recent file or UI extension, the user role contains the path
+    QString filename = item->data(0, Qt::UserRole).toString();
+
+    // directories in UI extensions have no filename to activate
+    if(filename.isEmpty())
+      return;
+
+    for(ScintillaEdit *edit : m_Scintillas)
+    {
+      if(getEditorFilename(edit) == filename)
+      {
+        ToolWindowManager::raiseToolWindow(edit);
+        return;
+      }
+    }
+
+    if(!QFileInfo(filename).exists())
+    {
+      QMessageBox::StandardButton response = RDDialog::question(
+          this, tr("'%1' does not exist").arg(QFileInfo(filename).fileName()),
+          tr("File not found at path:\n%1\n\nRemove from recent files list?").arg(filename));
+
+      if(response == QMessageBox::Yes)
+      {
+        rdcstr f = filename;
+        m_Ctx.Config().Python_RecentFiles.removeIf([f](const rdcstr &o) { return o == f; });
+
+        m_Ctx.Config().Save();
+
+        GUIInvoke::defer(this, [this]() { updateRecentFiles(false); });
+      }
+
+      return;
+    }
+
+    LoadScriptFromFilename(filename);
+  }
+}
+
 bool PythonShell::checkAllowClose()
 {
   for(ScintillaEdit *edit : m_Scintillas)
@@ -1881,6 +2253,7 @@ bool PythonShell::saveEditorAs(ScintillaEdit *editor)
 
 bool PythonShell::saveEditor(ScintillaEdit *editor, QString filename)
 {
+  QString oldFilename = getEditorFilename(editor);
   if(!filename.isEmpty())
   {
     QDir dirinfo = QFileInfo(filename).dir();
@@ -1889,9 +2262,19 @@ bool PythonShell::saveEditor(ScintillaEdit *editor, QString filename)
       QFile f(filename);
       if(f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
       {
+        // remove the path from watching first so we don't get a notification from the write itself
+        m_Watcher->removePath(oldFilename);
+
         QString text = QString::fromUtf8(editor->getText(editor->textLength() + 1));
         text.remove(QLatin1Char('\r'));
         f.write(text.toUtf8());
+
+        addRecentFile(filename);
+
+        // delay a short while before starting to watch this file. This is highly unlikely to miss
+        // any real writes (which would have to happen externally after we save), but prevents us
+        // from identifying our own writes as an external modification.
+        QTimer::singleShot(200, [this, filename]() { m_Watcher->addPath(filename); });
 
         setEditorFilename(editor, filename);
         return true;

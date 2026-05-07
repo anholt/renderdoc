@@ -395,6 +395,22 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING(public, QVariantList, rdcarray<rdcstr>, Python_StubDirs)                          \
                                                                                                    \
   DOCUMENT(                                                                                        \
+      "``True`` if there should be a prompt when reloading script file changes from disk, even "   \
+      "if the script has not been changed in the editor. Otherwise changes are reloaded "          \
+      "silently.\n"                                                                                \
+      "\n"                                                                                         \
+      "Defaults to ``False``."                                                                     \
+      ""                                                                                           \
+      ":type: bool");                                                                              \
+  CONFIG_SETTING_VAL(public, bool, bool, Python_PromptReloadUnchanged, false)                      \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
+      "List of files recently opened in the python scripting window.\n"                            \
+      "\n:"                                                                                        \
+      "type: List[str]");                                                                          \
+  CONFIG_SETTING(public, QVariantList, rdcarray<rdcstr>, Python_RecentFiles)                       \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
       "``True`` if when loading a capture that was originally captured on a remote device but "    \
       "uses an API that can be supported locally, should be loaded locally without prompting to "  \
       "switch to a remote context.\n"                                                              \

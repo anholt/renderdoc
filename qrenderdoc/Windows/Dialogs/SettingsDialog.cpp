@@ -309,6 +309,7 @@ SettingsDialog::SettingsDialog(ICaptureContext &ctx, QWidget *parent)
 
   ui->Python_DebugEnabled->setChecked(m_Ctx.Config().Python_DebugEnabled);
   ui->Python_LaunchVSCode->setChecked(m_Ctx.Config().Python_LaunchVSCode);
+  ui->Python_PromptReloadUnchanged->setChecked(m_Ctx.Config().Python_PromptReloadUnchanged);
 
   ui->Python_DebugPyDir->setText(m_Ctx.Config().Python_DebugPyDir);
 
@@ -882,6 +883,13 @@ void SettingsDialog::on_Python_DebugEnabled_toggled(bool checked)
 void SettingsDialog::on_Python_LaunchVSCode_toggled(bool checked)
 {
   m_Ctx.Config().Python_LaunchVSCode = ui->Python_LaunchVSCode->isChecked();
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_PromptReloadUnchanged_toggled(bool checked)
+{
+  m_Ctx.Config().Python_PromptReloadUnchanged = ui->Python_PromptReloadUnchanged->isChecked();
 
   m_Ctx.Config().Save();
 }
