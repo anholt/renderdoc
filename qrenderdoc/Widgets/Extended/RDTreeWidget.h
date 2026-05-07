@@ -272,6 +272,7 @@ public:
 
   RDTreeWidgetItem *itemAt(const QPoint &p) const;
   RDTreeWidgetItem *itemAt(int x, int y) const { return itemAt(QPoint(x, y)); }
+  bool isItemExpanded(RDTreeWidgetItem *item);
   void expandItem(RDTreeWidgetItem *item);
   void expandAllItems(RDTreeWidgetItem *item);
   void collapseItem(RDTreeWidgetItem *item);

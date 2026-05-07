@@ -759,6 +759,11 @@ RDTreeWidgetItem *RDTreeWidget::itemAt(const QPoint &p) const
   return m_model->itemForIndex(indexAt(p));
 }
 
+bool RDTreeWidget::isItemExpanded(RDTreeWidgetItem *item)
+{
+  return isExpanded(m_model->indexForItem(item, 0));
+}
+
 void RDTreeWidget::expandItem(RDTreeWidgetItem *item)
 {
   expand(m_model->indexForItem(item, 0));
