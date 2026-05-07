@@ -134,6 +134,8 @@ public:
     else
       m_editable &= ~mask;
   }
+  inline bool selectable() const { return m_selectable; }
+  inline void setSelectable(bool sel) { m_selectable = sel; }
 
   inline Qt::CheckState checkState(int column) const
   {
@@ -180,6 +182,7 @@ private:
   uint32_t m_editable = 0;
 
   // per-item properties
+  bool m_selectable = true;
   QString m_tooltip;
   bool m_bold = false;
   bool m_italic = false;

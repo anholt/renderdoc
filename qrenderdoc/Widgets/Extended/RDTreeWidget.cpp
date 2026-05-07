@@ -162,6 +162,11 @@ public:
     if(item->editable(index.column()))
       ret |= Qt::ItemIsEditable;
 
+    if(item->selectable())
+      ret |= Qt::ItemIsSelectable;
+    else
+      ret &= ~Qt::ItemIsSelectable;
+
     return ret;
   }
 
