@@ -944,7 +944,11 @@ rdcarray<UsedDescriptor> PipeState::GetAllUsedDescriptors(bool onlyUsed) const
     if(onlyUsed == false || !m_Access[i].staticallyUnused)
     {
       if(i < m_Descriptors.size())
-        ret.push_back({m_Access[i], m_Descriptors[i], m_SamplerDescriptors[i]});
+      {
+        UsedDescriptor d = {m_Access[i], m_Descriptors[i], SamplerDescriptor()};
+        ApplyVulkanDynamicOffsets(d);
+        ret.push_back(d);
+      }
     }
   }
 
