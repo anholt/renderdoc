@@ -225,11 +225,14 @@ void FetchException(QString &typeStr, QString &valueStr, int &finalLine, QList<Q
         }
 
         Py_DecRef(args);
+        Py_DecRef(func);
       }
       else
       {
         qCritical() << "Couldn't get format_tb from traceback module";
       }
+
+      Py_DecRef(tracebackModule);
     }
   }
 
@@ -520,7 +523,7 @@ void PythonContext::GlobalInit(PersistantConfig &config)
   PyObject *sysobj = PyImport_ImportModule("sys");
   PyDict_SetItemString(main_dict, "sys", sysobj);
 
-  // try to import threading library to make debuggers happier
+  // try to import threading library to make debuggers happier, leak it deliberately
   if(!PyImport_ImportModule("threading"))
   {
     // ignore a failed import
@@ -734,117 +737,112 @@ void PythonContext::GlobalInit(PersistantConfig &config)
     // if we got a path to debugpy, try to load it
     if(!debugpy_path.isEmpty())
     {
-      PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
+      QObject *invokeObj = new QObject();
+      initDebugPy = [sysobj, debugpy_path, invokeObj]() {
+        qInfo() << "Importing debugpy from" << debugpy_path;
 
-      if(!syspath)
-      {
-        qCritical() << "couldn't get sys.path";
-      }
-      else
-      {
-        QObject *invokeObj = new QObject();
-        initDebugPy = [syspath, debugpy_path, invokeObj]() {
-          qInfo() << "Importing debugpy from" << debugpy_path;
+        PyObject *syspath = PyObject_SafeGetAttrString(sysobj, "path");
 
+        {
           PyObject *str = PyUnicode_FromString(debugpy_path.toUtf8().data());
-
           PyList_Append(syspath, str);
           Py_DecRef(str);
+        }
 
-          m_DebugPy = PyImport_ImportModule("debugpy");
+        m_DebugPy = PyImport_ImportModule("debugpy");
 
-          if(!m_DebugPy)
+        if(!m_DebugPy)
+        {
+          qCritical() << "Failed to import debugpy";
+          HandleException(NULL);
+        }
+        else
+        {
+          PyObject *configure = PyObject_SafeGetAttrString(m_DebugPy, "configure");
+
+          // don't let debugpy create a subprocess, for obvious reasons
+          if(configure)
           {
-            qCritical() << "Failed to import debugpy";
-            HandleException(NULL);
+            PyObject *props = PyDict_New();
+            PyDict_SetItemString(props, "subProcess", Py_False);
+            PyObject *ret = PyObject_CallFunction(configure, "O", props);
+
+            if(!ret)
+            {
+              qCritical() << "Failed calling debugpy.configure";
+              HandleException(NULL);
+              Py_XDECREF(m_DebugPy);
+              m_DebugPy = NULL;
+            }
+
+            Py_XDECREF(ret);
+            Py_XDECREF(props);
           }
           else
           {
-            PyObject *configure = PyObject_SafeGetAttrString(m_DebugPy, "configure");
+            qCritical() << "Couldn't find debugpy.configure";
+          }
 
-            // don't let debugpy create a subprocess, for obvious reasons
-            if(configure)
+          Py_XDECREF(configure);
+
+          if(m_DebugPy)
+          {
+            PyObject *listen = PyObject_SafeGetAttrString(m_DebugPy, "listen");
+
+            if(listen)
             {
-              PyObject *props = PyDict_New();
-              PyDict_SetItemString(props, "subProcess", Py_False);
-              PyObject *ret = PyObject_CallFunction(configure, "O", props);
+              // listen on default port
+              PyObject *args = PyTuple_Pack(1, PyLong_FromLong(5678));
+              PyObject *kwargs = PyDict_New();
+              PyDict_SetItemString(kwargs, "in_process_debug_adapter", Py_True);
+
+              PyObject *ret = PyObject_Call(listen, args, kwargs);
 
               if(!ret)
               {
-                qCritical() << "Failed calling debugpy.configure";
+                qCritical() << "Failed calling debugpy.listen";
                 HandleException(NULL);
                 Py_XDECREF(m_DebugPy);
                 m_DebugPy = NULL;
               }
 
               Py_XDECREF(ret);
-              Py_XDECREF(props);
+
+              Py_XDECREF(args);
+              Py_XDECREF(kwargs);
             }
             else
             {
-              qCritical() << "Couldn't find debugpy.configure";
+              qCritical() << "Couldn't find debugpy.listen";
             }
 
-            Py_XDECREF(configure);
-
-            if(m_DebugPy)
-            {
-              PyObject *listen = PyObject_SafeGetAttrString(m_DebugPy, "listen");
-
-              if(listen)
-              {
-                // listen on default port
-                PyObject *args = PyTuple_Pack(1, PyLong_FromLong(5678));
-                PyObject *kwargs = PyDict_New();
-                PyDict_SetItemString(kwargs, "in_process_debug_adapter", Py_True);
-
-                PyObject *ret = PyObject_Call(listen, args, kwargs);
-
-                if(!ret)
-                {
-                  qCritical() << "Failed calling debugpy.listen";
-                  HandleException(NULL);
-                  Py_XDECREF(m_DebugPy);
-                  m_DebugPy = NULL;
-                }
-
-                Py_XDECREF(ret);
-
-                Py_XDECREF(args);
-                Py_XDECREF(kwargs);
-              }
-              else
-              {
-                qCritical() << "Couldn't find debugpy.listen";
-              }
-
-              Py_XDECREF(listen);
-            }
+            Py_XDECREF(listen);
           }
+        }
 
-          // remove the search path from sys.path now
-          Py_XDECREF(PyObject_CallMethod(syspath, "pop", NULL));
-          Py_DecRef(syspath);
+        // remove the search path from sys.path now
+        Py_XDECREF(PyObject_CallMethod(syspath, "pop", NULL));
+        Py_DecRef(syspath);
 
-          RemoveDebuggableThread();
+        RemoveDebuggableThread();
 
-          if(m_DebugPy)
-          {
-            GUIInvoke::defer(invokeObj, [invokeObj]() {
-              PyGILState_STATE gil = PyGILState_Ensure();
+        if(m_DebugPy)
+        {
+          GUIInvoke::defer(invokeObj, [invokeObj]() {
+            PyGILState_STATE gil = PyGILState_Ensure();
 
-              AddDebuggableThread();
+            AddDebuggableThread();
 
-              m_CallWrapper = Py_CompileString("debugpy.trace_this_thread(True)",
-                                               "__callwrapper.py", Py_eval_input);
-              m_CallWrapperGlobals = PyDict_Copy(main_dict);
-              PyDict_SetItemString(m_CallWrapperGlobals, "debugpy", m_DebugPy);
+            m_CallWrapper = Py_CompileString("debugpy.trace_this_thread(True)", "__callwrapper.py",
+                                             Py_eval_input);
+            m_CallWrapperGlobals = PyDict_Copy(main_dict);
+            PyDict_SetItemString(m_CallWrapperGlobals, "debugpy", m_DebugPy);
 
-              // don't pollute the globals
-              PyObject *tmpGlobals = PyDict_Copy(main_dict);
+            // don't pollute the globals
+            PyObject *tmpGlobals = PyDict_Copy(main_dict);
 
-              // monkey patch to get around a bug in debugpy/pydevd: https://github.com/microsoft/debugpy/issues/2011
-              PyObject *ret = PyRun_String(R"(
+            // monkey patch to get around a bug in debugpy/pydevd: https://github.com/microsoft/debugpy/issues/2011
+            PyObject *ret = PyRun_String(R"(
 try:
     monkey_class = sys.modules['_pydevd_bundle'].pydevd_process_net_command_json.PyDevJsonCommandProcessor
     orig = monkey_class.on_continue_request
@@ -867,18 +865,17 @@ except:
     print("Failed to monkey-patch debugpy")
     pass
 )",
-                                           Py_file_input, tmpGlobals, NULL);
+                                         Py_file_input, tmpGlobals, NULL);
 
-              Py_XDECREF(ret);
-              Py_XDECREF(tmpGlobals);
+            Py_XDECREF(ret);
+            Py_XDECREF(tmpGlobals);
 
-              PyGILState_Release(gil);
+            PyGILState_Release(gil);
 
-              invokeObj->deleteLater();
-            });
-          }
-        };
-      }
+            invokeObj->deleteLater();
+          });
+        }
+      };
     }
   }
 #endif
@@ -990,6 +987,8 @@ except:
         qCritical() << "Couldn't find valid stubs path";
     }
 
+    Py_XDECREF(sysobj);
+
     m_DeferredInit = 1;
 
     PyGILState_Release(gil);
@@ -1033,7 +1032,7 @@ PythonContext::PythonContext(bool extensionContext, QObject *parent) : QObject(p
     output->context = this;
     output->selfDeleting = !extensionContext;
     output->block = false;
-    Py_DECREF(redirector);
+    Py_XDECREF(redirector);
   }
 
   // release the GIL again
@@ -1089,7 +1088,7 @@ bool PythonContext::CheckInterfaces(rdcstr &log)
       }
     }
 
-    Py_DECREF(mod);
+    Py_XDECREF(mod);
   }
 
   PyGILState_Release(gil);
@@ -1237,6 +1236,7 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
       // discard the return value, regardless of error we don't abort the reload
       Py_XDECREF(retval);
+      Py_XDECREF(unregister_func);
     }
 
     if(reloadSuccess)
@@ -1276,7 +1276,7 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
             }
 
             // we don't need the reference, we just wanted to reload it
-            Py_DECREF(mod);
+            Py_XDECREF(mod);
 
             value = PyDict_GetItem(sysmodules, key);
 
@@ -1286,8 +1286,10 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
           }
         }
 
-        Py_DECREF(keys);
+        Py_XDECREF(keys);
       }
+
+      Py_XDECREF(sysmodules);
     }
 
     if(reloadSuccess)
@@ -1338,6 +1340,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
         qCritical() << "Internal error passing pyrenderdoc to extension register()";
         ret += tr("Internal error passing pyrenderdoc to extension register()\n");
       }
+
+      Py_XDECREF(register_func);
 
       if(retval == NULL)
       {
@@ -1826,13 +1830,14 @@ QString PythonContext::typenameForLoc(int line, int col)
     {
       ret = ToQStr(name);
 
-      Py_XDECREF(typeObj);
       Py_XDECREF(name);
     }
     else
     {
       HandleException(NULL);
     }
+
+    Py_XDECREF(typeObj);
   }
 
   PyGILState_Release(gil);
@@ -1945,12 +1950,7 @@ void PythonContext::AddDebuggableThread()
 
   if(!threadName.isEmpty())
   {
-    PyObject *sys = PyImport_ImportModule("sys");
-    Q_ASSERT(sys);
-    PyObject *modules = PyObject_SafeGetAttrString(sys, "modules");
-    Q_ASSERT(modules);
-
-    PyObject *threading = PyDict_GetItemString(modules, "threading");
+    PyObject *threading = PyImport_ImportModule("threading");
 
     // expect to load threading
     if(threading)
@@ -1971,9 +1971,12 @@ void PythonContext::AddDebuggableThread()
 
       Py_XDECREF(current_thread);
     }
+    else
+    {
+      qCritical() << "Couldn't get threading module";
+    }
 
-    Py_XDECREF(modules);
-    Py_XDECREF(sys);
+    Py_XDECREF(threading);
   }
 
   PyGILState_Release(gil);
@@ -1988,12 +1991,7 @@ void PythonContext::RemoveDebuggableThread()
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 13
   PyGILState_STATE gil = PyGILState_Ensure();
 
-  PyObject *sys = PyImport_ImportModule("sys");
-  Q_ASSERT(sys);
-  PyObject *modules = PyObject_SafeGetAttrString(sys, "modules");
-  Q_ASSERT(modules);
-
-  PyObject *threading = PyDict_GetItemString(modules, "threading");
+  PyObject *threading = PyImport_ImportModule("threading");
 
   // expect to load threading
   if(threading)
@@ -2010,6 +2008,12 @@ void PythonContext::RemoveDebuggableThread()
 
     Py_XDECREF(_active);
   }
+  else
+  {
+    qCritical() << "Couldn't get threading module";
+  }
+
+  Py_XDECREF(threading);
 
   PyGILState_Release(gil);
 #endif
