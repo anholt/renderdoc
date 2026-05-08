@@ -2432,7 +2432,10 @@ void PythonContext::LaunchDebugger(QWidget *window, PersistantConfig &config, QS
 
       PyGILState_Release(gil);
 
-      QString code_path = QStandardPaths::findExecutable(lit("code"));
+      QString code_path = config.Python_VSCodePath;
+
+      if(!QFileInfo(code_path).isExecutable())
+        code_path = QStandardPaths::findExecutable(lit("code"));
 
       if(!debugger_connected && !code_path.isEmpty())
       {

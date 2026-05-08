@@ -312,6 +312,7 @@ SettingsDialog::SettingsDialog(ICaptureContext &ctx, QWidget *parent)
   ui->Python_PromptReloadUnchanged->setChecked(m_Ctx.Config().Python_PromptReloadUnchanged);
 
   ui->Python_DebugPyDir->setText(m_Ctx.Config().Python_DebugPyDir);
+  ui->Python_VSCodePath->setText(m_Ctx.Config().Python_VSCodePath);
 
   ui->Comments_ShowOnLoad->setChecked(m_Ctx.Config().Comments_ShowOnLoad);
 
@@ -869,6 +870,28 @@ void SettingsDialog::on_Python_DebugPyDir_textEdited(const QString &dir)
 {
   if((QDir(dir).exists() && QDir(dir).exists(lit("__init__.py"))) || dir.isEmpty())
     m_Ctx.Config().Python_DebugPyDir = dir;
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_VSCodePathBrowse_clicked()
+{
+  QString dir = RDDialog::getExecutableFileName(this, tr("Choose location of code executable"),
+                                                m_Ctx.Config().Python_VSCodePath, lit("code"));
+
+  if(!dir.isEmpty() && QFileInfo(dir).isExecutable())
+  {
+    m_Ctx.Config().Python_VSCodePath = dir;
+    ui->Python_VSCodePath->setText(dir);
+  }
+
+  m_Ctx.Config().Save();
+}
+
+void SettingsDialog::on_Python_VSCodePath_textEdited(const QString &path)
+{
+  if(QFileInfo(path).isExecutable() || path.isEmpty())
+    m_Ctx.Config().Python_DebugPyDir = path;
 
   m_Ctx.Config().Save();
 }

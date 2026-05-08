@@ -389,6 +389,12 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING_VAL(public, QString, rdcstr, Python_DebugPyDir, "")                               \
                                                                                                    \
   DOCUMENT(                                                                                        \
+      "The path to the VSCode ``code`` command line executable to use."                            \
+      ""                                                                                           \
+      ":type: str");                                                                               \
+  CONFIG_SETTING_VAL(public, QString, rdcstr, Python_VSCodePath, "")                               \
+                                                                                                   \
+  DOCUMENT(                                                                                        \
       "List of extra directories to write python stubs into.\n"                                    \
       "\n:"                                                                                        \
       "type: List[str]");                                                                          \
