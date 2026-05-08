@@ -1219,6 +1219,11 @@ void PythonShell::doSyntaxCheck()
   if(!editor)
     return;
 
+  // don't syntax check while the user still seems to be editing, e.g. with autocomplete or a
+  // function tooltip active. The syntax check timer will be restarted when these go away
+  if(editor->autoCActive() || m_FuncTip)
+    return;
+
   QByteArray script = editor->getText(editor->textLength() + 1);
   PyParseError parseError = completionContext->CheckPyParse(script, "script.py");
 
@@ -1305,6 +1310,7 @@ ScintillaEdit *PythonShell::makeEditor()
     updateEditorCloseButton();
   });
 
+  // start syntax checking if we exit autocomplete
   QObject::connect(editor, &ScintillaEdit::autoCompleteCancelled,
                    [this]() { m_SyntaxCheckTimer->start(); });
   QObject::connect(editor, &ScintillaEdit::autoCompleteSelection,
@@ -1326,12 +1332,7 @@ ScintillaEdit *PythonShell::makeEditor()
                        editor->indicatorClearRange(0, editor->textLength());
                        editor->annotationClearAll();
 
-                       // we'll reparse when this timer finishes (it will be re-started on every
-                       // change, so only N ms after the last change
-                       if(!editor->autoCActive() && (!m_FuncTip || !m_ToolTip->isVisible()))
-                         m_SyntaxCheckTimer->start();
-                       else
-                         m_SyntaxCheckTimer->stop();
+                       m_SyntaxCheckTimer->start();
                      }
 
                      if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT))
@@ -1344,10 +1345,7 @@ ScintillaEdit *PythonShell::makeEditor()
                        else if(editor->autoCActive())
                        {
                          // delay updating the autocomplete so the current cursor position is updated
-                         GUIInvoke::defer(this, [this, editor]() {
-                           doAutocomplete(editor);
-                           m_SyntaxCheckTimer->stop();
-                         });
+                         GUIInvoke::defer(this, [this, editor]() { doAutocomplete(editor); });
                        }
                      }
                    });
@@ -1389,20 +1387,15 @@ ScintillaEdit *PythonShell::makeEditor()
       m_ToolTip->hideTip();
   });
 
-  QObject::connect(editor, &ScintillaEdit::charAdded, [this, editor](int ch) {
-    doAutocomplete(editor);
-    m_SyntaxCheckTimer->stop();
-  });
+  QObject::connect(editor, &ScintillaEdit::charAdded,
+                   [this, editor](int ch) { doAutocomplete(editor); });
 
   QObject::connect(editor, &ScintillaEdit::buttonPressed,
                    [this, editor](QMouseEvent *ev) { hideFunccompleteTooltip(); });
 
   QObject::connect(editor, &ScintillaEdit::keyPressed, [this, editor](QKeyEvent *ev) {
     if(ev->key() == Qt::Key_Space && (ev->modifiers() & Qt::ControlModifier))
-    {
       doAutocomplete(editor);
-      m_SyntaxCheckTimer->stop();
-    }
 
     if(m_ToolTip->isVisible() && m_FuncTip)
     {
@@ -2237,7 +2230,10 @@ void PythonShell::doAutocomplete(ScintillaEdit *editor)
       completionContext->completionOptions(line, QString::fromUtf8(lineText), prefix_len);
 
   if(completions.empty())
-    return doFunccomplete(editor);
+  {
+    doFunccomplete(editor);
+    return;
+  }
 
   hideFunccompleteTooltip();
   editor->autoCShow(prefix_len, completions.join(QLatin1Char(' ')).toUtf8().data());
