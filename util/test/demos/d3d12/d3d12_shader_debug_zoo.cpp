@@ -1728,6 +1728,11 @@ cbuffer packed_consts : register(b1)
   uint col2w : packoffset(c2.w);
 };
 
+cbuffer oob_consts : register(b2)
+{
+  int4 oob_array[2];
+};
+
 RWStructuredBuffer<uint4> bufIn : register(u0);
 RWStructuredBuffer<uint4> bufOut : register(u1);
 
@@ -1754,6 +1759,9 @@ void main(int3 inTestIndex : SV_GroupID)
   int ONE = ZERO + 1;
 
   int4 testResult = 123;
+  testResult += oob_array[ZERO+2];
+  testResult -= oob_array[ONE+1];
+
   gsmInt = testIndex;
   gsmStruct[gsmInt].a = inTestIndex;
   if (testIndex == 0)
@@ -2701,8 +2709,9 @@ void main(uint3 inDTID : SV_DispatchThreadID, uint3 inGID : SV_GroupThreadID, ui
     ID3D12RootSignaturePtr sigCompute = MakeSig({
         uavParam(D3D12_SHADER_VISIBILITY_ALL, 0, 0),
         uavParam(D3D12_SHADER_VISIBILITY_ALL, 0, 1),
-        constParam(D3D12_SHADER_VISIBILITY_ALL, 0, 0, 4),
+        constParam(D3D12_SHADER_VISIBILITY_ALL, 0, 0, 8),
         constParam(D3D12_SHADER_VISIBILITY_ALL, 0, 1, 12),
+        constParam(D3D12_SHADER_VISIBILITY_ALL, 0, 2, 12),
         tableParam(D3D12_SHADER_VISIBILITY_ALL, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0, 2, 1, 3),
     });
 
@@ -3046,7 +3055,19 @@ void main(uint3 inDTID : SV_DispatchThreadID, uint3 inGID : SV_GroupThreadID, ui
         cmd->SetComputeRoot32BitConstant(2, 8, 3);
         cmd->SetComputeRoot32BitConstant(3, 10, 4 + 2);    // col1z
         cmd->SetComputeRoot32BitConstant(3, 11, 8 + 3);    // col2w
-        cmd->SetComputeRootDescriptorTable(4, m_CBVUAVSRV->GetGPUDescriptorHandleForHeapStart());
+        cmd->SetComputeRoot32BitConstant(4, 12, 0 + 0);    // oob_array[0].x
+        cmd->SetComputeRoot32BitConstant(4, 13, 0 + 1);    // oob_array[0].y
+        cmd->SetComputeRoot32BitConstant(4, 14, 0 + 2);    // oob_array[0].z
+        cmd->SetComputeRoot32BitConstant(4, 15, 0 + 3);    // oob_array[0].w
+        cmd->SetComputeRoot32BitConstant(4, 16, 4 + 0);    // oob_array[1].x
+        cmd->SetComputeRoot32BitConstant(4, 17, 4 + 1);    // oob_array[1].y
+        cmd->SetComputeRoot32BitConstant(4, 18, 4 + 2);    // oob_array[1].z
+        cmd->SetComputeRoot32BitConstant(4, 19, 4 + 3);    // oob_array[1].w
+        cmd->SetComputeRoot32BitConstant(4, 20, 8 + 0);    // oob_array[2].x
+        cmd->SetComputeRoot32BitConstant(4, 21, 8 + 1);    // oob_array[2].y
+        cmd->SetComputeRoot32BitConstant(4, 22, 8 + 2);    // oob_array[2].z
+        cmd->SetComputeRoot32BitConstant(4, 23, 8 + 3);    // oob_array[2].w
+        cmd->SetComputeRootDescriptorTable(5, m_CBVUAVSRV->GetGPUDescriptorHandleForHeapStart());
 
         cmd->SetPipelineState(computePSOs[i]);
         setMarker(cmd, computeSMs[i]);
