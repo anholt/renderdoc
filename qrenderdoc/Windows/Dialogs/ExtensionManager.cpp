@@ -31,6 +31,8 @@
 #include "Code/Resources.h"
 #include "Code/pyrenderdoc/PythonContext.h"
 #include "Widgets/Extended/RDHeaderView.h"
+#include "Widgets/Extended/RDLabel.h"
+#include "Widgets/Extended/RDLineEdit.h"
 #include "Windows/MainWindow.h"
 #include "ui_ExtensionManager.h"
 
@@ -59,6 +61,13 @@ ExtensionManager::ExtensionManager(ICaptureContext &ctx)
   ui->alwaysLoad->setEnabled(false);
 
   QObject::connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+
+  PopulateExtensionList();
+}
+
+void ExtensionManager::PopulateExtensionList()
+{
+  ui->extensions->clear();
 
   QString extensionFolder = ConfigFilePath("extensions");
 
@@ -228,6 +237,176 @@ void ExtensionManager::on_alwaysLoad_toggled(bool checked)
 
       m_Ctx.Config().Save();
     }
+  }
+}
+
+void ExtensionManager::on_createExtension_clicked()
+{
+  QDialog dialog;
+  RDLabel label;
+  RDLineEdit extensionName;
+  QDialogButtonBox buttons;
+
+  dialog.setWindowTitle(tr("Create new UI extension"));
+  dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+  label.setText(
+      tr("Create a new UI extension, with some example code.\n"
+         "\n"
+         "This will create the directory structure for the specified package name, with a default\n"
+         "extension metadata json and some simple example code to give you a starting point."));
+
+  extensionName.setPlaceholderText(tr("myname.example"));
+
+  buttons.setOrientation(Qt::Horizontal);
+  buttons.setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  buttons.setCenterButtons(true);
+
+  QObject::connect(&buttons, &QDialogButtonBox::accepted, [this, &dialog, &extensionName]() {
+    QString extName = extensionName.text().trimmed();
+
+    if(extName.isEmpty())
+    {
+      RDDialog::critical(&dialog, tr("Invalid extension name"),
+                         tr("Must specify a name for the new extension."));
+      return;
+    }
+
+    if(extName.startsWith(lit("renderdoc.")))
+    {
+      RDDialog::critical(&dialog, tr("Invalid extension name"),
+                         tr("Extension name conflicts with builtin module 'renderdoc'."));
+      return;
+    }
+
+    if(extName.contains(QLatin1Char(' ')) || extName.contains(QLatin1Char('\t')))
+    {
+      RDDialog::critical(
+          &dialog, tr("Invalid extension name"),
+          tr("Extension names should be valid python package names, note including whitespace."));
+      return;
+    }
+
+    for(const ExtensionMetadata &e : m_Extensions)
+    {
+      if(QString(e.package) == extName)
+      {
+        RDDialog::critical(&dialog, tr("Extension name in use"),
+                           tr("The extension name '%1' already exists.").arg(e.package));
+        return;
+      }
+    }
+
+    QStringList locations = PythonContext::GetApplicationExtensionsPaths();
+
+    if(!locations.empty())
+    {
+      QDir dir(locations[0]);
+
+      QStringList paths = extName.split(QLatin1Char('.'));
+
+      bool nonexist = false;
+
+      while(!paths.empty())
+      {
+        QString dirname = paths[0];
+        paths.pop_front();
+
+        if(!dir.cd(dirname))
+        {
+          nonexist = true;
+          break;
+        }
+
+        qInfo() << dir.absolutePath();
+      }
+
+      if(!nonexist && dir.exists() && !dir.isEmpty())
+      {
+        RDDialog::critical(&dialog, tr("Directory already exists"),
+                           tr("Extension directory already exists:\n%1").arg(dir.absolutePath()));
+        return;
+      }
+    }
+
+    dialog.accept();
+  });
+  QObject::connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  QVBoxLayout *layout = new QVBoxLayout(&dialog);
+  layout->addWidget(&label);
+  layout->addWidget(&extensionName);
+  layout->addWidget(&buttons);
+
+  if(!RDDialog::show(&dialog))
+    return;
+
+  if(dialog.result() == QDialog::Accepted)
+  {
+    QStringList locations = PythonContext::GetApplicationExtensionsPaths();
+    QDir dir(locations[0]);
+
+    QString extName = extensionName.text().trimmed();
+    QStringList paths = extName.split(QLatin1Char('.'));
+
+    while(!paths.empty())
+    {
+      QString dirname = paths[0];
+      paths.pop_front();
+
+      dir.mkdir(dirname);
+
+      if(!dir.cd(dirname))
+      {
+        RDDialog::critical(&dialog, tr("Couldn't create directory"),
+                           tr("Failed to create %1 in %2").arg(dirname).arg(dir.absolutePath()));
+        return;
+      }
+    }
+
+    paths = extName.split(QLatin1Char('.'));
+
+    QString metadata = lit(R"({
+	"extension_api": 1,
+	"name": "%3",
+	"version": "1.0",
+	"minimum_renderdoc": "%1.%2",
+	"description": "Template extension %4",
+	"author": "My Name <my.email@example.com>",
+	"url": "https://github.com/example/example"
+}
+)")
+                           .arg(RENDERDOC_VERSION_MAJOR)
+                           .arg(RENDERDOC_VERSION_MINOR)
+                           .arg(paths.back())
+                           .arg(extName);
+
+    {
+      QFile ext(dir.absoluteFilePath(lit("extension.json")));
+      if(ext.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+      {
+        ext.write(metadata.toUtf8());
+      }
+
+      QFile init(dir.absoluteFilePath(lit("__init__.py")));
+      if(init.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+      {
+        init.write(R"(
+# Blank RenderDoc UI extension
+
+import renderdoc as rd
+import qrenderdoc as qrd
+
+def register(version: str, pyrenderdoc: qrd.CaptureContext):
+    print(f"New UI extension loaded in RenderDoc {version}")
+
+def unregister():
+    print(f"New UI extension being unloaded")
+)");
+      }
+    }
+
+    PopulateExtensionList();
   }
 }
 

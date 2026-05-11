@@ -53,11 +53,14 @@ private slots:
   void on_output_clicked();
   void on_openLocation_clicked();
   void on_alwaysLoad_toggled(bool checked);
+  void on_createExtension_clicked();
   void on_extensions_currentItemChanged(RDTreeWidgetItem *item, RDTreeWidgetItem *);
   void on_extensions_itemChanged(RDTreeWidgetItem *item, int col);
 
 private:
   void update_currentItem(RDTreeWidgetItem *item);
+
+  void PopulateExtensionList();
 
   Ui::ExtensionManager *ui;
   ICaptureContext &m_Ctx;
