@@ -2000,6 +2000,31 @@ time.
   DOCUMENT("Close the currently open capture file.");
   virtual void CloseCapture() = 0;
 
+  //////////////////////////////////////////////////////////////
+  DOCUMENT(R"(Returns a blocking version of :class:`renderdoc.ReplayController`, which provides the
+same interface but will block for all calls and run them on the correct replay thread. This is
+provided only as a convenience to avoid calling :meth:`Replay` to obtain the
+:class:`ReplayManager` and use that to directly invoke asynchronously or synchronously onto the
+replay thread.
+
+This function will return ``None`` if no :class:`renderdoc.ReplayController` is available, for
+example if there is no capture loaded.
+
+The returned object *must not* be used if the capture is closed for any reason. It is strongly
+recommended that you do not cache this object and use it only in local areas of code when needed.
+
+.. warning::
+  Care should be taken to ensure that this object is not confused with any other controller that is
+  non-blocking.
+
+:return: A blocking version of the :class:`renderdoc.ReplayController`.
+:rtype: renderdoc.ReplayController
+)");
+  //////////////////////////////////////////////////////////////
+  // This function is implemented only for python! it will return NULL unconditionally
+  // in C++. You should use Replay() to get IReplayManager and call BlockInvoke()
+  virtual IReplayController *GetBlockingController() = 0;
+
   DOCUMENT(R"(Imports a capture file from a non-native format, via conversion to temporary rdc.
 
 This converts the file to a specified temporary .rdc and loads it, closing any existing capture.

@@ -53,9 +53,9 @@ enum
 // operations. All invokes are blocking, so there can't be any times when the UI thread waits
 // on the python thread.
 template <typename Obj>
-struct ObjectForwarder : Obj
+struct UIThreadInvoker : Obj
 {
-  ObjectForwarder(PythonShell *sh, Obj &o) : m_Shell(sh), m_Obj(o) {}
+  UIThreadInvoker(PythonShell *sh, Obj &o) : m_Shell(sh), m_Obj(o) {}
   PythonShell *m_Shell;
   Obj &m_Obj;
 
@@ -96,9 +96,9 @@ struct ObjectForwarder : Obj
   }
 };
 
-struct MiniQtInvoker : ObjectForwarder<IMiniQtHelper>
+struct MiniQtInvoker : UIThreadInvoker<IMiniQtHelper>
 {
-  MiniQtInvoker(PythonShell *shell, IMiniQtHelper &obj) : ObjectForwarder(shell, obj) {}
+  MiniQtInvoker(PythonShell *shell, IMiniQtHelper &obj) : UIThreadInvoker(shell, obj) {}
   virtual ~MiniQtInvoker() {}
   void InvokeOntoUIThread(std::function<void()> callback)
   {
@@ -368,10 +368,10 @@ struct MiniQtInvoker : ObjectForwarder<IMiniQtHelper>
   }
 };
 
-struct ExtensionInvoker : ObjectForwarder<IExtensionManager>
+struct ExtensionInvoker : UIThreadInvoker<IExtensionManager>
 {
   MiniQtInvoker *m_MiniQt;
-  ExtensionInvoker(PythonShell *shell, IExtensionManager &obj) : ObjectForwarder(shell, obj)
+  ExtensionInvoker(PythonShell *shell, IExtensionManager &obj) : UIThreadInvoker(shell, obj)
   {
     m_MiniQt = new MiniQtInvoker(shell, obj.GetMiniQtHelper());
   }
@@ -457,10 +457,374 @@ struct ExtensionInvoker : ObjectForwarder<IExtensionManager>
   }
 };
 
-struct CaptureContextInvoker : ObjectForwarder<ICaptureContext>
+struct ReplayControllerInvoker : IReplayController
+{
+  ReplayControllerInvoker(PythonShell *shell, ICaptureContext &ctx) : m_Shell(shell), m_Ctx(ctx) {}
+  PythonShell *m_Shell;
+  ICaptureContext &m_Ctx;
+
+  template <typename F, typename... paramTypes>
+  void InvokeVoidFunction(F ptr, paramTypes... params)
+  {
+    PythonContext *scriptContext = m_Shell->GetScriptContext();
+    if(scriptContext)
+      scriptContext->PausePythonThreading();
+    m_Ctx.Replay().BlockInvoke(
+        [this, ptr, params...](IReplayController *replay) { (replay->*ptr)(params...); });
+    if(scriptContext)
+      scriptContext->ResumePythonThreading();
+  }
+
+  template <typename R, typename F, typename... paramTypes>
+  R InvokeRetFunction(F ptr, paramTypes... params)
+  {
+    R ret = R();
+    PythonContext *scriptContext = m_Shell->GetScriptContext();
+    if(scriptContext)
+      scriptContext->PausePythonThreading();
+    m_Ctx.Replay().BlockInvoke([this, &ret, ptr, params...](IReplayController *replay) {
+      ret = (replay->*ptr)(params...);
+    });
+    if(scriptContext)
+      scriptContext->ResumePythonThreading();
+    return ret;
+  }
+
+  template <typename R, typename F, typename... paramTypes>
+  R &InvokeRetRefFunction(F ptr, paramTypes... params)
+  {
+    R *ret = NULL;
+    PythonContext *scriptContext = m_Shell->GetScriptContext();
+    if(scriptContext)
+      scriptContext->PausePythonThreading();
+    m_Ctx.Replay().BlockInvoke([this, &ret, ptr, params...](IReplayController *replay) {
+      ret = &(replay->*ptr)(params...);
+    });
+    if(scriptContext)
+      scriptContext->ResumePythonThreading();
+    return *ret;
+  }
+
+  APIProperties GetAPIProperties()
+  {
+    return InvokeRetFunction<APIProperties>(&IReplayController::GetAPIProperties);
+  }
+
+  rdcarray<WindowingSystem> GetSupportedWindowSystems()
+  {
+    return InvokeRetFunction<rdcarray<WindowingSystem>>(&IReplayController::GetSupportedWindowSystems);
+  }
+
+  IReplayOutput *CreateOutput(WindowingData window, ReplayOutputType type)
+  {
+    return InvokeRetFunction<IReplayOutput *>(&IReplayController::CreateOutput, window, type);
+  }
+
+  void Shutdown() {}
+
+  void ReplayLoop(WindowingData window, ResourceId texid) {}
+
+  rdcstr CreateRGPProfile(WindowingData window)
+  {
+    return InvokeRetFunction<rdcstr>(&IReplayController::CreateRGPProfile, window);
+  }
+
+  void CancelReplayLoop() {}
+
+  void FileChanged() {}
+
+  void SetFrameEvent(uint32_t eventId, bool force) {}
+
+  const D3D11Pipe::State *GetD3D11PipelineState()
+  {
+    return InvokeRetFunction<const D3D11Pipe::State *>(&IReplayController::GetD3D11PipelineState);
+  }
+
+  const D3D12Pipe::State *GetD3D12PipelineState()
+  {
+    return InvokeRetFunction<const D3D12Pipe::State *>(&IReplayController::GetD3D12PipelineState);
+  }
+
+  const GLPipe::State *GetGLPipelineState()
+  {
+    return InvokeRetFunction<const GLPipe::State *>(&IReplayController::GetGLPipelineState);
+  }
+
+  const VKPipe::State *GetVulkanPipelineState()
+  {
+    return InvokeRetFunction<const VKPipe::State *>(&IReplayController::GetVulkanPipelineState);
+  }
+
+  const PipeState &GetPipelineState()
+  {
+    return InvokeRetRefFunction<const PipeState>(&IReplayController::GetPipelineState);
+  }
+
+  rdcarray<Descriptor> GetDescriptors(ResourceId descriptorStore,
+                                      const rdcarray<DescriptorRange> &ranges)
+  {
+    return InvokeRetFunction<rdcarray<Descriptor>>(&IReplayController::GetDescriptors,
+                                                   descriptorStore, ranges);
+  }
+
+  rdcarray<SamplerDescriptor> GetSamplerDescriptors(ResourceId descriptorStore,
+                                                    const rdcarray<DescriptorRange> &ranges)
+  {
+    return InvokeRetFunction<rdcarray<SamplerDescriptor>>(&IReplayController::GetSamplerDescriptors,
+                                                          descriptorStore, ranges);
+  }
+
+  const rdcarray<DescriptorAccess> &GetDescriptorAccess()
+  {
+    return InvokeRetRefFunction<const rdcarray<DescriptorAccess>>(
+        &IReplayController::GetDescriptorAccess);
+  }
+
+  rdcarray<DescriptorLogicalLocation> GetDescriptorLocations(ResourceId descriptorStore,
+                                                             const rdcarray<DescriptorRange> &ranges)
+  {
+    return InvokeRetFunction<rdcarray<DescriptorLogicalLocation>>(
+        &IReplayController::GetDescriptorLocations, descriptorStore, ranges);
+  }
+
+  rdcarray<rdcstr> GetDisassemblyTargets(bool withPipeline)
+  {
+    return InvokeRetFunction<rdcarray<rdcstr>>(&IReplayController::GetDisassemblyTargets,
+                                               withPipeline);
+  }
+
+  rdcstr DisassembleShader(ResourceId pipeline, const ShaderReflection *refl, const rdcstr &target)
+  {
+    return InvokeRetFunction<rdcstr>(&IReplayController::DisassembleShader, pipeline, refl, target);
+  }
+
+  void SetCustomShaderIncludes(const rdcarray<rdcstr> &directories) {}
+
+  rdcpair<ResourceId, rdcstr> BuildCustomShader(const rdcstr &entry, ShaderEncoding sourceEncoding,
+                                                bytebuf source,
+                                                const ShaderCompileFlags &compileFlags,
+                                                ShaderStage type)
+  {
+    return InvokeRetFunction<rdcpair<ResourceId, rdcstr>>(
+        &IReplayController::BuildCustomShader, entry, sourceEncoding, source, compileFlags, type);
+  }
+
+  void FreeCustomShader(ResourceId id) {}
+
+  rdcpair<ResourceId, rdcstr> BuildTargetShader(const rdcstr &entry, ShaderEncoding sourceEncoding,
+                                                bytebuf source,
+                                                const ShaderCompileFlags &compileFlags,
+                                                ShaderStage type)
+  {
+    return InvokeRetFunction<rdcpair<ResourceId, rdcstr>>(
+        &IReplayController::BuildTargetShader, entry, sourceEncoding, source, compileFlags, type);
+  }
+
+  rdcarray<ShaderEncoding> GetTargetShaderEncodings()
+  {
+    return InvokeRetFunction<rdcarray<ShaderEncoding>>(&IReplayController::GetTargetShaderEncodings);
+  }
+
+  rdcarray<ShaderEncoding> GetCustomShaderEncodings()
+  {
+    return InvokeRetFunction<rdcarray<ShaderEncoding>>(&IReplayController::GetCustomShaderEncodings);
+  }
+
+  rdcarray<ShaderSourcePrefix> GetCustomShaderSourcePrefixes()
+  {
+    return InvokeRetFunction<rdcarray<ShaderSourcePrefix>>(
+        &IReplayController::GetCustomShaderSourcePrefixes);
+  }
+
+  void ReplaceResource(ResourceId original, ResourceId replacement) {}
+
+  void ClearReplayCache() {}
+
+  void ReloadShaderDebugInformation() {}
+
+  void RemoveReplacement(ResourceId id) {}
+
+  void FreeTargetResource(ResourceId id) {}
+
+  FrameDescription GetFrameInfo()
+  {
+    return InvokeRetFunction<FrameDescription>(&IReplayController::GetFrameInfo);
+  }
+
+  const SDFile &GetStructuredFile()
+  {
+    return InvokeRetRefFunction<const SDFile>(&IReplayController::GetStructuredFile);
+  }
+
+  void AddFakeMarkers() {}
+
+  const rdcarray<ActionDescription> &GetRootActions()
+  {
+    return InvokeRetRefFunction<const rdcarray<ActionDescription>>(&IReplayController::GetRootActions);
+  }
+
+  rdcarray<CounterResult> FetchCounters(const rdcarray<GPUCounter> &counters)
+  {
+    return InvokeRetFunction<rdcarray<CounterResult>>(&IReplayController::FetchCounters, counters);
+  }
+
+  rdcarray<GPUCounter> EnumerateCounters()
+  {
+    return InvokeRetFunction<rdcarray<GPUCounter>>(&IReplayController::EnumerateCounters);
+  }
+
+  CounterDescription DescribeCounter(GPUCounter counter)
+  {
+    return InvokeRetFunction<CounterDescription>(&IReplayController::DescribeCounter, counter);
+  }
+
+  const rdcarray<ResourceDescription> &GetResources()
+  {
+    return InvokeRetRefFunction<const rdcarray<ResourceDescription>>(&IReplayController::GetResources);
+  }
+
+  const rdcarray<TextureDescription> &GetTextures()
+  {
+    return InvokeRetRefFunction<const rdcarray<TextureDescription>>(&IReplayController::GetTextures);
+  }
+
+  const rdcarray<BufferDescription> &GetBuffers()
+  {
+    return InvokeRetRefFunction<const rdcarray<BufferDescription>>(&IReplayController::GetBuffers);
+  }
+
+  const rdcarray<DescriptorStoreDescription> &GetDescriptorStores()
+  {
+    return InvokeRetRefFunction<const rdcarray<DescriptorStoreDescription>>(
+        &IReplayController::GetDescriptorStores);
+  }
+
+  rdcarray<DebugMessage> GetDebugMessages()
+  {
+    return InvokeRetFunction<rdcarray<DebugMessage>>(&IReplayController::GetDebugMessages);
+  }
+
+  ResultDetails GetFatalErrorStatus()
+  {
+    return InvokeRetFunction<ResultDetails>(&IReplayController::GetFatalErrorStatus);
+  }
+
+  rdcarray<ShaderEntryPoint> GetShaderEntryPoints(ResourceId shader)
+  {
+    return InvokeRetFunction<rdcarray<ShaderEntryPoint>>(&IReplayController::GetShaderEntryPoints,
+                                                         shader);
+  }
+
+  const ShaderReflection *GetShader(ResourceId pipeline, ResourceId shader, ShaderEntryPoint entry)
+  {
+    return InvokeRetFunction<const ShaderReflection *>(&IReplayController::GetShader, pipeline,
+                                                       shader, entry);
+  }
+
+  PixelValue PickPixel(ResourceId textureId, uint32_t x, uint32_t y, const Subresource &sub,
+                       CompType typeCast)
+  {
+    return InvokeRetFunction<PixelValue>(&IReplayController::PickPixel, textureId, x, y, sub,
+                                         typeCast);
+  }
+
+  rdcpair<PixelValue, PixelValue> GetMinMax(ResourceId textureId, const Subresource &sub,
+                                            CompType typeCast)
+  {
+    return InvokeRetFunction<rdcpair<PixelValue, PixelValue>>(&IReplayController::GetMinMax,
+                                                              textureId, sub, typeCast);
+  }
+
+  rdcarray<uint32_t> GetHistogram(ResourceId textureId, const Subresource &sub, CompType typeCast,
+                                  float minval, float maxval, const rdcfixedarray<bool, 4> &channels)
+  {
+    return InvokeRetFunction<rdcarray<uint32_t>>(&IReplayController::GetHistogram, textureId, sub,
+                                                 typeCast, minval, maxval, channels);
+  }
+
+  rdcarray<PixelModification> PixelHistory(ResourceId texture, uint32_t x, uint32_t y,
+                                           const Subresource &sub, CompType typeCast)
+  {
+    return InvokeRetFunction<rdcarray<PixelModification>>(&IReplayController::PixelHistory, texture,
+                                                          x, y, sub, typeCast);
+  }
+
+  ShaderDebugTrace *DebugVertex(uint32_t vertid, uint32_t instid, uint32_t idx, uint32_t view)
+  {
+    return InvokeRetFunction<ShaderDebugTrace *>(&IReplayController::DebugVertex, vertid, instid,
+                                                 idx, view);
+  }
+
+  ShaderDebugTrace *DebugPixel(uint32_t x, uint32_t y, const DebugPixelInputs &inputs)
+  {
+    return InvokeRetFunction<ShaderDebugTrace *>(&IReplayController::DebugPixel, x, y, inputs);
+  }
+
+  ShaderDebugTrace *DebugThread(const rdcfixedarray<uint32_t, 3> &groupid,
+                                const rdcfixedarray<uint32_t, 3> &threadid)
+  {
+    return InvokeRetFunction<ShaderDebugTrace *>(&IReplayController::DebugThread, groupid, threadid);
+  }
+
+  ShaderDebugTrace *DebugMeshThread(const rdcfixedarray<uint32_t, 3> &groupid,
+                                    const rdcfixedarray<uint32_t, 3> &threadid)
+  {
+    return InvokeRetFunction<ShaderDebugTrace *>(&IReplayController::DebugMeshThread, groupid,
+                                                 threadid);
+  }
+
+  rdcarray<ShaderDebugState> ContinueDebug(ShaderDebugger *debugger)
+  {
+    return InvokeRetFunction<rdcarray<ShaderDebugState>>(&IReplayController::ContinueDebug, debugger);
+  }
+
+  void FreeTrace(ShaderDebugTrace *trace)
+  {
+    return InvokeVoidFunction(&IReplayController::FreeTrace, trace);
+  }
+
+  rdcarray<EventUsage> GetUsage(ResourceId id)
+  {
+    return InvokeRetFunction<rdcarray<EventUsage>>(&IReplayController::GetUsage, id);
+  }
+
+  rdcarray<ShaderVariable> GetCBufferVariableContents(ResourceId pipeline, ResourceId shader,
+                                                      ShaderStage stage, const rdcstr &entryPoint,
+                                                      uint32_t cbufslot, ResourceId buffer,
+                                                      uint64_t offset, uint64_t length)
+  {
+    return InvokeRetFunction<rdcarray<ShaderVariable>>(
+        &IReplayController::GetCBufferVariableContents, pipeline, shader, stage, entryPoint,
+        cbufslot, buffer, offset, length);
+  }
+
+  ResultDetails SaveTexture(const TextureSave &saveData, const rdcstr &path)
+  {
+    return InvokeRetFunction<ResultDetails>(&IReplayController::SaveTexture, saveData, path);
+  }
+
+  MeshFormat GetPostVSData(uint32_t instance, uint32_t view, MeshDataStage stage)
+  {
+    return InvokeRetFunction<MeshFormat>(&IReplayController::GetPostVSData, instance, view, stage);
+  }
+
+  bytebuf GetBufferData(ResourceId buff, uint64_t offset, uint64_t len)
+  {
+    return InvokeRetFunction<bytebuf>(&IReplayController::GetBufferData, buff, offset, len);
+  }
+
+  bytebuf GetTextureData(ResourceId tex, const Subresource &sub)
+  {
+    return InvokeRetFunction<bytebuf>(&IReplayController::GetTextureData, tex, sub);
+  }
+};
+
+struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
 {
   ExtensionInvoker *m_Ext;
-  CaptureContextInvoker(PythonShell *shell, ICaptureContext &obj) : ObjectForwarder(shell, obj)
+  ReplayControllerInvoker m_ReplayController;
+  CaptureContextInvoker(PythonShell *shell, ICaptureContext &obj)
+      : UIThreadInvoker(shell, obj), m_ReplayController(shell, obj)
   {
     m_Ext = new ExtensionInvoker(shell, obj.Extensions());
   }
@@ -602,6 +966,12 @@ struct CaptureContextInvoker : ObjectForwarder<ICaptureContext>
     InvokeVoidFunction(&ICaptureContext::RecompressCapture);
   }
   virtual void CloseCapture() override { InvokeVoidFunction(&ICaptureContext::CloseCapture); }
+  virtual IReplayController *GetBlockingController() override
+  {
+    if(!m_Obj.IsCaptureLoaded())
+      return NULL;
+    return &m_ReplayController;
+  }
   virtual bool ImportCapture(const CaptureFileFormat &fmt, const rdcstr &importfile,
                              const rdcstr &rdcfile) override
   {

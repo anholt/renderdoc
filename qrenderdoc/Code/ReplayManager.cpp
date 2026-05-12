@@ -292,6 +292,12 @@ void ReplayManager::AsyncInvoke(ReplayManager::ReplayInvokeCallback m)
 
 void ReplayManager::BlockInvoke(ReplayManager::ReplayInvokeCallback m)
 {
+  if(IsRunning() && m_Thread->isCurrentThread())
+  {
+    m(m_Renderer);
+    return;
+  }
+
   InvokeHandle *cmd = new InvokeHandle(m);
 
   PushInvoke(cmd);

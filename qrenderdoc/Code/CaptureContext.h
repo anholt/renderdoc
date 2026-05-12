@@ -117,6 +117,7 @@ public:
   bool SaveCaptureTo(const rdcstr &captureFile) override;
   void RecompressCapture() override;
   void CloseCapture() override;
+  IReplayController *GetBlockingController() override { return NULL; }
   bool ImportCapture(const CaptureFileFormat &fmt, const rdcstr &importfile,
                      const rdcstr &rdcfile) override;
   void ExportCapture(const CaptureFileFormat &fmt, const rdcstr &exportfile) override;
