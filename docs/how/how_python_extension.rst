@@ -25,7 +25,7 @@ Next to each python module's ``__init__.py`` you should create a file ``extensio
         "url": "url/to/repository"
     }
 
-In this JSON the ``extension_api`` field is currently fixed to 1.
+In this JSON the ``extension_api`` field is currently fixed to 1. This is the only required field as the others will be filled with defaults if omitted, but it is highly recommended you fill them out.
 
 The ``minimum_renderdoc`` field controls whether the extension can be enabled on a given RenderDoc version, and allows you to block incompatible versions of RenderDoc.
 

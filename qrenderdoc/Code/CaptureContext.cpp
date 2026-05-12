@@ -351,16 +351,6 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
 
           ext.hasChanges = m_DirtyExtensions.contains(rdcstr(package));
 
-          if(json.contains(lit("name")))
-          {
-            ext.name = json[lit("name")].toString();
-          }
-          else
-          {
-            qCritical() << "Extension" << package << "is corrupt, no name entry";
-            continue;
-          }
-
           ext.extensionAPI = 1;
           if(json.contains(lit("extension_api")))
           {
@@ -378,8 +368,16 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
           }
           else
           {
-            qCritical() << "Extension" << QString(ext.name) << "is corrupt, no version entry";
-            continue;
+            ext.version = lit("1.0");
+          }
+
+          if(json.contains(lit("name")))
+          {
+            ext.name = json[lit("name")].toString();
+          }
+          else
+          {
+            ext.name = package;
           }
 
           if(json.contains(lit("description")))
@@ -388,8 +386,7 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
           }
           else
           {
-            qCritical() << "Extension" << QString(ext.name) << "is corrupt, no description entry";
-            continue;
+            ext.description = tr("No description provided");
           }
 
           if(json.contains(lit("author")))
@@ -398,8 +395,7 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
           }
           else
           {
-            qCritical() << "Extension" << QString(ext.name) << "is corrupt, no author entry";
-            continue;
+            ext.author = tr("Unknown Author");
           }
 
           if(json.contains(lit("url")))
@@ -408,8 +404,7 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
           }
           else
           {
-            qCritical() << "Extension" << QString(ext.name) << "is corrupt, no URL entry";
-            continue;
+            ext.extensionURL = rdcstr();
           }
 
           if(json.contains(lit("minimum_renderdoc")))
