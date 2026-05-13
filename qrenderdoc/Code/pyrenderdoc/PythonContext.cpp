@@ -1210,6 +1210,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
   int finalLine = -1;
   QList<QString> frames;
 
+  bool reload = false;
+
   if(extensions[extension] == NULL)
   {
     qInfo() << "First load of " << QString(extension);
@@ -1218,6 +1220,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
   else
   {
     qInfo() << "Reloading " << QString(extension);
+
+    reload = true;
 
     // call unregister() if it exists
     PyObject *unregister_func = PyObject_SafeGetAttrString(extensions[extension], "unregister");
@@ -1412,6 +1416,9 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
         }
       }
     }
+
+    if(!ret.isEmpty() && reload)
+      m_ExtensionContext->addText(extension, true, ret);
   }
 
   Py_ssize_t len = PyList_Size(syspath);
