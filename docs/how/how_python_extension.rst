@@ -58,7 +58,7 @@ A python extension when loaded will have a ``register`` function called in its m
 
     def register(version, pyrenderdoc):
         # version is the RenderDoc Major.Minor version as a string, such as "1.2"
-        # pyrenderdoc is the CaptureContext handle, the same as the global available in the python shell
+        # pyrenderdoc is the CaptureContext handle, the same as the global available
 
 Optionally you can define an ``unregister`` function to be called if the extension is reloaded. This takes no parameters and is simply an opportunity to clean-up or remove anything persistent that shouldn't hang around, before ``register`` is called again.
 

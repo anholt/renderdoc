@@ -1296,6 +1296,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
       ext = PyImport_ReloadModule(extensions[extension]);
   }
 
+  PyObject *pyctx = PassObjectToPython((rdcstr(TypeName<ICaptureContext>()) + " *").c_str(), &ctx);
+
   // if import succeeded, store this extension module in our map. If import failed, we might have
   // failed a reimport in which case the original module is still there and valid, so don't
   // overwrite the value.
@@ -1316,6 +1318,19 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
     redir->extension = extension;
 
     PyModule_AddObject(ext, "_renderdoc_internal", ext_context);
+
+    Py_XINCREF(pyctx);
+
+    int pyret = PyModule_AddObject(ext, "pyrenderdoc", pyctx);
+
+    if(pyret != 0)
+    {
+      Py_XDECREF(pyctx);
+
+      qCritical() << "Couldn't set pyrenderdoc global in loaded module";
+      ret += tr("Couldn't set pyrenderdoc global in loaded module\n");
+      ext = NULL;
+    }
   }
 
   if(ext)
@@ -1327,9 +1342,6 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
     if(register_func)
     {
-      PyObject *pyctx =
-          PassObjectToPython((rdcstr(TypeName<ICaptureContext>()) + " *").c_str(), &ctx);
-
       PyObject *retval = NULL;
       if(pyctx)
       {
@@ -1351,20 +1363,6 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
       }
 
       Py_XDECREF(retval);
-
-      if(ext)
-      {
-        int pyret = PyModule_AddObject(ext, "pyrenderdoc", pyctx);
-
-        if(pyret != 0)
-        {
-          qCritical() << "Couldn't set pyrenderdoc global in loaded module";
-          ret += tr("Couldn't set pyrenderdoc global in loaded module\n");
-          ext = NULL;
-        }
-      }
-
-      Py_XDECREF(pyctx);
     }
     else
     {
@@ -1377,6 +1375,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
   {
     ext = NULL;
   }
+
+  Py_XDECREF(pyctx);
 
   if(ext)
   {
