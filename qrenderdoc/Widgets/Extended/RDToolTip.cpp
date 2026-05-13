@@ -60,7 +60,7 @@ RDToolTip::RDToolTip(QWidget *listener) : QLabel(NULL), mouseListener(listener)
   int margin = style()->pixelMetric(QStyle::PM_ToolTipLabelFrameWidth, NULL, this);
   int opacity = style()->styleHint(QStyle::SH_ToolTipLabel_Opacity, NULL, this);
 
-  setWindowFlags(Qt::ToolTip);
+  setWindowFlags(Qt::ToolTip | Qt::WindowDoesNotAcceptFocus);
   setAttribute(Qt::WA_TransparentForMouseEvents);
   setForegroundRole(QPalette::ToolTipText);
   setBackgroundRole(QPalette::ToolTipBase);
