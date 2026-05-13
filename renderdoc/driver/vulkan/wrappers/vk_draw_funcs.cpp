@@ -2987,15 +2987,21 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
 
       ActionDescription action;
       action.customName = name;
-      action.flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      ActionFlags flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      action.flags = flags;
 
+      // Add flags to force resource usage to get computed for special case
       if(maxDrawCount == 0)
+      {
         action.customName = name + "(0)";
+        action.flags |= ActionFlags::Drawcall | ActionFlags::Instanced | ActionFlags::Indirect;
+      }
 
       AddEvent();
       AddAction(action);
 
       VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
+      actionNode.action.flags = flags;
 
       actionNode.indirectPatch = indirectPatch;
 
@@ -3337,15 +3343,22 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
 
       ActionDescription action;
       action.customName = name;
-      action.flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      ActionFlags flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      action.flags = flags;
 
+      // Add flags to force resource usage to get computed for special case
       if(maxDrawCount == 0)
+      {
         action.customName = name + "(0)";
+        action.flags |= ActionFlags::Drawcall | ActionFlags::Instanced | ActionFlags::Indexed |
+                        ActionFlags::Indirect;
+      }
 
       AddEvent();
       AddAction(action);
 
       VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
+      actionNode.action.flags = flags;
 
       actionNode.indirectPatch = indirectPatch;
 
@@ -5120,15 +5133,21 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
 
       ActionDescription action;
       action.customName = name;
-      action.flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      ActionFlags flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+      action.flags = flags;
 
+      // Add flags to force resource usage to get computed for special case
       if(maxDrawCount == 0)
+      {
         action.customName = name + "(0)";
+        action.flags |= ActionFlags::MeshDispatch | ActionFlags::Indirect;
+      }
 
       AddEvent();
       AddAction(action);
 
       VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
+      actionNode.action.flags = flags;
 
       actionNode.indirectPatch = indirectPatch;
 
