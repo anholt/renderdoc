@@ -1571,7 +1571,7 @@ public:
       : WrappedDeviceChild12(id, real, device)
   {
     m_OrigAddress = origAddress;
-    if(IsReplayMode(device->GetState()))
+    if(IsReplayMode(device->GetState()) && id != ResourceId())
       device->AddReplayResource(GetResourceID(), this);
 
     m_Heap = (WrappedID3D12Heap *)heap;
