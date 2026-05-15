@@ -441,8 +441,8 @@ convenience of access.
 
   DOCUMENT(R"(Checks whether stencil operations are enabled or not.
 
-:return: The currently stencil states. Front facing first, back facing second.
-:rtype: Tuple[StencilFace, StencilFace]
+:return: ``True`` if stencil testing is enabled.
+:rtype: bool
 )");
   bool IsStencilTestEnabled() const;
 
