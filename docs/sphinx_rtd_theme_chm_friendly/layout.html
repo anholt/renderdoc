@@ -15,7 +15,9 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="{{ lang_attr }}"{% if sphinx_version_info >= (7, 2) %} data-content_root="{{ content_root }}"{% endif %}>
 <head>
+  {% if 'htmlhelp' not in builder %}
   <meta charset="utf-8" />
+  {% endif %}
   {%- if READTHEDOCS and not embedded %}
   <meta name="readthedocs-addons-api-version" content="1">
   {%- endif %}
@@ -197,11 +199,14 @@
   </div>
   {% include "versions.html" -%}
 
+  {# Do not insert script tag for htmlhelp #}
+  {% if 'htmlhelp' not in builder %}
   <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable({{ 'true' if theme_sticky_navigation|tobool else 'false' }});
       });
   </script>
+  {% endif %}
 
   {#- Do not conflict with RTD insertion of analytics script #}
   {%- if not READTHEDOCS %}
