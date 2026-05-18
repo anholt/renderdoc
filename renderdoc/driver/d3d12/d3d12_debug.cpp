@@ -855,6 +855,9 @@ bool D3D12DebugManager::CreateShaderDebugResources()
     int smMinor = -1;
     for(smMinor = D3D_HIGHEST_SHADER_MODEL & 0xF; smMinor >= 0; smMinor--)
     {
+      if(!m_pDevice->GetOpts14().AdvancedTextureOpsSupported && smMinor >= 7)
+        continue;
+
       D3D_SHADER_MODEL smModel = (D3D_SHADER_MODEL)(smMajor << 4 | smMinor);
       D3D12_FEATURE_DATA_SHADER_MODEL smMaxSupport = {smModel};
       if(m_pDevice->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &smMaxSupport,
