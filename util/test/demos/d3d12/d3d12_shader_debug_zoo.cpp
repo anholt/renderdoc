@@ -1210,9 +1210,9 @@ float4 main(v2f IN) : SV_Target0
   if(IN.tri == 4)
   {
     float4 Color = float4(0,0,0,0);
-    float floatA = IN.tri/100.0 + 1.5f;
-    float floatB = IN.tri/100.0 + 1.7f;
-    float floatC = IN.tri/100.0 + 2.5f;
+    float floatA = zero + 1.5f;
+    float floatB = zero + 1.75f;
+    float floatC = zero + 2.5f;
     DOUBLE doubleA = (DOUBLE)floatA; 
     DOUBLE doubleB = (DOUBLE)floatB;
     DOUBLE doubleC = (DOUBLE)floatC;
@@ -1323,10 +1323,10 @@ float4 main(v2f IN) : SV_Target0
   if(IN.tri == 11)
   {
     float4 Color = float4(0,0,0,0);
-    float3 floatA = float3(IN.tri/100.0 + 1.5f, IN.tri/100.0 + 1.7f, IN.tri/100.0 + 2.7f);
-    float3 floatB = float3(IN.tri/100.0 - 1.5f, IN.tri/100.0 + 1.7f, IN.tri/100.0 - 2.7f);
-    vector<HALF, 3> halfA = {IN.tri/100.0 + 1.5f, IN.tri/100.0 + 1.7f, IN.tri/100.0 + 2.7f};
-    vector<HALF, 3> halfB = {IN.tri/100.0 - 1.5f, IN.tri/100.0 - 1.7f, IN.tri/100.0 - 2.7f};
+    float3 floatA = float3(zero + 1.5f, zero + 1.75f, zero + 2.75f);
+    float3 floatB = float3(zero - 1.5f, zero + 1.75f, zero - 2.75f);
+    vector<HALF, 3> halfA = {zero + 1.5f, zero + 1.75f, zero + 2.75f};
+    vector<HALF, 3> halfB = {zero - 1.5f, zero - 1.75f, zero - 2.75f};
 
     HALF half_val = dot(halfA, halfB);
     float float_val = dot(floatA, floatB);
@@ -1334,13 +1334,13 @@ float4 main(v2f IN) : SV_Target0
     Color.y = (float)half_val * 1000.0;
     return Color;
   }
-  if(IN.tri == 12)
+  if(zero == 12)
   {
     float4 Color = float4(0,0,0,0);
-    float4 floatA = float4(IN.tri/100.0 + 1.5f, IN.tri/100.0 + 1.7f, IN.tri/100.0 + 2.7f, IN.tri/100.0 + 3.7f);
-    float4 floatB = float4(IN.tri/100.0 - 1.5f, IN.tri/100.0 - 1.7f, IN.tri/100.0 - 2.7f, IN.tri/100.0 - 3.7f);
-    vector<HALF, 4> halfA = {IN.tri + 1.5f, IN.tri + 1.7f, IN.tri + 2.7f, IN.tri + 3.7f};
-    vector<HALF, 4> halfB = {IN.tri - 1.5f, IN.tri - 1.7f, IN.tri - 2.7f, IN.tri - 3.7f};
+    float4 floatA = float4(zero + 1.5f, zero + 1.75f, zero + 2.75f, zero + 3.75f);
+    float4 floatB = float4(zero - 1.5f, zero - 1.75f, zero - 2.75f, zero - 3.75f);
+    vector<HALF, 4> halfA = {zero + 1.5f, zero + 1.75f, zero + 2.75f, zero + 3.75f};
+    vector<HALF, 4> halfB = {zero - 1.5f, zero - 1.75f, zero - 2.75f, zero - 3.75f};
 
     HALF half_val = dot(halfA, halfB);
     float float_val = dot(floatA, floatB);
