@@ -139,6 +139,7 @@ public:
     if(IsCaptureLoaded())
     {
       f->OnCaptureLoaded();
+      f->OnSelectedEventChanged(CurSelectedEvent());
       f->OnEventChanged(CurEvent());
     }
   }
