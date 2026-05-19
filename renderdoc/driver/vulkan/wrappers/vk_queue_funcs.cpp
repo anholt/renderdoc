@@ -339,7 +339,7 @@ void WrappedVulkan::ReplayQueueSubmit(VkQueue queue, VkSubmitInfo2 submitInfo, r
       CommandBufferNode *rebaseNode = BuildSubmitTree(cmd, m_RootEventID);
       m_Partial.commandTree.push_back(rebaseNode);
 
-      // insert the baked command buffer in-line into this list of notes, assigning new event
+      // insert the baked command buffer in-line into this list of nodes, assigning new event
       // and drawIDs
       InsertActionsAndRefreshIDs(cmdBufInfo);
 
