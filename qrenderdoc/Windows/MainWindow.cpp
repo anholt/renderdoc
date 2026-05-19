@@ -1208,7 +1208,7 @@ bool MainWindow::PromptCloseCapture()
     }
   }
 
-  CloseCapture();
+  m_Ctx.CloseCapture();
 
   if(!deletepath.isEmpty())
   {
@@ -1219,31 +1219,11 @@ bool MainWindow::PromptCloseCapture()
   return true;
 }
 
-void MainWindow::CloseCapture()
-{
-  QString path = m_Ctx.GetCaptureFilename();
-  bool local = m_Ctx.IsCaptureLocal();
-  bool temp = m_Ctx.IsCaptureTemporary();
-
-  m_Ctx.CloseCapture();
-
-  if(m_OwnTempCapture && temp)
-  {
-    m_Ctx.Replay().DeleteCapture(path, local);
-    RemoveRecentCapture(path);
-    m_OwnTempCapture = false;
-  }
-
-  ui->action_Save_Capture_Inplace->setEnabled(false);
-  ui->action_Save_Capture_As->setEnabled(false);
-  ui->menu_Export_As->setEnabled(false);
-}
-
 void MainWindow::SetTitle(const QString &filename)
 {
   QString prefix;
 
-  if(m_Ctx.IsCaptureLoaded())
+  if(m_Ctx.IsCaptureLoaded() && !filename.isEmpty())
   {
     prefix = QFileInfo(filename).fileName();
     if(m_Ctx.APIProps().degraded)
@@ -2363,6 +2343,16 @@ void MainWindow::OnCaptureLoaded()
 
 void MainWindow::OnCaptureClosed()
 {
+  if(m_OwnTempCapture && m_Ctx.IsCaptureTemporary())
+  {
+    QString path = m_Ctx.GetCaptureFilename();
+
+    m_Ctx.Replay().DeleteCapture(path, m_Ctx.IsCaptureLocal());
+    RemoveRecentCapture(path);
+  }
+
+  m_OwnTempCapture = false;
+
   ui->action_Save_Capture_Inplace->setEnabled(false);
   ui->action_Save_Capture_As->setEnabled(false);
   ui->action_Close_Capture->setEnabled(false);
@@ -2385,7 +2375,7 @@ void MainWindow::OnCaptureClosed()
   ui->action_EmbedExternalFiles->setEnabled(false);
   ui->action_RemoveExternalFiles->setEnabled(false);
 
-  SetTitle();
+  SetTitle(QString());
 
   // if the remote sever disconnected during capture replay, resort back to a 'disconnected' state
   if(m_Ctx.Replay().CurrentRemote().IsValid() && !m_Ctx.Replay().CurrentRemote().IsServerRunning())

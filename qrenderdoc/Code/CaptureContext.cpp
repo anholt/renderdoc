@@ -1443,6 +1443,14 @@ void CaptureContext::CloseCapture()
   if(!m_CaptureLoaded)
     return;
 
+  rdcarray<ICaptureViewer *> capviewers(m_CaptureViewers);
+
+  for(ICaptureViewer *viewer : capviewers)
+  {
+    if(viewer && m_CaptureViewers.contains(viewer))
+      viewer->OnCaptureClosed();
+  }
+
   delete m_Watcher;
   m_Watcher = NULL;
 
@@ -1486,14 +1494,6 @@ void CaptureContext::CloseCapture()
   m_UnreadMessageCount = 0;
 
   m_CaptureLoaded = false;
-
-  rdcarray<ICaptureViewer *> capviewers(m_CaptureViewers);
-
-  for(ICaptureViewer *viewer : capviewers)
-  {
-    if(viewer && m_CaptureViewers.contains(viewer))
-      viewer->OnCaptureClosed();
-  }
 
   m_Replay.CloseThread();
 }

@@ -106,7 +106,6 @@ public:
   void captureModified();
   void LoadFromFilename(const QString &filename, bool temporary);
   void LoadCapture(const QString &filename, const ReplayOptions &opts, bool temporary, bool local);
-  void CloseCapture();
   QString GetSavePath(QString title = QString(), QString filter = QString());
 
   void OnCaptureTrigger(const QString &exe, const QString &workingDir, const QString &cmdLine,

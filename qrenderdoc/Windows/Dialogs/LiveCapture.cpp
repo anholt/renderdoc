@@ -408,7 +408,7 @@ void LiveCapture::deleteCapture_triggered()
       if(cap->path == m_Ctx.GetCaptureFilename())
       {
         m_Main->takeCaptureOwnership();
-        m_Main->CloseCapture();
+        m_Ctx.CloseCapture();
       }
       else
       {
