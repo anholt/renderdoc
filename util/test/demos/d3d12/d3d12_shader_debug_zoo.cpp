@@ -1334,7 +1334,7 @@ float4 main(v2f IN) : SV_Target0
     Color.y = (float)half_val * 1000.0;
     return Color;
   }
-  if(zero == 12)
+  if(IN.tri == 12)
   {
     float4 Color = float4(0,0,0,0);
     float4 floatA = float4(zero + 1.5f, zero + 1.75f, zero + 2.75f, zero + 3.75f);
