@@ -449,6 +449,25 @@ def build_finished(app, exception):
 
     print("All python objects are linked in the documentation.")
 
+from sphinx.ext import autodoc 
+from typing import Any
+
+class MethodDocumenter(autodoc.MethodDocumenter):
+    def format_signature(self, **kwargs: Any) -> str:
+        sigs = super().format_signature(**kwargs)
+        # don't print overloads with each optional parameter removed, just the main entry
+        return sigs.split('\n')[0]
+
+class FunctionDocumenter(autodoc.FunctionDocumenter):
+    def format_signature(self, **kwargs: Any) -> str:
+        sigs = super().format_signature(**kwargs)
+        # don't print overloads with each optional parameter removed, just the main entry
+        return sigs.split('\n')[0]
+
+
 def setup(app):
     app.connect('autodoc-skip-member', maybe_skip_member)
     app.connect('build-finished', build_finished)
+
+    app.add_autodocumenter(FunctionDocumenter, override=True)
+    app.add_autodocumenter(MethodDocumenter, override=True)
