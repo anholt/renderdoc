@@ -871,14 +871,16 @@ QWidget.
   DOCUMENT(R"(Scroll to the given row in the given stage's data.
 
 :param int row: the row to scroll to.
-:param renderdoc.MeshDataStage stage: The stage of the geometry pipeline to scroll within.
+:param renderdoc.MeshDataStage stage=renderdoc.MeshDataStage.VSIn: **Optional parameter**. The stage of the
+  geometry pipeline to scroll within. Ignored for non-mesh buffer viewers.
 )");
   virtual void ScrollToRow(int32_t row, MeshDataStage stage = MeshDataStage::VSIn) = 0;
 
   DOCUMENT(R"(Scroll to the given column in the given stage's data.
 
 :param int column: the column to scroll to.
-:param renderdoc.MeshDataStage stage: The stage of the geometry pipeline to scroll within.
+:param renderdoc.MeshDataStage stage=renderdoc.MeshDataStage.VSIn: **Optional parameter**. The stage of the
+  geometry pipeline to scroll within. Ignored for non-mesh buffer viewers.
 )");
   virtual void ScrollToColumn(int32_t column, MeshDataStage stage = MeshDataStage::VSIn) = 0;
 
@@ -1376,8 +1378,8 @@ QWidget.
 
   DOCUMENT(R"(Toggles a breakpoint at a given instruction.
 
-:param int instruction: The instruction to toggle breakpoint at. If this is ``-1`` the nearest
-  instruction after the current caret position is used.
+:param int instruction=-1: **Optional parameter**. The instruction to toggle breakpoint at.
+  If this is ``-1`` the nearest instruction after the current caret position is used.
 )");
   virtual void ToggleBreakpointOnInstruction(int32_t instruction = -1) = 0;
 
@@ -2057,7 +2059,7 @@ The capture must be available locally, if it's not this function will fail.
   :meth:`CaptureViewer.OnSelectedEventChanged` for more information.
 :param int eventId: The new current :data:`eventId <renderdoc.APIEvent.eventId>`. See
   :meth:`CaptureViewer.OnEventChanged` for more information.
-:param bool force: Optional parameter, if ``True`` then the replay will 'move' even if it is moving
+:param bool force=False: **Optional parameter**. if ``True`` then the replay will 'move' even if it is moving
   to the same :data:`eventId <renderdoc.APIEvent.eventId>` as it's currently on.
 )");
   virtual void SetEventID(const rdcarray<ICaptureViewer *> &exclude, uint32_t selectedEventId,
@@ -2951,7 +2953,7 @@ This function should not be used to view the entirety of a descriptor store - in
 :param int byteOffset: The offset in bytes to the start of the buffer data to show.
 :param int byteSize: The number of bytes in the buffer to show.
 :param renderdoc.ResourceId id: The ID of the buffer to fetch data from.
-:param str format: Optionally a HLSL/GLSL style formatting string.
+:param str format="": **Optional parameter**. A HLSL/GLSL style formatting string.
 :return: The new :class:`BufferViewer` window opened, but not shown.
 :rtype: BufferViewer
 )");
@@ -2963,7 +2965,7 @@ bytes.
 
 :param renderdoc.ResourceId id: The ID of the texture itself.
 :param renderdoc.Subresource sub: The subresource within this texture to use.
-:param str format: Optionally a HLSL/GLSL style formatting string.
+:param str format="": **Optional parameter**. A HLSL/GLSL style formatting string.
 :return: The new :class:`BufferViewer` window opened, but not shown.
 :rtype: BufferViewer
 )");
@@ -3030,7 +3032,7 @@ currently docked.
 :param DockReference ref: The location to add the new window, possibly relative to ``refWindow``.
 :param QWidget refWindow: The window to refer to if the new window is being added relative, or can
   be ``None`` if the new location is absolute.
-:param float percentage: Optionally the percentage to split the area. If omitted, a 50% split is
+:param float percentage=0.5: **Optional parameter**. The percentage to split the area. If omitted, a 50% split is
   used.
 )");
   virtual void AddDockWindow(QWidget *newWindow, DockReference ref, QWidget *refWindow,

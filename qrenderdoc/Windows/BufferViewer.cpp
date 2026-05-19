@@ -5264,6 +5264,9 @@ void BufferViewer::ScrollToRow(int32_t row, MeshDataStage stage)
     return;
   }
 
+  if(!m_MeshView)
+    stage = MeshDataStage::VSIn;
+
   ScrollToRow(tableForStage(stage), row);
 
   if(m_MeshView)
@@ -5275,6 +5278,9 @@ void BufferViewer::ScrollToRow(int32_t row, MeshDataStage stage)
 
 void BufferViewer::ScrollToColumn(int32_t column, MeshDataStage stage)
 {
+  if(!m_MeshView)
+    stage = MeshDataStage::VSIn;
+
   ScrollToColumn(tableForStage(stage), column);
 
   m_Scroll[(int)stage].setX(column);

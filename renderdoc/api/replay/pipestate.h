@@ -351,7 +351,7 @@ convenience of access.
 
   DOCUMENT(R"(Retrieves all descriptor information for all descriptors accessed at the current event.
 
-:param bool onlyUsed: Omit descriptors bound or declared but not accessed.
+:param bool onlyUsed=False: **Optional parameter**. Omit descriptors bound or declared but not accessed.
 :return: All descriptors accessed at the current event.
 :rtype: List[UsedDescriptor]
 )");
@@ -371,7 +371,7 @@ convenience of access.
   DOCUMENT(R"(Retrieves the constant blocks used by a particular shader stage.
 
 :param ShaderStage stage: The shader stage to fetch from.
-:param bool onlyUsed: Omit descriptors bound or declared but not accessed.
+:param bool onlyUsed=False: **Optional parameter**. Omit descriptors bound or declared but not accessed.
 :return: The currently bound constant blocks.
 :rtype: List[UsedDescriptor]
 )");
@@ -380,7 +380,7 @@ convenience of access.
   DOCUMENT(R"(Retrieves the read-only resources used by a particular shader stage.
 
 :param ShaderStage stage: The shader stage to fetch from.
-:param bool onlyUsed: Omit descriptors bound or declared but not accessed.
+:param bool onlyUsed=False: **Optional parameter**. Omit descriptors bound or declared but not accessed.
 :return: The currently bound read-only resources.
 :rtype: List[UsedDescriptor]
 )");
@@ -389,7 +389,7 @@ convenience of access.
   DOCUMENT(R"(Retrieves the samplers bound to a particular shader stage.
 
 :param ShaderStage stage: The shader stage to fetch from.
-:param bool onlyUsed: Omit descriptors bound or declared but not accessed.
+:param bool onlyUsed=False: **Optional parameter**. Omit descriptors bound or declared but not accessed.
 :return: The currently bound sampler resources.
 :rtype: List[UsedDescriptor]
 )");
@@ -398,7 +398,7 @@ convenience of access.
   DOCUMENT(R"(Retrieves the read/write resources used by a particular shader stage.
 
 :param ShaderStage stage: The shader stage to fetch from.
-:param bool onlyUsed: Omit descriptors bound or declared but not accessed.
+:param bool onlyUsed=False: **Optional parameter**. Omit descriptors bound or declared but not accessed.
 :return: The currently bound read/write resources.
 :rtype: List[UsedDescriptor]
 )");

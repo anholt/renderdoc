@@ -665,12 +665,12 @@ IMiniQtHelper &CaptureContext::GetMiniQtHelper()
 
 void CaptureContext::MessageDialog(const rdcstr &text, const rdcstr &title)
 {
-  RDDialog::information(m_MainWindow, title, text);
+  RDDialog::information(m_MainWindow, title.isEmpty() ? "Python Extension Message" : title, text);
 }
 
 void CaptureContext::ErrorDialog(const rdcstr &text, const rdcstr &title)
 {
-  RDDialog::critical(m_MainWindow, title, text);
+  RDDialog::critical(m_MainWindow, title.isEmpty() ? "Python Extension Error" : title, text);
 }
 
 DialogButton CaptureContext::QuestionDialog(const rdcstr &text, const rdcarray<DialogButton> &options,
@@ -679,22 +679,26 @@ DialogButton CaptureContext::QuestionDialog(const rdcstr &text, const rdcarray<D
   QMessageBox::StandardButtons buttons;
   for(DialogButton b : options)
     buttons |= (QMessageBox::StandardButton)b;
-  return (DialogButton)RDDialog::question(m_MainWindow, title, text, buttons);
+  return (DialogButton)RDDialog::question(
+      m_MainWindow, title.isEmpty() ? "Python Extension Prompt" : title, text, buttons);
 }
 
 rdcstr CaptureContext::OpenFileName(const rdcstr &caption, const rdcstr &dir, const rdcstr &filter)
 {
-  return RDDialog::getOpenFileName(m_MainWindow, caption, dir, filter);
+  return RDDialog::getOpenFileName(m_MainWindow, caption.isEmpty() ? "Open a file" : caption, dir,
+                                   filter);
 }
 
 rdcstr CaptureContext::OpenDirectoryName(const rdcstr &caption, const rdcstr &dir)
 {
-  return RDDialog::getExistingDirectory(m_MainWindow, caption, dir);
+  return RDDialog::getExistingDirectory(m_MainWindow,
+                                        caption.isEmpty() ? "Open a directory" : caption, dir);
 }
 
 rdcstr CaptureContext::SaveFileName(const rdcstr &caption, const rdcstr &dir, const rdcstr &filter)
 {
-  return RDDialog::getSaveFileName(m_MainWindow, caption, dir, filter);
+  return RDDialog::getSaveFileName(m_MainWindow, caption.isEmpty() ? "Save a file" : caption, dir,
+                                   filter);
 }
 
 void CaptureContext::AddSortedMenuItem(QMenu *menu, bool rootMenu, const rdcarray<rdcstr> &items,

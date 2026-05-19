@@ -95,19 +95,18 @@ public:
 
   IMiniQtHelper &GetMiniQtHelper() override;
 
-  void MessageDialog(const rdcstr &text, const rdcstr &title = "Python Extension Message") override;
-  void ErrorDialog(const rdcstr &text, const rdcstr &title = "Python Extension Error") override;
+  void MessageDialog(const rdcstr &text, const rdcstr &title = "") override;
+  void ErrorDialog(const rdcstr &text, const rdcstr &title = "") override;
   DialogButton QuestionDialog(const rdcstr &text, const rdcarray<DialogButton> &options,
-                              const rdcstr &title = "Python Extension Prompt") override;
+                              const rdcstr &title = "") override;
 
-  rdcstr OpenFileName(const rdcstr &caption = "Open a file", const rdcstr &dir = rdcstr(),
-                      const rdcstr &filter = rdcstr()) override;
+  rdcstr OpenFileName(const rdcstr &caption = "", const rdcstr &dir = "",
+                      const rdcstr &filter = "") override;
 
-  rdcstr OpenDirectoryName(const rdcstr &caption = "Open a directory",
-                           const rdcstr &dir = rdcstr()) override;
+  rdcstr OpenDirectoryName(const rdcstr &caption = "", const rdcstr &dir = "") override;
 
-  rdcstr SaveFileName(const rdcstr &caption = "Save a file", const rdcstr &dir = rdcstr(),
-                      const rdcstr &filter = rdcstr()) override;
+  rdcstr SaveFileName(const rdcstr &caption = "", const rdcstr &dir = "",
+                      const rdcstr &filter = "") override;
 
   //////////////////////////////////////////////////////////////////////////////
   // Control functions

@@ -1200,60 +1200,58 @@ struct IExtensionManager
   DOCUMENT(R"(Display a simple informational message dialog.
 
 :param str text: The text of the dialog itself, required.
-:param str title: The dialog title, optional.
+:param str title="": **Optional parameter**. The dialog title.
 )");
-  virtual void MessageDialog(const rdcstr &text,
-                             const rdcstr &title = "Python Extension Message") = 0;
+  virtual void MessageDialog(const rdcstr &text, const rdcstr &title = "") = 0;
 
   DOCUMENT(R"(Display an error message dialog.
 
 :param str text: The text of the dialog itself, required.
-:param str title: The dialog title, optional.
+:param str title="": **Optional parameter**. The dialog title.
 )");
-  virtual void ErrorDialog(const rdcstr &text, const rdcstr &title = "Python Extension Error") = 0;
+  virtual void ErrorDialog(const rdcstr &text, const rdcstr &title = "") = 0;
 
   DOCUMENT(R"(Display an error message dialog.
 
 :param str text: The text of the dialog itself, required.
 :param List[DialogButton] options: The buttons to display on the dialog.
-:param str title: The dialog title, optional.
+:param str title="": **Optional parameter**. The dialog title.
 :return: The button that was clicked on.
 :rtype: DialogButton
 )");
   virtual DialogButton QuestionDialog(const rdcstr &text, const rdcarray<DialogButton> &options,
-                                      const rdcstr &title = "Python Extension Prompt") = 0;
+                                      const rdcstr &title = "") = 0;
 
   DOCUMENT(R"(Browse for a filename to open.
 
-:param str caption: The dialog title, optional.
-:param str dir: The starting directory for browsing, optional.
-:param str filter: The filter to apply for filenames, optional.
+:param str caption="": **Optional parameter**. The dialog title.
+:param str dir="": **Optional parameter**. The starting directory for browsing.
+:param str filter="": **Optional parameter**. The filter to apply for filenames.
 :return: The filename selected, or an empty string if nothing was selected.
 :rtype: str
 )");
-  virtual rdcstr OpenFileName(const rdcstr &caption = "Open a file", const rdcstr &dir = rdcstr(),
-                              const rdcstr &filter = rdcstr()) = 0;
+  virtual rdcstr OpenFileName(const rdcstr &caption = "", const rdcstr &dir = "",
+                              const rdcstr &filter = "") = 0;
 
   DOCUMENT(R"(Browse for a directory to open.
 
-:param str caption: The dialog title, optional.
-:param str dir: The starting directory for browsing, optional.
+:param str caption="": **Optional parameter**. The dialog title.
+:param str dir="": **Optional parameter**. The starting directory for browsing.
 :return: The directory selected, or an empty string if nothing was selected.
 :rtype: str
 )");
-  virtual rdcstr OpenDirectoryName(const rdcstr &caption = "Open a directory",
-                                   const rdcstr &dir = rdcstr()) = 0;
+  virtual rdcstr OpenDirectoryName(const rdcstr &caption = "", const rdcstr &dir = "") = 0;
 
   DOCUMENT(R"(Browse for a filename to save to.
 
-:param str caption: The dialog title, optional.
-:param str dir: The starting directory for browsing, optional.
-:param str filter: The filter to apply for filenames, optional.
+:param str caption="": **Optional parameter**. The dialog title.
+:param str dir="": **Optional parameter**. The starting directory for browsing.
+:param str filter="": **Optional parameter**. The filter to apply for filenames.
 :return: The filename selected, or an empty string if nothing was selected.
 :rtype: str
 )");
-  virtual rdcstr SaveFileName(const rdcstr &caption = "Save a file", const rdcstr &dir = rdcstr(),
-                              const rdcstr &filter = rdcstr()) = 0;
+  virtual rdcstr SaveFileName(const rdcstr &caption = "", const rdcstr &dir = "",
+                              const rdcstr &filter = "") = 0;
 
 #if !defined(SWIG) && !defined(SWIG_GENERATED)
   // not exposed to SWIG, only used internally. For when a menu is displayed dynamically in a panel,
