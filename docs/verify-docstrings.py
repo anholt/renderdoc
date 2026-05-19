@@ -29,6 +29,12 @@ sys.path.insert(0, os.path.abspath(binpath + 'Release/pymodules'))
 os.environ["PATH"] = os.path.abspath(binpath + 'Development/') + os.pathsep + os.environ["PATH"]
 os.environ["PATH"] = os.path.abspath(binpath + 'Release/') + os.pathsep + os.environ["PATH"]
 
+if sys.platform == 'win32' and sys.version_info[1] >= 8:
+    for sub in ['Release', 'Development']:
+        path = os.path.abspath(binpath + sub)
+        if os.path.exists(path):
+            os.add_dll_directory(path)
+
 # path to module libraries for linux
 sys.path.insert(0, os.path.abspath('../build/lib'))
 
