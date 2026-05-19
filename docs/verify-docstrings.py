@@ -75,12 +75,12 @@ if args.debug_mismatches is not None and os.path.isdir(args.debug_mismatches):
             print("Removing {} in debug mismatches folder".format(f))
         os.unlink(f)
 
-def make_c_type(ret: str, pattern: bool, typelist: List[str]):
+def make_c_typeval(ret: str, pattern: bool, typelist: List[str]):
     orig_type = ret
 
     # strip namespace
     if ret[0:10] == 'renderdoc.':
-        ret = ret[10:]
+        ret = ret[10:].replace('.', '::')
 
     # Handle pipelines that are renamed
     if ret == 'D3D11State':
@@ -94,6 +94,10 @@ def make_c_type(ret: str, pattern: bool, typelist: List[str]):
 
     if ret in ['bool', 'void']:
         pass
+    elif ret == 'True':
+        ret = 'true'
+    elif ret == 'False':
+        ret = 'false'
     elif ret == 'str':
         ret = '(const )?rdc(inflexible)?str ?[&*]?' if pattern else 'rdcstr'
     elif ret == 'int':
@@ -109,10 +113,10 @@ def make_c_type(ret: str, pattern: bool, typelist: List[str]):
     elif ret[0:9] == 'Callable[':
         ret = '(std::function<void\(\)>|[A-Za-z_]+Callback)' if pattern else 'std::function/NamedCallback'
     elif ret[0:5] == 'List[':
-        inner = make_c_type(ret[5:-1], pattern, typelist)
+        inner = make_c_typeval(ret[5:-1], pattern, typelist)
         ret = '(const )?rdcarray<{}> ?[&*]?'.format(inner) if pattern else 'rdcarray<{}>'.format(inner)
     elif ret[0:6] == 'Tuple[':
-        inners = [make_c_type(i.strip(), pattern, typelist) for i in ret[6:-1].split(',')]
+        inners = [make_c_typeval(i.strip(), pattern, typelist) for i in ret[6:-1].split(',')]
         if pattern:
             inner = ',\s*'.join(inners)
         else:
@@ -137,7 +141,7 @@ def make_c_type(ret: str, pattern: bool, typelist: List[str]):
     return ret
 
 RTYPE_PATTERN = re.compile(r":rtype: (.*)")
-PARAM_PATTERN = re.compile(r":param ([^:]*) ([^: ]*):")
+PARAM_PATTERN = re.compile(r":param ([^:=]*) ([^: =]+)(\s*=[^:]*)?:")
 TYPE_PATTERN = re.compile(r":type: (.*)")
 DATA_PATTERN = re.compile(r"\.\. data:: (.*)")
 
@@ -157,12 +161,22 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
     params = PARAM_PATTERN.findall(docstring)
 
     funcargs = ['', '']
+    default_val = ''
     for p in params:
         if len(funcargs[0]) > 0:
             funcargs[0] += ',\s*'
             funcargs[1] += ', '
-        funcargs[0] += make_c_type(p[0], True, typelist) + ' ?' + p[1] + "(\s*=[^,]*)?"
-        funcargs[1] += make_c_type(p[0], False, typelist) + ' ' + p[1]
+
+        default_val = p[2].lstrip()
+        if len(default_val) > 0 and default_val[0] == '=':
+            default_val = make_c_typeval(default_val[1:].strip(), False, typelist)
+
+        funcargs[0] += make_c_typeval(p[0], True, typelist) + ' ?' + p[1]
+        funcargs[1] += make_c_typeval(p[0], False, typelist) + ' ' + p[1]
+
+        if default_val != "":
+            funcargs[0] += f"\s*=\s*{default_val}"
+            funcargs[1] += f" = {default_val}"
 
     result = RTYPE_PATTERN.search(docstring)
     if result is not None:
@@ -174,8 +188,8 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
     if global_func:
         global_pattern = '(RENDERDOC_CC\s*RENDERDOC_)?'
 
-    pattern = '(?s){} ?{}{}\(\s*{}\)'.format(make_c_type(ret, True, typelist), global_pattern, objname, funcargs[0])
-    clean = '{} {}({})'.format(make_c_type(ret, False, typelist), objname, funcargs[1])
+    pattern = '(?s){} ?{}{}\(\s*{}\)'.format(make_c_typeval(ret, True, typelist), global_pattern, objname, funcargs[0])
+    clean = '{} {}({})'.format(make_c_typeval(ret, False, typelist), objname, funcargs[1])
 
     match = re.search(pattern, source, re.MULTILINE | re.DOTALL)
 
@@ -187,7 +201,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
 
     if match is None:
         count += 1
-        print("Error {:3} in {}: {}".format(count, parent_name, clean))
+        print("Error {:3} in {}: {} couldn't be found in C++ headers.\nCould be wrong types or missing default values. Try --debug-mismatches mismatches/".format(count, parent_name, clean))
         if args.debug_mismatches is not None and os.path.isdir(args.debug_mismatches):
             with open(os.path.join(os.path.abspath(args.debug_mismatches), '{:03}-{}.{}.txt'.format(count, parent_name, objname)), 'w') as file:
                 file.write("# Failed to find matching declaration for {}.{}\n".format(parent_name, objname))
