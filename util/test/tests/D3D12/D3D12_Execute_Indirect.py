@@ -275,3 +275,22 @@ class D3D12_Execute_Indirect(rdtest.TestCase):
             out.Display()
             out.Shutdown()
         rdtest.log.success("Two Single Draws QuadOverdraw (Pass) replayed correctly");
+
+        with rdtest.log.auto_section('Checking All Overlays'):
+            for eid in range(self.get_first_action().eventId, self.get_last_action().eventId + 1):
+                self.controller.SetFrameEvent(eid, False)
+                pipe = self.controller.GetPipelineState()
+                if len(pipe.GetOutputTargets()) == 0:
+                    continue
+                rdtest.log.print(f"EID: {eid}")
+                for overlay in rd.DebugOverlay:
+                    tex = rd.TextureDisplay()
+                    col_tex: rd.ResourceId = pipe.GetOutputTargets()[0].resource
+                    tex.resourceId = col_tex
+                    tex.overlay = overlay
+                    tex.subresource.sample = 0
+
+                    out: rd.ReplayOutput = self.controller.CreateOutput(rd.CreateHeadlessWindowingData(100, 100), rd.ReplayOutputType.Texture)
+                    out.SetTextureDisplay(tex)
+                    out.Display()
+                    out.Shutdown()
