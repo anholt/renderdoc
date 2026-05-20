@@ -4311,6 +4311,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
     if(IsActiveReplaying(m_State))
     {
       uint32_t actualCount = MaxCommandCount;
+      uint32_t countEventsReplayed = actualCount * comSig->sig.arguments.count();
 
       if(m_Cmd->InRerecordRange(m_Cmd->m_LastCmdListID))
       {
@@ -4332,6 +4333,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
         D3D12CommandData::ActionUse use(m_Cmd->m_CurChunkOffset, 0);
         auto it = std::lower_bound(m_Cmd->m_ActionUses.begin(), m_Cmd->m_ActionUses.end(), use);
 
+        // baseEventID is the EI action EID
         uint32_t baseEventID = it->eventId;
 
         {
@@ -4347,6 +4349,10 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
         uint32_t argumentsReplayed =
             RDCMIN(m_Cmd->m_LastEventID - baseEventID, actualCount * comSig->sig.arguments.count());
         uint32_t executesReplayed = argumentsReplayed / comSig->sig.arguments.count();
+
+        // executesReplayed is relative to baseEventID
+        // compute the number of events to skip relative to the curEID
+        countEventsReplayed = (baseEventID + argumentsReplayed) - curEID;
 
         BarrierSet barriers;
 
@@ -4551,11 +4557,11 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
       }
 
       // executes skip the event ID past the whole thing
-      uint32_t numEvents = actualCount * (uint32_t)comSig->sig.arguments.size() + 1;
+      ++countEventsReplayed;
       if(m_Cmd->m_FirstEventID > 1)
-        m_Cmd->m_RootEventID += numEvents;
+        m_Cmd->m_RootEventID += countEventsReplayed;
       else
-        m_Cmd->m_BakedCmdListInfo[m_Cmd->m_LastCmdListID].curEventID += numEvents;
+        cmdInfo.curEventID += countEventsReplayed;
     }
     else
     {
