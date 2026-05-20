@@ -583,6 +583,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
             {
               uint32_t drawidx = 0;
 
+              ActionDescription *action = m_Actions[curEID];
+
               VkBuffer unwrappedBuffer = Unwrap(buffer);
 
               if(m_FirstEventID <= 1)
@@ -593,6 +595,12 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
                 // works if we're replaying from the first multidraw to the nth (n less than Count)
                 count = RDCMIN(count, m_LastEventID - baseEventID);
               }
+              else if(action->flags & ActionFlags::PopMarker)
+              {
+                // if the popmarker is selected (most likely implicitly by a parent marker)
+                // don't replay anything and don't try to set up the indirect buffer.
+                count = 0;
+              }
               else
               {
                 // otherwise we do the 'hard' case, draw only one multidraw
@@ -602,7 +610,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
                 // We also need to draw the same number of draws so that DrawIndex is faithful. In
                 // order to preserve the draw index we write a custom indirect buffer that has zeros
                 // for the parameters of all previous draws.
-                drawidx = (curEID - baseEventID - 1);
+                drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
                 offset += stride * drawidx;
 
@@ -969,7 +977,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
                 // We also need to draw the same number of draws so that DrawIndex is faithful. In
                 // order to preserve the draw index we write a custom indirect buffer that has zeros
                 // for the parameters of all previous draws.
-                drawidx = (curEID - baseEventID - 1);
+                drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
                 offset += stride * drawidx;
 
@@ -2901,6 +2909,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
           // the first sub-draw in that range.
           else if(m_LastEventID > baseEventID)
           {
+            ActionDescription *action = m_Actions[curEID];
+
             VkBuffer unwrappedBuffer = Unwrap(buffer);
 
             if(m_FirstEventID <= 1)
@@ -2911,6 +2921,12 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
               // works if we're replaying from the first multidraw to the nth (n less than Count)
               count = RDCMIN(count, m_LastEventID - baseEventID);
             }
+            else if(action->flags & ActionFlags::PopMarker)
+            {
+              // if the popmarker is selected (most likely implicitly by a parent marker)
+              // don't replay anything and don't try to set up the indirect buffer.
+              count = 0;
+            }
             else
             {
               // otherwise we do the 'hard' case, draw only one multidraw
@@ -2920,7 +2936,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
               // We also need to draw the same number of draws so that DrawIndex is faithful. In
               // order to preserve the draw index we write a custom indirect buffer that has zeros
               // for the parameters of all previous draws.
-              uint32_t drawidx = (curEID - baseEventID - 1);
+              uint32_t drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
               offset += stride * drawidx;
 
@@ -3205,6 +3221,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
           // the first sub-draw in that range.
           else if(m_LastEventID > baseEventID)
           {
+            ActionDescription *action = m_Actions[curEID];
+
             VkBuffer unwrappedBuffer = Unwrap(buffer);
 
             if(m_FirstEventID <= 1)
@@ -3215,6 +3233,12 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
               // works if we're replaying from the first multidraw to the nth (n less than Count)
               count = RDCMIN(count, m_LastEventID - baseEventID);
             }
+            else if(action->flags & ActionFlags::PopMarker)
+            {
+              // if the popmarker is selected (most likely implicitly by a parent marker)
+              // don't replay anything and don't try to set up the indirect buffer.
+              count = 0;
+            }
             else
             {
               // otherwise we do the 'hard' case, draw only one multidraw
@@ -3224,7 +3248,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
               // We also need to draw the same number of draws so that DrawIndex is faithful. In
               // order to preserve the draw index we write a custom indirect buffer that has zeros
               // for the parameters of all previous draws.
-              uint32_t drawidx = (curEID - baseEventID - 1);
+              uint32_t drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
               offset += stride * drawidx;
 
@@ -4520,6 +4544,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
             // the first sub-draw in that range.
             else if(m_LastEventID > baseEventID)
             {
+              ActionDescription *action = m_Actions[curEID];
+
               VkBuffer unwrappedBuffer = Unwrap(buffer);
 
               uint32_t drawidx = 0;
@@ -4532,6 +4558,12 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
                 // works if we're replaying from the first multidraw to the nth (n less than Count)
                 drawCount = RDCMIN(drawCount, m_LastEventID - baseEventID);
               }
+              else if(action->flags & ActionFlags::PopMarker)
+              {
+                // if the popmarker is selected (most likely implicitly by a parent marker)
+                // don't replay anything and don't try to set up the indirect buffer.
+                drawCount = 0;
+              }
               else
               {
                 // otherwise we do the 'hard' case, draw only one multidraw
@@ -4541,7 +4573,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
                 // We also need to draw the same number of draws so that DrawIndex is faithful. In
                 // order to preserve the draw index we write a custom indirect buffer that has zeros
                 // for the parameters of all previous draws.
-                drawidx = (curEID - baseEventID - 1);
+                drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
                 offset += stride * drawidx;
 
@@ -4864,6 +4896,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
           // the first sub-draw in that range.
           else if(m_LastEventID > baseEventID)
           {
+            ActionDescription *action = m_Actions[curEID];
+
             VkBuffer unwrappedBuffer = Unwrap(buffer);
 
             uint32_t drawidx = 0;
@@ -4876,6 +4910,12 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
               // works if we're replaying from the first multidraw to the nth (n less than Count)
               count = RDCMIN(count, m_LastEventID - baseEventID);
             }
+            else if(action->flags & ActionFlags::PopMarker)
+            {
+              // if the popmarker is selected (most likely implicitly by a parent marker)
+              // don't replay anything and don't try to set up the indirect buffer.
+              count = 0;
+            }
             else
             {
               // otherwise we do the 'hard' case, draw only one multidraw
@@ -4885,7 +4925,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
               // We also need to draw the same number of draws so that DrawIndex is faithful. In
               // order to preserve the draw index we write a custom indirect buffer that has zeros
               // for the parameters of all previous draws.
-              drawidx = (curEID - baseEventID - 1);
+              drawidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
 
               offset += stride * drawidx;
 
