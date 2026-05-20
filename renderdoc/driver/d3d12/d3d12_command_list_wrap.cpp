@@ -4514,6 +4514,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
             m_Cmd->m_RayDispatches.push_back(patchedDispatch);
           }
 
+          const ActionDescription *action = m_pDevice->GetAction(curEID);
           uint32_t countToReplay = RDCMIN(actualCount, maxCommands);
 
           if(m_Cmd->m_FirstEventID <= 1)
@@ -4526,20 +4527,19 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
             // there's no need to replay anything more than the first execute.
             countToReplay = RDCMIN(countToReplay, executesReplayed);
           }
+          else if(action && action->flags & ActionFlags::PopMarker)
+          {
+            // don't do anything when selecting the final popmarker as well - everything will have
+            // been done in previous replays so this is a no-op.
+            countToReplay = 0;
+          }
           else
           {
             const uint32_t argidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
-            const uint32_t execidx = argidx / comSig->sig.arguments.count();
 
-            // don't do anything when selecting the final popmarker as well - everything will have
-            // been done in previous replays so this is a no-op.
-            if(argidx >= countToReplay * comSig->sig.arguments.count())
-            {
-              countToReplay = 0;
-            }
             // we also know that only the last argument actually does anything - previous are just
             // state setting. So if argIdx isn't the last one, we can skip this
-            else if((argidx + 1) % comSig->sig.arguments.count() != 0)
+            if((argidx + 1) % comSig->sig.arguments.count() != 0)
             {
               countToReplay = 0;
             }
@@ -4548,6 +4548,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
               // slightly more complex, we're replaying only one execute later on as a single draw
               // fortunately ExecuteIndirect has no 'draw' builtin, so we can just offset the
               // argument buffer and set count to 1
+              const uint32_t execidx = argidx / comSig->sig.arguments.count();
               countToReplay = 1;
               argOffset += comSig->sig.ByteStride * execidx;
             }
