@@ -4454,6 +4454,9 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
             {
               if(eventId && m_Cmd->m_ActionCallback->PostDraw(eventId, list))
               {
+                // Allow the callback to recreate the command signature i.e. to match the root signature
+                pCommandSignature = m_Cmd->m_IndirectData.commandSig;
+
                 Unwrap(list)->ExecuteIndirect(Unwrap(pCommandSignature), 1, argBuffer, argOffset,
                                               NULL, 0);
                 m_Cmd->m_ActionCallback->PostRedraw(eventId, list);
