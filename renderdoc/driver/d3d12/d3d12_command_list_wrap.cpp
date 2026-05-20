@@ -4424,6 +4424,9 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
             const uint32_t execidx = argidx / comSig->sig.arguments.count();
 
             argOffset += comSig->sig.ByteStride * execidx;
+
+            if(argidx == maxCommands)
+              countToReplay = 0;
           }
 
           for(uint32_t i = 0; i < countToReplay; i++)
