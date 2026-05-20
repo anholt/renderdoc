@@ -671,7 +671,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
                 m_IndirectDraw = true;
                 unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
                 offset = 0;
-                count = drawidx + 1;
+                count = RDCMIN(count, drawidx + 1);
                 stride = sizeof(VkDrawIndirectCommand);
               }
 
@@ -1038,7 +1038,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
                 m_IndirectDraw = true;
                 unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
                 offset = 0;
-                count = drawidx + 1;
+                count = RDCMIN(count, drawidx + 1);
                 stride = sizeof(VkDrawIndexedIndirectCommand);
               }
 
@@ -2996,7 +2996,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
               m_IndirectDraw = true;
               unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
               offset = 0;
-              count = drawidx + 1;
+              count = RDCMIN(count, drawidx + 1);
               stride = sizeof(VkDrawIndirectCommand);
             }
 
@@ -3308,7 +3308,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
               m_IndirectDraw = true;
               unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
               offset = 0;
-              count = drawidx + 1;
+              count = RDCMIN(count, drawidx + 1);
               stride = sizeof(VkDrawIndexedIndirectCommand);
             }
 
@@ -4634,7 +4634,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
                 m_IndirectDraw = true;
                 unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
                 offset = 0;
-                drawCount = drawidx + 1;
+                drawCount = RDCMIN(drawCount, drawidx + 1);
                 stride = sizeof(VkDrawMeshTasksIndirectCommandEXT);
               }
 
@@ -4985,7 +4985,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
               m_IndirectDraw = true;
               unwrappedBuffer = m_IndirectBuffer.UnwrappedBuffer();
               offset = 0;
-              count = drawidx + 1;
+              count = RDCMIN(count, drawidx + 1);
               stride = sizeof(VkDrawMeshTasksIndirectCommandEXT);
             }
 
