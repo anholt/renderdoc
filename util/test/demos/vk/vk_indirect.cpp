@@ -641,9 +641,9 @@ void main()
         vkCmdExecuteCommands(primary, 1, &count_secondary);
       }
 
-      setMarker(primary, "Secondary: Final");
-
       vkCmdEndRenderPass(primary);
+
+      setMarker(primary, "Secondary: Final");
 
       vkh::cmdPipelineBarrier(
           primary, {},
