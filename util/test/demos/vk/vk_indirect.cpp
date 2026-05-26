@@ -104,6 +104,7 @@ void main()
     optDevExts.push_back(VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME);
 
     features.multiDrawIndirect = VK_TRUE;
+    features.drawIndirectFirstInstance = VK_TRUE;
 
     VulkanGraphicsTest::Prepare(argc, argv);
 
