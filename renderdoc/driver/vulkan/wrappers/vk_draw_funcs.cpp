@@ -625,8 +625,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndirectCommand()).Important();
         }
 
@@ -693,8 +693,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndirectCommand()).Important();
         }
 
@@ -1003,8 +1003,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndexedIndirectCommand()).Important();
         }
 
@@ -1074,8 +1074,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndexedIndirectCommand()).Important();
         }
 
@@ -3033,8 +3033,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndirectCommand()).Important();
         }
 
@@ -3391,8 +3391,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawIndexedIndirectCommand()).Important();
         }
 
@@ -4740,8 +4740,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawMeshTasksIndirectCommandEXT()).Important();
         }
 
@@ -4808,8 +4808,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawMeshTasksIndirectCommandEXT()).Important();
         }
 
@@ -5179,8 +5179,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectCountEXT(
           structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
           ResourceId bufid = GetResID(buffer);
           structuriser.Serialise("buffer"_lit, bufid);
-          structuriser.Serialise("offset"_lit, offset);
-          structuriser.Serialise("stride"_lit, stride);
+          structuriser.Serialise("offset"_lit, offset).OffsetOrSize();
+          structuriser.Serialise("stride"_lit, stride).OffsetOrSize();
           structuriser.Serialise("command"_lit, VkDrawMeshTasksIndirectCommandEXT()).Important();
         }
 
