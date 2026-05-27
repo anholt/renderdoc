@@ -1463,6 +1463,8 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   m_ToolTip = new RDToolTip(this);
 
+  m_ToolTip->installEventFilter(this);
+
   m_ToolTip->setFont(Formatter::FixedFont());
 
   m_InteractiveCompleter = new QCompleter(this);
@@ -1903,6 +1905,7 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
   editor->installEventFilter(this);
 
   QObject::connect(editor, &QWidget::destroyed, [this, editor]() {
+    hideFunccompleteTooltip();
     m_Scintillas.removeOne(editor);
     m_Watcher->removePath(getEditorFilename(editor));
     updateEditorCloseButton();
@@ -2120,10 +2123,7 @@ bool PythonShell::eventFilter(QObject *watched, QEvent *event)
       }
       else if(m_FuncTip)
       {
-        QRect geom = m_ToolTip->geometry();
-        QPoint pos = QCursor::pos();
-        QPoint pos2 = m_ToolTip->mapFromGlobal(QCursor::pos());
-        if(!geom.contains(pos))
+        if(!m_ToolTip->geometry().contains(QCursor::pos()))
         {
           hideFunccompleteTooltip();
         }
@@ -2133,6 +2133,11 @@ bool PythonShell::eventFilter(QObject *watched, QEvent *event)
     {
       hideFunccompleteTooltip();
     }
+  }
+
+  if(m_FuncTip && watched == m_FuncTipWidget && event->type() == QEvent::FocusOut)
+  {
+    hideFunccompleteTooltip();
   }
 
   return QObject::eventFilter(watched, event);
@@ -2856,6 +2861,7 @@ void PythonShell::interactive_keypress(QKeyEvent *event)
         if(!m_ToolTip->isVisible())
           m_ToolTip->showTipAtPos(p);
         m_FuncTip = true;
+        m_FuncTipWidget = ui->lineInput;
       }
       else
       {
@@ -3014,6 +3020,7 @@ void PythonShell::doFunccomplete(ScintillaEdit *editor)
     if(!m_ToolTip->isVisible())
       m_ToolTip->showTipAtPos(p);
     m_FuncTip = true;
+    m_FuncTipWidget = editor;
     m_FuncTipLine = line;
   }
   else
@@ -3026,6 +3033,7 @@ void PythonShell::hideFunccompleteTooltip()
 {
   m_ToolTip->hideTip();
   m_FuncTip = false;
+  m_FuncTipWidget = NULL;
   // start the syntax check timer in case this naturally disappeared
   m_SyntaxCheckTimer->start();
 }

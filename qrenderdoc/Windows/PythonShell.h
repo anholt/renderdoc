@@ -139,6 +139,7 @@ private:
 
   RDToolTip *m_ToolTip;
   bool m_FuncTip = false;
+  QWidget *m_FuncTipWidget = NULL;
   intptr_t m_FuncTipLine = 0;
   bool m_ContextMenuVisible = false;
   bool m_HelpPrinting = false;
