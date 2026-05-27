@@ -376,8 +376,8 @@ float4 main(v2f IN) : SV_Target0
   if(IN.tri == 33)
     return float4(-nan, abs(nan), 0.0f, 1.0f);
 
-  // check denorm flushing
-  if(IN.tri == 34)
+  // check denorm flushing (not undefined, but broken on NV currently)
+  if(IN.tri == 34) // undefined-test
     return float4(tiny * 1.5e-8f, tiny * 1.5e-9f, asfloat(intval) == 0.0f ? 1.0f : 0.0f, 1.0f);
 
   // test reading/writing byte address data
