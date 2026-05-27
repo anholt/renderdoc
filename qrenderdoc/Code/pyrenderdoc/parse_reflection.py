@@ -1866,7 +1866,8 @@ class PyReflector:
             if retType == type(None):
                 retType = None
 
-            ret = "Callable("
+            ret = "Callable(\n"
+            indent = " " * 4
             for idx, arg in enumerate(args[0:-1]):
                 argtext = f"arg{idx+1}"
 
@@ -1875,9 +1876,9 @@ class PyReflector:
                 if idx == arg_highlight:
                     argtext = f"<b><u>{argtext}</u></b>"
 
-                if idx != 0:
-                    ret += ", "
-                ret += argtext
+                if idx < len(args[0:-1]) - 1:
+                    argtext += ", "
+                ret += indent + argtext + "\n"
             ret += ")"
             if retType is not None:
                 ret += f" -> {self.get_name(retType)}"
@@ -1890,7 +1891,8 @@ class PyReflector:
             return ret
 
         if isinstance(functype, ast.FunctionDef):
-            ret = functype.name + "("
+            ret = functype.name + "(\n"
+            indent = " " * 4
             for idx, arg in enumerate(functype.args.args):
                 argtext = arg.arg
 
@@ -1900,25 +1902,37 @@ class PyReflector:
                 if idx == arg_highlight:
                     argtext = f"<b><u>{argtext}</u></b>"
 
-                if idx != 0:
-                    ret += ", "
-                ret += argtext
+                if (
+                    idx < len(functype.args.args) - 1
+                    or len(functype.args.posonlyargs) > 0
+                    or len(functype.args.kwonlyargs) > 0
+                ):
+                    argtext += ","
+                ret += indent + argtext + "\n"
             if len(functype.args.posonlyargs) > 0:
-                ret += ", /"
-                for arg in functype.args.posonlyargs:
-                    ret += ", "
-                    ret = arg.arg
+                ret += indent + "/,\n"
+                for idx, arg in enumerate(functype.args.posonlyargs):
+                    ret += indent + arg.arg
 
                     if arg.type_comment is not None:
                         ret += f": {arg.type_comment}"
+
+                    if (
+                        idx < len(functype.args.posonlyargs) - 1
+                        or len(functype.args.kwonlyargs) > 0
+                    ):
+                        ret += ","
+                    ret += "\n"
             if len(functype.args.kwonlyargs) > 0:
-                ret += ", *"
-                for arg in functype.args.kwonlyargs:
-                    ret += ", "
-                    ret = arg.arg
+                ret += indent + "*,\n"
+                for idx, arg in enumerate(functype.args.kwonlyargs):
+                    ret += indent + arg.arg
 
                     if arg.type_comment is not None:
                         ret += f": {arg.type_comment}"
+
+                    if idx < len(functype.args.kwonlyargs) - 1:
+                        ret += ","
             ret += ")"
             if functype.returns is not None:
                 ret += f" -> {self.get_name(self._get_type(self.scopes[functype.lineno], functype.returns))}"
@@ -1936,12 +1950,12 @@ class PyReflector:
         try:
             sig = inspect.signature(functype)
             ret = self.get_name(functype) + "("
+            indent = " " * 4
+            ret += "\n"
             first = True
             for idx, arg in enumerate(sig.parameters):
                 if first and arg == "self":
                     continue
-                if not first:
-                    ret += ", "
                 first = False
                 argtext = arg
                 annot = sig.parameters[arg].annotation
@@ -1951,7 +1965,10 @@ class PyReflector:
                 if idx == arg_highlight:
                     argtext = f"<b><u>{argtext}</u></b>"
 
-                ret += argtext
+                ret += indent + argtext
+                if idx < len(sig.parameters) - 1:
+                    ret += ","
+                ret += "\n"
             ret += ")"
             if sig.return_annotation is not inspect.Signature.empty:
                 ret += f" -> {self.get_name(sig.return_annotation)}"
@@ -1963,6 +1980,7 @@ class PyReflector:
         ret += _remove_space_prefix(getattr(functype, "__doc__", ""), 20)
         if arg_highlight >= 0:
             ret = ret.replace("\n", "<br>\n")
+            ret = ret.replace("  ", "&nbsp;&nbsp;")
         return ret.strip()
 
     def get_autocompletion(self, line: int, expr: str) -> Tuple[List[str], int]:
@@ -2220,6 +2238,9 @@ class PyReflector:
             for k in PyReflector.alias_modules.keys():
                 if PyReflector.alias_modules[k] == obj:
                     return k
+
+        if name == "" and hasattr(obj, "__forward_arg__"):
+            name = getattr(obj, "__forward_arg__")
 
         if name == "":
             name = str(obj)
