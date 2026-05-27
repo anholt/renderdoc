@@ -1555,7 +1555,7 @@ public:
     rdcarray<rdcstr> ret;
 
     if(cb)
-      ret = m_BuiltinFilters[filter].completer(&m_Ctx, filter, params);
+      ret = cb(&m_Ctx, filter, params);
 
     QStringList qret;
     for(const rdcstr &s : ret)
