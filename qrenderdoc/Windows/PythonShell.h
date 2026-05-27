@@ -144,6 +144,8 @@ private:
   bool m_ContextMenuVisible = false;
   bool m_HelpPrinting = false;
 
+  bool m_IgnoreRecovered = false;
+
   RDTreeWidgetItem *m_UIExtensions, *m_Examples, *m_RecentFiles;
 
   QFileSystemWatcher *m_Watcher = NULL;

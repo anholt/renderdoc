@@ -1633,6 +1633,12 @@ PythonShell::~PythonShell()
 
   m_Ctx.GetMainWindow()->UnregisterShortcut("CTRL+S", this);
 
+  // on a clean shutdown, remove the unsaved temp file
+  QString unsavedFile = interactiveContext->GetTempFilename(lit("script.py"));
+
+  if(!unsavedFile.isEmpty() && QFile::exists(unsavedFile))
+    QFile::remove(unsavedFile);
+
   for(ScintillaEdit *edit : m_Scintillas)
     delete edit;
 
@@ -1725,9 +1731,6 @@ void PythonShell::openFileModified(const QString &path)
           markEditorModified(edit, false);
           return;
         }
-
-        RDDialog::critical(this, tr("Error reloading script"),
-                           tr("Couldn't open %1.\n%2").arg(path).arg(f.errorString()));
       });
     }
   }
@@ -2096,6 +2099,23 @@ void PythonShell::updateRecentFiles(bool added)
 
   m_RecentFiles->clear();
 
+  QString unsavedFile = interactiveContext->GetTempFilename(lit("script.py"));
+
+  if(!unsavedFile.isEmpty() && QFile::exists(unsavedFile) && !m_IgnoreRecovered)
+  {
+    RDTreeWidgetItem *recent = new RDTreeWidgetItem({tr("Recovered Script")});
+    recent->setItalic(true);
+    recent->setData(0, Qt::UserRole, QString(unsavedFile));
+    m_RecentFiles->addChild(recent);
+  }
+  else
+  {
+    // we didn't have a recovered script, remember that and don't display the file in future
+    // refreshes appears in future due to temp script running. When the window is closed the script
+    // will be removed, and if we crash and restart then the script will be found
+    m_IgnoreRecovered = true;
+  }
+
   for(rdcstr file : m_Ctx.Config().Python_RecentFiles)
   {
     RDTreeWidgetItem *recent = new RDTreeWidgetItem({QFileInfo(file).fileName()});
@@ -2209,7 +2229,9 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
 
       ui->saveScript->setEnabled(true);
 
-      addRecentFile(filename);
+      QString unsavedFile = interactiveContext->GetTempFilename(lit("script.py"));
+      if(QString(filename) != unsavedFile)
+        addRecentFile(filename);
 
       m_Watcher->addPath(filename);
 
@@ -2570,6 +2592,13 @@ void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int c
     }
 
     LoadScriptFromFilename(filename);
+
+    QString unsavedFile = interactiveContext->GetTempFilename(lit("script.py"));
+    if(filename == unsavedFile)
+    {
+      QFile::remove(unsavedFile);
+      updateRecentFiles(false);
+    }
   }
 }
 

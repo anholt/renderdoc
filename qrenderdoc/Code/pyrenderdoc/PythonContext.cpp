@@ -1497,6 +1497,20 @@ QString PythonContext::versionString()
   return QFormatStr("%1.%2.%3").arg(PY_MAJOR_VERSION).arg(PY_MINOR_VERSION).arg(PY_MICRO_VERSION);
 }
 
+QString PythonContext::GetTempFilename(QString filename)
+{
+  for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+  {
+    QDir tmpDir(path);
+    tmpDir.mkpath(lit("pytmp"));
+    tmpDir.cd(lit("pytmp"));
+    if(tmpDir.exists())
+      return tmpDir.absoluteFilePath(filename);
+  }
+
+  return QString();
+}
+
 void PythonContext::executeString(const QString &filename, const QString &source, bool debugging)
 {
   if(!initialised())

@@ -122,6 +122,8 @@ public:
   QString tryFunctionCompletion(int line, QString expr);
   QString typenameForLoc(int line, int col);
 
+  QString GetTempFilename(QString filename);
+
   void FlushOutput() { outputTick(); }
 
   void abort() { m_Abort = true; }
