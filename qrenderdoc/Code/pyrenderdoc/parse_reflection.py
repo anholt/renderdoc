@@ -144,13 +144,16 @@ def _is_self_lookup(parsed: ast.AST):
 def _commentlines(text, first_comment_line):
     lines = text.splitlines()
 
+    if first_comment_line >= len(lines):
+        return text
+
     indent = len(lines[first_comment_line]) - len(lines[first_comment_line].lstrip())
-    lines[first_comment_line] = "#" + lines[first_comment_line]
+    lines[first_comment_line] = (" " * indent) + "pass #" + lines[first_comment_line]
     for i in range(first_comment_line + 1, len(lines)):
         if lines[i].strip() == "":
             continue
         if lines[i].startswith(" " * (indent + 1)):
-            lines[i] = "#" + lines[i]
+            lines[i] = (" " * (indent + 1)) + "pass #" + lines[i]
             continue
         break
 
@@ -620,9 +623,9 @@ class PyReflector:
             if len(trunc_lines) == 0:
                 break
 
-            if trunc_lines[-1].rstrip()[-1] == ":":
+            last_line = trunc_lines[-1].rstrip()
+            if last_line != "" and last_line[-1] == ":":
                 trunc_lines[-1] += " pass"
-                lines[len(trunc_lines) - 1] += " pass"
 
             try:
                 parsed = ast.parse("\n".join(trunc_lines))
@@ -2256,9 +2259,9 @@ import sys, re
 from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional, cast
 
 error_code = """
-        def func_with_error(self):
-            print("hi")
-            self.value = self.
+def func_with_error(self):
+    print("hi")
+    self.value = self.
 """
 
 # these tests fail too much without column information that requires at least 3.8
