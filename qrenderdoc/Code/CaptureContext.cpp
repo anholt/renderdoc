@@ -2348,11 +2348,11 @@ ICaptureDialog *CaptureContext::GetCaptureDialog()
       *this,
       [this](const QString &exe, const QString &workingDir, const QString &cmdLine,
              const rdcarray<EnvironmentModification> &env, CaptureOptions opts,
-             std::function<void(LiveCapture *)> callback) {
+             std::function<void(ICaptureConnection *)> callback) {
         return m_MainWindow->OnCaptureTrigger(exe, workingDir, cmdLine, env, opts, callback);
       },
       [this](uint32_t PID, const rdcarray<EnvironmentModification> &env, const QString &name,
-             CaptureOptions opts, std::function<void(LiveCapture *)> callback) {
+             CaptureOptions opts, std::function<void(ICaptureConnection *)> callback) {
         return m_MainWindow->OnInjectTrigger(PID, env, name, opts, callback);
       },
       m_MainWindow, m_MainWindow);

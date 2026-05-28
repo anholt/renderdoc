@@ -752,12 +752,14 @@ void MainWindow::LoadFromFilename(const QString &filename, bool temporary)
 void MainWindow::OnCaptureTrigger(const QString &exe, const QString &workingDir,
                                   const QString &cmdLine,
                                   const rdcarray<EnvironmentModification> &env, CaptureOptions opts,
-                                  std::function<void(LiveCapture *)> callback)
+                                  std::function<void(ICaptureConnection *)> callback)
 {
   if(!PromptCloseCapture())
     return;
 
-  LambdaThread *th = new LambdaThread([this, exe, workingDir, cmdLine, env, opts, callback]() {
+  ExecuteResult ret;
+
+  LambdaThread *th = new LambdaThread([this, exe, workingDir, cmdLine, env, opts, callback, &ret]() {
     if(isUnshareableDeviceInUse())
     {
       RDDialog::warning(this, tr("RenderDoc is already capturing an app on this device"),
@@ -769,42 +771,7 @@ void MainWindow::OnCaptureTrigger(const QString &exe, const QString &workingDir,
 
     QString capturefile = m_Ctx.TempCaptureFilename(QFileInfo(exe).baseName());
 
-    ExecuteResult ret =
-        m_Ctx.Replay().ExecuteAndInject(exe, workingDir, cmdLine, env, capturefile, opts);
-
-    GUIInvoke::call(this, [this, exe, ret, callback]() {
-      if(ret.result.code == ResultCode::JDWPFailure)
-      {
-        RDDialog::critical(
-            this, tr("Error connecting to debugger"),
-            tr("<html>Error launching %1 for capture.\n\n"
-               "Something went wrong connecting to the debugger on the Android device.\n\n"
-               "This can happen if the package is not marked as debuggable, the device is not "
-               "configured to allow app debugging, if the intent arguments are badly specified, or "
-               "if another android tool such as Android Studio is interfering with the debug "
-               "connection.\n\n"
-               "Close <b>all</b> instances of Android Studio or other Android programs "
-               "and try again.</html>")
-                .arg(exe));
-        return;
-      }
-
-      if(ret.result.code != ResultCode::Succeeded)
-      {
-        RDDialog::critical(
-            this, tr("Error launching capture"),
-            tr("Error launching %1 for capture.\n\n%2").arg(exe).arg(ret.result.Message()));
-        return;
-      }
-
-      LiveCapture *live = new LiveCapture(
-          m_Ctx,
-          m_Ctx.Replay().CurrentRemote().IsValid() ? m_Ctx.Replay().CurrentRemote().Hostname() : "",
-          m_Ctx.Replay().CurrentRemote().IsValid() ? m_Ctx.Replay().CurrentRemote().Name() : "",
-          ret.ident, this, this);
-      ShowLiveCapture(live);
-      callback(live);
-    });
+    ret = m_Ctx.Replay().ExecuteAndInject(exe, workingDir, cmdLine, env, capturefile, opts);
   });
   th->setName(lit("ExecuteAndInject"));
   th->start();
@@ -817,33 +784,53 @@ void MainWindow::OnCaptureTrigger(const QString &exe, const QString &workingDir,
                        [th]() { return !th->isRunning(); });
   }
   th->deleteLater();
+
+  if(ret.result.code == ResultCode::JDWPFailure)
+  {
+    RDDialog::critical(
+        this, tr("Error connecting to debugger"),
+        tr("<html>Error launching %1 for capture.\n\n"
+           "Something went wrong connecting to the debugger on the Android device.\n\n"
+           "This can happen if the package is not marked as debuggable, the device is not "
+           "configured to allow app debugging, if the intent arguments are badly specified, or "
+           "if another android tool such as Android Studio is interfering with the debug "
+           "connection.\n\n"
+           "Close <b>all</b> instances of Android Studio or other Android programs "
+           "and try again.</html>")
+            .arg(exe));
+    return;
+  }
+
+  if(ret.result.code != ResultCode::Succeeded)
+  {
+    RDDialog::critical(
+        this, tr("Error launching capture"),
+        tr("Error launching %1 for capture.\n\n%2").arg(exe).arg(ret.result.Message()));
+    return;
+  }
+
+  LiveCapture *live = new LiveCapture(
+      m_Ctx,
+      m_Ctx.Replay().CurrentRemote().IsValid() ? m_Ctx.Replay().CurrentRemote().Hostname() : "",
+      m_Ctx.Replay().CurrentRemote().IsValid() ? m_Ctx.Replay().CurrentRemote().Name() : "",
+      ret.ident, this, this);
+  ShowLiveCapture(live);
+  callback(live);
 }
 
 void MainWindow::OnInjectTrigger(uint32_t PID, const rdcarray<EnvironmentModification> &env,
                                  const QString &name, CaptureOptions opts,
-                                 std::function<void(LiveCapture *)> callback)
+                                 std::function<void(ICaptureConnection *)> callback)
 {
   if(!PromptCloseCapture())
     return;
 
-  LambdaThread *th = new LambdaThread([this, PID, env, name, opts, callback]() {
+  ExecuteResult ret;
+
+  LambdaThread *th = new LambdaThread([this, PID, env, name, opts, callback, &ret]() {
     QString capturefile = m_Ctx.TempCaptureFilename(name);
 
-    ExecuteResult ret = RENDERDOC_InjectIntoProcess(PID, env, capturefile, opts, false);
-
-    GUIInvoke::call(this, [this, PID, ret, callback]() {
-      if(ret.result.code != ResultCode::Succeeded)
-      {
-        RDDialog::critical(
-            this, tr("Error injecting into process"),
-            tr("Error injecting into process %1 for capture.\n\n%2").arg(PID).arg(ret.result.Message()));
-        return;
-      }
-
-      LiveCapture *live = new LiveCapture(m_Ctx, QString(), QString(), ret.ident, this, this);
-      ShowLiveCapture(live);
-      callback(live);
-    });
+    ret = RENDERDOC_InjectIntoProcess(PID, env, capturefile, opts, false);
   });
   th->start();
   // wait a few ms before popping up a progress bar
@@ -854,6 +841,18 @@ void MainWindow::OnInjectTrigger(uint32_t PID, const rdcarray<EnvironmentModific
                        [th]() { return !th->isRunning(); });
   }
   th->deleteLater();
+
+  if(ret.result.code != ResultCode::Succeeded)
+  {
+    RDDialog::critical(
+        this, tr("Error injecting into process"),
+        tr("Error injecting into process %1 for capture.\n\n%2").arg(PID).arg(ret.result.Message()));
+    return;
+  }
+
+  LiveCapture *live = new LiveCapture(m_Ctx, QString(), QString(), ret.ident, this, this);
+  ShowLiveCapture(live);
+  callback(live);
 }
 
 void MainWindow::LoadCapture(const QString &filename, const ReplayOptions &opts, bool temporary,
@@ -2071,7 +2070,7 @@ void MainWindow::setRemoteHost(int hostIdx)
     // allow live captures to this host to stay open, that way
     // we can connect to a live capture, then switch into that
     // context
-    if(host.IsValid() && live->hostname() == host.Hostname())
+    if(host.IsValid() && live->Hostname() == host.Hostname())
       continue;
 
     // if the user previously selected 'no to all' in the save prompts below, apply that to all

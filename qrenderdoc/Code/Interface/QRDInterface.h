@@ -151,6 +151,64 @@ struct CaptureSettings
 
 DECLARE_REFLECTION_STRUCT(CaptureSettings);
 
+DOCUMENT(R"(The details of a capture that has been made on a connection but may not
+have been saved to disk or local.
+)");
+struct ConnectedTempCapture
+{
+  DOCUMENT("");
+  ConnectedTempCapture() = default;
+  ConnectedTempCapture(const ConnectedTempCapture &) = default;
+  ConnectedTempCapture &operator=(const ConnectedTempCapture &) = default;
+
+  bool operator==(const ConnectedTempCapture &o) const
+  {
+    return captureID == o.captureID && frameNumber == o.frameNumber && timestamp == o.timestamp &&
+           api == o.api;
+  }
+  bool operator!=(const ConnectedTempCapture &o) const { return !(*this == o); }
+  bool operator<(const ConnectedTempCapture &o) const
+  {
+    if(!(captureID == o.captureID))
+      return captureID < o.captureID;
+    if(!(frameNumber == o.frameNumber))
+      return frameNumber < o.frameNumber;
+    if(!(timestamp == o.timestamp))
+      return timestamp < o.timestamp;
+    if(!(api == o.api))
+      return api < o.api;
+    return false;
+  }
+
+  DOCUMENT(R"(The ID of the capture, which is arbitrary. IDs are unique for the capture within
+a given connection, but two connections may have the same ID.
+
+:type: int
+)");
+  uint32_t captureID;
+
+  DOCUMENT(R"(The name of the API used for this capture.
+
+:type: str
+)");
+  rdcstr api;
+
+  DOCUMENT(R"(The timestamp when the capture completed.
+
+:type: datetime
+)");
+  rdcdatetime timestamp;
+
+  DOCUMENT(R"(The frame number which was captured. May be ``-1`` if the capture was made via the RenderDoc
+API.
+
+:type: int
+)");
+  int32_t frameNumber;
+};
+
+DECLARE_REFLECTION_STRUCT(ConnectedTempCapture);
+
 DOCUMENT(R"(The main parent window of the application.
 
 This window is retrieved by calling :meth:`CaptureContext.GetMainWindow`.
@@ -959,6 +1017,215 @@ protected:
 
 DECLARE_REFLECTION_STRUCT(IResourceInspector);
 
+DOCUMENT(R"(A capture connection window.
+
+When a program is successfully launched by :class:`CaptureDialog` and a connection is made,
+this window can be used to access the details of that connection and any captures that have
+been made.
+
+.. function:: ClosedCallback(connection)
+
+  Not a member function - the signature for any ``ClosedCallback`` callbacks.
+
+  Called whenever a capture connection is closed.
+
+  :param CaptureConnection connection: The connection window. Invalid to use after the callback
+     has returned.
+)");
+struct ICaptureConnection
+{
+  typedef std::function<void(ICaptureConnection *)> ClosedCallback;
+
+  DOCUMENT(R"(Retrieves the PySide2 QWidget for this :class:`CaptureConnection` if PySide2 is available, or otherwise
+returns a unique opaque pointer that can be passed back to any RenderDoc functions expecting a
+QWidget.
+
+:return: Return the widget handle, either a PySide2 handle or an opaque handle.
+:rtype: QWidget
+)");
+  virtual QWidget *Widget() = 0;
+
+  DOCUMENT(R"(Register a callback to be called when the connection window is closed for any reason.
+
+Because capture connections can self-close when a program exits with no captures having been made, it can
+be useful to get a callback to notify you that the connection is no longer legal to use.
+
+This callback happens on the UI thread.
+
+:param Callable[[CaptureConnection], None] method: The function to callback when closed.
+  Callback function signature must match :func:`ClosedCallback`.
+)");
+  virtual void RegisterClosedCallback(ClosedCallback method) = 0;
+
+  DOCUMENT(R"(Checks whether or not the connection is still active. If a program exits the connection
+will no longer be active.
+
+Note that there is an inherent race here - the connection could drop immediately after returning.
+
+:return: ``True`` if the window is set up for injecting.
+:rtype: bool
+)");
+  virtual bool IsConnected() = 0;
+
+  DOCUMENT(R"(Normally connection windows will self-close if the program exits and there are no captures
+made. This behaviour can be disabled by calling this function at which point the window will not close
+itself automatically.
+)");
+  virtual void PreventAutoClose() = 0;
+
+  DOCUMENT(R"(Lists the names of APIs that have been used in the program. These APIs may not all
+be actively in use, as APIs are not removed from this list once they have been observed.
+
+Note that some APIs may be listed here that RenderDoc does not support, but does recognise. You
+should not assume that these names will match those in the :class:`~renderdoc.GraphicsAPI` enum.
+
+:return: The set of API names that have been used in the program.
+:rtype: List[str]
+)");
+  virtual rdcarray<rdcstr> GetAPIs() = 0;
+
+  DOCUMENT(R"(Asks the connected program to take captures beginning at a certain frame
+number.
+
+If the frame number has already passed when the request is recevied, no capture is made.
+
+:param int frameNumber: The first frame number to capture.
+:param int numFrames: How many frames to capture including the first. If set to 0, nothing
+  is captured.
+)");
+  virtual void QueueCapture(int32_t frameNumber, int32_t numFrames) = 0;
+
+  DOCUMENT(R"(Asks the connected program to take a capture after a certain number
+of seconds have passed, possibly 0 seconds to immediately capture. This has no effect
+if the connection is inactive and does not guarantee that the program will still be
+connected in the future - if the connection is lost no capture is made.
+
+While a delayed capture is waiting to be triggered, requests to trigger another delayed
+capture will be ignored. Only one can be active at once. If you need more complex or
+overlapping delayed captures you should do this yourself manually and call this function
+when each one is due.
+
+:param float secondsDelay: How many seconds to wait before triggering a capture.
+:param int numFrames: How many frames to capture including the first. If set to 0, nothing
+  is captured.
+)");
+  virtual void TimedCapture(float secondsDelay, int32_t numFrames) = 0;
+
+  DOCUMENT(R"(Cycles which window is active on the connected device. Has no effect if there are
+not multiple windows or if the connection is inactive.
+)");
+  virtual void CycleActiveWindow() = 0;
+
+  DOCUMENT(R"(Gets the name of the program connected to. Usually the name of the
+executable for the process.
+
+:return: The connection target.
+:rtype: str
+)");
+  virtual rdcstr Target() = 0;
+
+  DOCUMENT(R"(Gets the raw hostname for the connected target. This can be used elsewhere
+as a true hostname. For displaying to the user, prefer :meth:`FriendlyHostname`.
+
+:return: The raw hostname of the target this connection is to.
+:rtype: str
+)");
+  virtual rdcstr Hostname() = 0;
+
+  DOCUMENT(R"(Gets the user friendly hostname for the connected target. This may not be
+a true hostname but is suitable for displaying to users particularly for platforms where
+the raw hostname is not necessarily user-friendly and there may be a more descriptive name
+available.
+
+:return: The friendly hostname of the target this connection is to.
+:rtype: str
+)");
+  virtual rdcstr FriendlyHostname() = 0;
+
+  DOCUMENT(R"(Closes the connection to the target program. Normally there will be
+a prompt to the user to ask them whether they would like to save any unsaved
+captures to prevent data loss. If they choose to cancel, the connection may not
+be closed.
+
+This prompt can be overridden with the parameter, at which point all unsaved captures
+will be deleted. You should ensure the user understands that this will happen.
+
+:param bool discardUnsaved: Whether to discard unsaved captures without prompting.
+)");
+  virtual void Close(bool discardUnsaved) = 0;
+
+  DOCUMENT(R"(Lists the captures that are known to have been made on this connection. Note
+that this reflects the UI and so the user is free to delete captures at any point, which
+will be reflected by them being removed from this list.
+
+Each :class:`capture <ConnectedTempCapture>` has an ID that is used to refer to it, note
+that this ID is not globally unique and is only unique within this connection.
+
+:return: The currently known captures on this connection.
+:rtype: List[ConnectedTempCapture]
+)");
+  virtual rdcarray<ConnectedTempCapture> GetCaptures() = 0;
+
+  DOCUMENT(R"(Open the given capture, referred to by ID, in the UI for analysis. If the
+capture is remote, an appropriate remote host connection is required.
+
+This will prompt the user for closing any currently open capture and if the user
+chooses not to close the current capture the loading will be stopped.
+
+:param int ID: The ID of the capture to open.
+)");
+  virtual void OpenCapture(uint32_t ID) = 0;
+
+  DOCUMENT(R"(Delete the given capture, referred to by ID. If the
+capture is remote, an appropriate remote host connection is required.
+
+Normally deleting a capture will prompt the user to prevent data loss, but this can be
+overridden with the argument.
+
+:param int ID: The ID of the capture to delete.
+:param bool promptForSave: ``True`` if the user should be prompted as normal to save the
+  capture.
+)");
+  virtual void DeleteCapture(uint32_t ID, bool promptForSave) = 0;
+
+  DOCUMENT(R"(Save the given capture to disk, referred to by ID. If the
+capture is remote, an appropriate remote host connection is required.
+
+If the filename is omitted the user will be prompted to choose a file and the capture
+will only be saved if they select a filename.
+
+:param int ID: The ID of the capture to delete.
+:param str filename="": **Optional parameter**. The filename to save to on the local disk,
+  if omitted the user will be prompted to choose a filename.
+)");
+  virtual void SaveCapture(uint32_t ID, rdcstr filename = "") = 0;
+
+  DOCUMENT(R"(Lists the PIDs of child processes that are known to still be running.
+
+:return: The PIDs of each child process running under the connected program.
+:rtype: List[int]
+)");
+  virtual rdcarray<uint32_t> GetChildProcesses() = 0;
+
+  DOCUMENT(R"(Connected to a given child process and return a connection window.
+
+The connection window will automatically be shown if the connection is successfully made.
+
+If the PID is unrecognised, no connection will be made.
+
+:param int pid: The PID of the child to connect to.
+:return: The connection window if successful, or ``None`` if no connection was made.
+:rtype: CaptureConnection
+)");
+  virtual ICaptureConnection *ConnectToChild(uint32_t pid) = 0;
+
+protected:
+  ICaptureConnection() = default;
+  ~ICaptureConnection() = default;
+};
+
+DECLARE_REFLECTION_STRUCT(ICaptureConnection);
+
 DOCUMENT(R"(The executable capture window.
 
 This window is retrieved by calling :meth:`CaptureContext.GetCaptureDialog`.
@@ -1023,8 +1290,12 @@ QWidget.
 )");
   virtual CaptureSettings Settings() = 0;
 
-  DOCUMENT("Launches a capture of the current executable.");
-  virtual void Launch() = 0;
+  DOCUMENT(R"(Launches a capture of the current executable.
+
+:return: The connection window if successful, or ``None`` if no connection was made.
+:rtype: CaptureConnection
+)");
+  virtual ICaptureConnection *Launch() = 0;
 
   DOCUMENT(R"(Loads settings from a file and applies them. See :meth:`SetSettings`.
 
