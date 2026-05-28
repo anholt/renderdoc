@@ -177,6 +177,7 @@ SOURCES += Code/qrenderdoc.cpp \
     Code/Resources.cpp \
     Code/RGPInterop.cpp \
     Code/pyrenderdoc/PythonContext.cpp \
+    Code/pyrenderdoc/PythonInvokers.cpp \
     Code/Interface/QRDInterface.cpp \
     Code/Interface/Analytics.cpp \
     Code/Interface/ShaderProcessingTool.cpp \

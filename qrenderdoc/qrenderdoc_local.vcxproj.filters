@@ -582,6 +582,9 @@
     <ClCompile Include="Code\pyrenderdoc\PythonContext.cpp">
       <Filter>Code\pyrenderdoc</Filter>
     </ClCompile>
+    <ClCompile Include="Code\pyrenderdoc\PythonInvokers.cpp">
+      <Filter>Code\pyrenderdoc</Filter>
+    </ClCompile>
     <ClCompile Include="$(IntDir)generated\qrenderdoc_python.cxx">
       <Filter>Generated Files</Filter>
     </ClCompile>

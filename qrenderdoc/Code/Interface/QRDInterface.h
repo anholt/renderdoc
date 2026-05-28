@@ -3375,7 +3375,7 @@ capture's API.
 
 protected:
   ICaptureContext() = default;
-  ~ICaptureContext() = default;
+  virtual ~ICaptureContext() = default;
 };
 
 DECLARE_REFLECTION_STRUCT(ICaptureContext);

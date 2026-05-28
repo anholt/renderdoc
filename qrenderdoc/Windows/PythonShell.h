@@ -133,7 +133,7 @@ private slots:
 private:
   Ui::PythonShell *ui;
   ICaptureContext &m_Ctx;
-  CaptureContextInvoker *m_ThreadCtx = NULL;
+  ICaptureContext *m_ThreadCtx = NULL;
 
   ScintillaEdit *runningScriptEditor = NULL;
 
