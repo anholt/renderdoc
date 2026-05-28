@@ -628,7 +628,7 @@ void CaptureDialog::lineEdit_keyPress(QKeyEvent *ev)
   if((ev->key() == Qt::Key_Return || ev->key() == Qt::Key_Enter) &&
      ev->modifiers() & Qt::ControlModifier)
   {
-    TriggerCapture();
+    Launch();
   }
 }
 
@@ -900,12 +900,12 @@ void CaptureDialog::on_loadLastCapture_clicked()
 
 void CaptureDialog::on_launch_clicked()
 {
-  TriggerCapture();
+  Launch();
 }
 
 void CaptureDialog::on_processList_activated(const QModelIndex &index)
 {
-  TriggerCapture();
+  Launch();
 }
 
 void CaptureDialog::SetSettings(CaptureSettings settings)
@@ -949,7 +949,7 @@ void CaptureDialog::SetSettings(CaptureSettings settings)
 
   if(settings.autoStart)
   {
-    TriggerCapture();
+    Launch();
   }
 }
 
@@ -1168,7 +1168,7 @@ void CaptureDialog::SetEnvironmentModifications(const rdcarray<EnvironmentModifi
   ui->envVar->setText(envModText);
 }
 
-void CaptureDialog::TriggerCapture()
+void CaptureDialog::Launch()
 {
   if(IsInjectMode())
   {

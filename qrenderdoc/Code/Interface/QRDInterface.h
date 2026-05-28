@@ -1024,7 +1024,7 @@ QWidget.
   virtual CaptureSettings Settings() = 0;
 
   DOCUMENT("Launches a capture of the current executable.");
-  virtual void TriggerCapture() = 0;
+  virtual void Launch() = 0;
 
   DOCUMENT(R"(Loads settings from a file and applies them. See :meth:`SetSettings`.
 

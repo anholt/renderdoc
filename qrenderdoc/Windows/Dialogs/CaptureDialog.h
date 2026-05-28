@@ -73,7 +73,7 @@ public:
   void SetSettings(CaptureSettings settings) override;
   CaptureSettings Settings() override;
 
-  void TriggerCapture() override;
+  void Launch() override;
 
   void LoadSettings(const rdcstr &filename) override;
   void SaveSettings(const rdcstr &filename) override;
