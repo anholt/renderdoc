@@ -4376,12 +4376,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
         // when we have a callback, submit every action individually to the callback
         if(m_Cmd->m_ActionCallback)
         {
-          uint32_t countToReplay = actualCount;
-
-          if(m_Cmd->m_FirstEventID <= 1)
-            countToReplay = RDCMIN(countToReplay, executesReplayed);
-          else
-            countToReplay = 1;
+          uint32_t countToReplay = RDCMIN(actualCount, executesReplayed);
 
           D3D12MarkerRegion::Begin(
               list,
@@ -4424,10 +4419,12 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
 
           countToReplay = RDCMIN(countToReplay, maxCommands);
 
+          uint32_t firstDraw = 0;
           if(m_Cmd->m_FirstEventID > 1)
           {
             const uint32_t argidx = (curEID > baseEventID) ? (curEID - baseEventID - 1) : 0;
             const uint32_t execidx = argidx / comSig->sig.arguments.count();
+            firstDraw = execidx;
 
             argOffset += comSig->sig.ByteStride * execidx;
 
@@ -4436,7 +4433,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
               countToReplay = 0;
           }
 
-          for(uint32_t i = 0; i < countToReplay; i++)
+          for(uint32_t i = firstDraw; i < countToReplay; i++)
           {
             ActionFlags drawType =
                 comSig->sig.graphics ? ActionFlags::Drawcall : ActionFlags::Dispatch;
@@ -4447,7 +4444,7 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
             // Allow the callback to recreate the command signature i.e. to match the root signature
             pCommandSignature = m_Cmd->m_IndirectData.commandSig;
 
-            // action up to and including i. The previous draws will be nop'd out
+            // single action starting at specific arg offset
             Unwrap(list)->ExecuteIndirect(Unwrap(pCommandSignature), 1, argBuffer, argOffset, NULL,
                                           0);
 
