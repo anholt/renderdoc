@@ -4084,7 +4084,7 @@ RDResult WrappedVulkan::ContextReplayLog(CaptureState readType, uint32_t startEv
     // boundaries, the event IDs would no longer match up).
     if(m_LastCmdBufferID == ResourceId() || startEventID > 1)
     {
-      if(chunktype != VulkanChunk::SetCommandAnnotation)
+      if(chunktype != VulkanChunk::SetQueueAnnotation)
         m_RootEventID++;
 
       if(startEventID > 1)
