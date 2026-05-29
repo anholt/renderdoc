@@ -264,7 +264,7 @@ for mod_name in check_mods:
             continue
 
         # skip some functions that have special bindings and won't be easily found
-        if objname in ['CreateRemoteServerConnection', 'DumpObject', 'GetDefaultCaptureOptions', 'GetSupportedDeviceProtocols']:
+        if objname in ['CreateRemoteServerConnection', 'DumpObject', 'GetSupportedDeviceProtocols']:
             if args.verbose:
                 print("Skipping {}".format(objname))
             continue

@@ -132,13 +132,7 @@ VA_IGNORE_REST_OF_FILE
 %ignore rdhalf;
 %ignore bytebuf;
 
-// special handling for RENDERDOC_GetDefaultCaptureOptions to transform output parameter to a return value
-%typemap(in, numinputs=0) CaptureOptions *defaultOpts { $1 = new CaptureOptions; }
-%typemap(argout) CaptureOptions *defaultOpts {
-  $result = SWIG_NewPointerObj($1, $descriptor(struct CaptureOptions*), SWIG_POINTER_OWN);
-}
-
-// same for RENDERDOC_GetSupportedDeviceProtocols
+// special handling for RENDERDOC_GetSupportedDeviceProtocols to transform output parameter to a return value
 %typemap(in, numinputs=0) rdcarray<rdcstr> *supportedProtocols { $1 = new rdcarray<rdcstr>; }
 %typemap(argout) rdcarray<rdcstr> *supportedProtocols {
   $result = ConvertToPy(*$1);

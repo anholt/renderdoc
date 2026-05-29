@@ -34,7 +34,6 @@
 
 #define RENDERDOC_AllocArrayMem RDOCSELF_AllocArrayMem
 #define RENDERDOC_FreeArrayMem RDOCSELF_FreeArrayMem
-#define RENDERDOC_GetDefaultCaptureOptions RDOCSELF_GetDefaultCaptureOptions
 #define RENDERDOC_NeedVulkanLayerRegistration RDOCSELF_NeedVulkanLayerRegistration
 #define RENDERDOC_UpdateVulkanLayerRegistration RDOCSELF_UpdateVulkanLayerRegistration
 #define RENDERDOC_ExecuteAndInject RDOCSELF_ExecuteAndInject
@@ -2033,14 +2032,6 @@ extern "C" RENDERDOC_API void RENDERDOC_CC RENDERDOC_BecomeRemoteServer(
 //////////////////////////////////////////////////////////////////////////
 // Injection/execution capture functions.
 //////////////////////////////////////////////////////////////////////////
-
-DOCUMENT(R"(Retrieve the default and recommended set of capture options.
-
-:return: The default capture options.
-:rtype: CaptureOptions
-)");
-extern "C" RENDERDOC_API void RENDERDOC_CC
-RENDERDOC_GetDefaultCaptureOptions(CaptureOptions *defaultOpts);
 
 DOCUMENT(R"(Begin injecting speculatively into all new processes started on the system. Where
 supported by platform, configuration, and setup begin injecting speculatively into all new processes
