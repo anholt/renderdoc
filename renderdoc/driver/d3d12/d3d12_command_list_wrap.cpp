@@ -4431,7 +4431,8 @@ bool WrappedID3D12GraphicsCommandList::Serialise_ExecuteIndirect(
 
             argOffset += comSig->sig.ByteStride * execidx;
 
-            if(argidx == maxCommands)
+            // Don't replay anything when selecting the pop marker
+            if(execidx == maxCommands)
               countToReplay = 0;
           }
 
