@@ -3001,7 +3001,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
       AddAction(action);
 
       VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
-      actionNode.action.flags = flags;
+      if(maxDrawCount > 0)
+        actionNode.action.flags = flags;
 
       actionNode.indirectPatch = indirectPatch;
 
@@ -3358,7 +3359,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
       AddAction(action);
 
       VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
-      actionNode.action.flags = flags;
+      if(maxDrawCount > 0)
+        actionNode.action.flags = flags;
 
       actionNode.indirectPatch = indirectPatch;
 

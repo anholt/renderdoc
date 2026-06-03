@@ -751,7 +751,8 @@ void WrappedVulkan::InsertActionsAndRefreshIDs(BakedCmdBufferInfo &cmdBufInfo)
           // everything afterwards is adjusted. Now see if we need to remove the subdraw or clone it
           if(indirectCount == 0)
           {
-            // Copy the resource usage from the subdraw to the indirect action (push marker)
+            // Copy the flags and resource usage from the subdraw to the indirect action (push marker)
+            n.action.flags |= cmdBufNodes[i + 1].action.flags;
             n.resourceUsage.swap(cmdBufNodes[i + 1].resourceUsage);
             for(rdcpair<ResourceId, EventUsage> &use : n.resourceUsage)
               use.second.eventId += eidShift;
