@@ -370,8 +370,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
         // for single draws, it's pretty simple
 
         // account for the fake indirect subcommand before checking if we're in re-record range
-        if(count > 0)
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID += count;
 
         if(InRerecordRange(m_LastCmdBufferID))
         {
@@ -389,6 +388,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
             m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
           }
         }
+        if(m_FirstEventID > 1)
+          m_RootEventID += count;
       }
       else
       {
@@ -779,8 +780,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
         // for single draws, it's pretty simple
 
         // account for the fake indirect subcommand before checking if we're in re-record range
-        if(count > 0)
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID += count;
 
         if(InRerecordRange(m_LastCmdBufferID))
         {
@@ -799,6 +799,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
             m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
           }
         }
+        if(m_FirstEventID > 1)
+          m_RootEventID += count;
       }
       else
       {
@@ -4469,8 +4471,7 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
         // for single draws, it's pretty simple
 
         // account for the fake indirect subcommand before checking if we're in re-record range
-        if(drawCount > 0)
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID += drawCount;
 
         if(InRerecordRange(m_LastCmdBufferID))
         {
@@ -4490,6 +4491,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawMeshTasksIndirectEXT(SerialiserType &ser,
             m_ActionCallback->PostRedraw(eventId, ActionFlags::MeshDispatch, commandBuffer);
           }
         }
+        if(m_FirstEventID > 1)
+          m_RootEventID += drawCount;
       }
       else
       {
