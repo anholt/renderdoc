@@ -381,7 +381,7 @@ void main()
                                            sizeof(uvec4) * 2);
           popMarker(cmd);
 
-          pushMarker(cmd, "Primary: KHR_action_indirect_count");
+          pushMarker(cmd, "Primary: KHR_draw_indirect_count");
           pushMarker(cmd, "Primary: Empty count draws");
           vkCmdSetViewport(cmd, 0, 1, &mainWindow->viewport);
           // empty draws

@@ -207,7 +207,7 @@ class VK_Indirect(rdtest.TestCase):
                 coords = [(270, 245),(300,245)]
                 self.check_overlay_and_pixel_history(eid, coords)
 
-            action = self.find_action(f"{level}: KHR_action_indirect_count")
+            action = self.find_action(f"{level}: KHR_draw_indirect_count")
             if action:
                 # Primary: Indirect count draws
                 action = self.find_action(f"{level}: Indirect count draws", action.eventId)
@@ -335,7 +335,7 @@ class VK_Indirect(rdtest.TestCase):
 
             final = self.find_action("{}: Final".format(level))
 
-            indirect_count_root = self.find_action("{}: KHR_action_indirect_count".format(level))
+            indirect_count_root = self.find_action("{}: KHR_draw_indirect_count".format(level))
 
             self.controller.SetFrameEvent(final.eventId, False)
 
@@ -514,7 +514,7 @@ class VK_Indirect(rdtest.TestCase):
             rdtest.log.success("{} {} is as expected".format(level, action.customName))
 
             if indirect_count_root is not None:
-                rdtest.log.print(f"{indirect_count_root.children[1].customName}")
+                rdtest.log.print(f"Testing {indirect_count_root.customName}")
                 self.check(indirect_count_root.children[0].customName == '{}: Empty count draws'.format(level))
                 self.check(indirect_count_root.children[1].customName == '{}: Indirect count draws'.format(level))
 
@@ -650,7 +650,7 @@ class VK_Indirect(rdtest.TestCase):
                 self.controller.SetFrameEvent(self.find_action("{}: Post-count 3".format(level)).children[0].eventId, False)
                 self.check_overlay([(340, 115)])
             else:
-                rdtest.log.print("KHR_action_indirect_count not tested")
+                rdtest.log.print("KHR_draw_indirect_count not tested")
 
         with rdtest.log.auto_section('Checking Overlays And Pixel History'):
             self.check_overlays_and_pixel_history()
