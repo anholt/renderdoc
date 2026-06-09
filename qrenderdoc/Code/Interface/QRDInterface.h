@@ -891,6 +891,13 @@ etc.
 )");
   virtual uint32_t GetChannelVisibilityBits() = 0;
 
+  DOCUMENT(R"(Return which channels are currently displayed, as a four-component tuple.
+
+:return: The current channel visibility per component.
+:rtype: Tuple[bool,bool,bool,bool]
+)");
+  virtual rdcfixedarray<bool, 4> GetChannelVisibility() = 0;
+
   DOCUMENT(R"(Set the visibility of each channel.
 
 :param bool red: Whether the red channel should be visible.

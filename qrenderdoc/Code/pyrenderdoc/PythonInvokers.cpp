@@ -981,6 +981,10 @@ struct ITextureViewerInvoker : UIThreadInvoker<ITextureViewer>
   {
     return InvokeRetFunction<uint32_t>(&ITextureViewer::GetChannelVisibilityBits);
   }
+  rdcfixedarray<bool, 4> GetChannelVisibility()
+  {
+    return InvokeRetFunction<rdcfixedarray<bool, 4>>(&ITextureViewer::GetChannelVisibility);
+  }
   void SetChannelVisibility(bool red, bool green, bool blue, bool alpha)
   {
     return InvokeVoidFunction(&ITextureViewer::SetChannelVisibility, red, green, blue, alpha);
