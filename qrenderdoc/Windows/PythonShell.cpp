@@ -1108,7 +1108,8 @@ void PythonShell::on_execute_clicked()
 
   appendText(ui->interactiveOutput, command + lit("\n"));
 
-  history.push_front(command);
+  if(!command.trimmed().isEmpty())
+    history.push_front(command);
   historyidx = -1;
 
   ui->lineInput->clear();
