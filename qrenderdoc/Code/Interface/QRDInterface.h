@@ -851,6 +851,13 @@ If no location is currently selected or there is no current texture, this will r
 )");
   virtual bool IsZoomAutoFit() = 0;
 
+  DOCUMENT(R"(Return the currently configured texture display structure.
+
+:return: The current texture display.
+:rtype: renderdoc.TextureDisplay
+)");
+  virtual TextureDisplay GetTextureDisplay() = 0;
+
   DOCUMENT(R"(Return the current zoom level, whether manually set or auto-calculated.
 
 :return: The current zoom level, with 100% being represented as 1.0.

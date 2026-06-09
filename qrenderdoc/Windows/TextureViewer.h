@@ -147,6 +147,7 @@ public:
   DebugOverlay GetTextureOverlay() override;
   void SetTextureOverlay(DebugOverlay overlay) override;
 
+  TextureDisplay GetTextureDisplay() override { return m_TexDisplay; }
   bool IsZoomAutoFit() override;
   float GetZoomLevel() override;
   void SetZoomLevel(bool autofit, float zoom) override;

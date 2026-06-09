@@ -964,6 +964,10 @@ struct ITextureViewerInvoker : UIThreadInvoker<ITextureViewer>
     return InvokeVoidFunction(&ITextureViewer::SetTextureOverlay, overlay);
   }
   bool IsZoomAutoFit() { return InvokeRetFunction<bool>(&ITextureViewer::IsZoomAutoFit); }
+  TextureDisplay GetTextureDisplay()
+  {
+    return InvokeRetFunction<TextureDisplay>(&ITextureViewer::GetTextureDisplay);
+  }
   float GetZoomLevel() { return InvokeRetFunction<float>(&ITextureViewer::GetZoomLevel); }
   void SetZoomLevel(bool autofit, float zoom)
   {
