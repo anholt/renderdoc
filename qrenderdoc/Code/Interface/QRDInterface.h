@@ -2007,28 +2007,34 @@ This can be used to identify if a command is long-running to display a progress 
 )");
   virtual float GetCurrentProcessingTime() = 0;
 
-  DOCUMENT(R"(Make a tagged non-blocking invoke call onto the replay thread.
+  DOCUMENT(R"(Make a non-blocking invoke call onto the replay thread.
 
-This tagged function is for cases when we might send a request - e.g. to pick a vertex or pixel -
+The callback can optionally have a tag provided.
+
+Tags are for cases when we might send a request - e.g. to pick a vertex or pixel -
 and want to pre-empt it with a new request before the first has returned. Either because some
 other work is taking a while or because we're sending requests faster than they can be
 processed.
 
-The manager processes only the request on the top of the queue, so when a new tagged invoke
-comes in, we remove any other requests in the queue before it that have the same tag.
+If a tag is present the manager processes only the request on the top of the queue, so when a
+new tagged invoke comes in, we remove any other requests in the queue before it that have the same tag.
 
-:param str tag: The tag to identify this callback.
-:param Callable[[renderdoc.ReplayController], None] method: The function to callback on the replay thread.
-  Callback function signature must match :func:`ReplayInvokeCallback`.
-)");
-  virtual void AsyncInvoke(const rdcstr &tag, ReplayInvokeCallback method) = 0;
-
-  DOCUMENT(R"(Make a non-blocking invoke call onto the replay thread.
+If no tag is present, the callback will be processed as normal.
 
 :param Callable[[renderdoc.ReplayController], None] method: The function to callback on the replay thread.
   Callback function signature must match :func:`ReplayInvokeCallback`.
+:param str tag="": **Optional parameter**. The tag to identify this callback.
 )");
-  virtual void AsyncInvoke(ReplayInvokeCallback method) = 0;
+  virtual void AsyncInvoke(ReplayInvokeCallback method, rdcstr tag = "") = 0;
+
+#if !defined(SWIG) && !defined(SWIG_GENERATED)
+  // it is convenient for us to have the tag first so a lambda is the last parameter, but this
+  // doesn't fit the python overloads so it's not exposed to swig
+  void AsyncInvoke(const rdcstr &tag, ReplayInvokeCallback method)
+  {
+    return AsyncInvoke(method, tag);
+  }
+#endif
 
   // This is an ugly hack, but we leave BlockInvoke as the last method, so that when the class is
   // extended and the wrapper around BlockInvoke to release the python GIL happens, it picks up the

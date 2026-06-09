@@ -64,8 +64,8 @@ public:
   // processed.
   // the manager processes only the request on the top of the queue, so when a new tagged invoke
   // comes in, we remove any other requests in the queue before it that have the same tag
-  void AsyncInvoke(const rdcstr &tag, ReplayInvokeCallback m);
-  void AsyncInvoke(ReplayInvokeCallback m);
+  void AsyncInvoke(ReplayInvokeCallback m, rdcstr tag = "");
+  using IReplayManager::AsyncInvoke;
   void BlockInvoke(ReplayInvokeCallback m);
 
   void CancelReplayLoop();

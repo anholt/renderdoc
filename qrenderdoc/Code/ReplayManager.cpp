@@ -252,7 +252,7 @@ QString ReplayManager::GetCurrentProcessingTag()
   return m_CommandTag;
 }
 
-void ReplayManager::AsyncInvoke(const rdcstr &tag, ReplayManager::ReplayInvokeCallback m)
+void ReplayManager::AsyncInvoke(ReplayManager::ReplayInvokeCallback m, rdcstr tag)
 {
   QString qtag;
 
@@ -277,14 +277,6 @@ void ReplayManager::AsyncInvoke(const rdcstr &tag, ReplayManager::ReplayInvokeCa
   }
 
   InvokeHandle *cmd = new InvokeHandle(m, qtag);
-  cmd->selfdelete = true;
-
-  PushInvoke(cmd);
-}
-
-void ReplayManager::AsyncInvoke(ReplayManager::ReplayInvokeCallback m)
-{
-  InvokeHandle *cmd = new InvokeHandle(m);
   cmd->selfdelete = true;
 
   PushInvoke(cmd);
