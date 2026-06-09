@@ -2898,11 +2898,59 @@ void CaptureContext::AddDockWindow(QWidget *newWindow, DockReference ref, QWidge
         newWindow, ToolWindowManager::AreaReference(ToolWindowManager::LastUsedArea));
     return;
   }
+  else if(ref == DockReference::NoArea)
+  {
+    m_MainWindow->mainToolManager()->addToolWindow(
+        newWindow, ToolWindowManager::AreaReference(ToolWindowManager::NoArea));
+    return;
+  }
+  else if(ref == DockReference::EmptySpace)
+  {
+    m_MainWindow->mainToolManager()->addToolWindow(
+        newWindow, ToolWindowManager::AreaReference(ToolWindowManager::EmptySpace));
+    return;
+  }
 
   if(!refWindow)
   {
+    // expect a reference window for all other docking types
+    // try to decay down to the main window so that we place the window somewhere
     qCritical() << "Unexpected NULL refWindow in AddDockWindow";
-    return;
+
+    // AddTo doesn't have any fallback - put it in the main area.
+    if(ref == DockReference::AddTo)
+    {
+      m_MainWindow->mainToolManager()->addToolWindow(newWindow, m_MainWindow->mainToolArea());
+      return;
+    }
+
+    // if this was meant to be relative to a panel instead put it relative to the whole window
+    if(ref == DockReference::LeftOf)
+      ref = DockReference::LeftWindowSide;
+    if(ref == DockReference::RightOf)
+      ref = DockReference::RightWindowSide;
+    if(ref == DockReference::TopOf)
+      ref = DockReference::TopWindowSide;
+    if(ref == DockReference::BottomOf)
+      ref = DockReference::BottomWindowSide;
+  }
+
+  if(refWindow == m_MainWindow)
+    refWindow = NULL;
+
+  if(!refWindow)
+  {
+    // we're now placing only relative to a whole window so the particular widget we pick doesn't
+    // matter. pick something
+    if(!m_MainWindow->mainToolManager()->toolWindows().isEmpty())
+    {
+      refWindow = m_MainWindow->mainToolManager()->toolWindows()[0];
+    }
+    else
+    {
+      // if there are no tool windows at all we're panicking! just put it in empty space
+      ref = DockReference::EmptySpace;
+    }
   }
 
   if(ref == DockReference::TransientPopupArea)
@@ -2912,6 +2960,9 @@ void CaptureContext::AddDockWindow(QWidget *newWindow, DockReference ref, QWidge
     if(buf && buf->IsCBufferView())
     {
       ToolWindowManager *manager = ToolWindowManager::managerOf(refWindow);
+
+      if(!manager)
+        manager = m_MainWindow->mainToolManager();
 
       BufferViewer *cb = BufferViewer::GetFirstCBufferView(buf);
       if(cb)
@@ -2935,6 +2986,9 @@ void CaptureContext::AddDockWindow(QWidget *newWindow, DockReference ref, QWidge
     {
       ToolWindowManager *manager = ToolWindowManager::managerOf(refWindow);
 
+      if(!manager)
+        manager = m_MainWindow->mainToolManager();
+
       PixelHistoryView *hist = manager->findChild<PixelHistoryView *>();
       if(hist)
       {
@@ -2948,6 +3002,9 @@ void CaptureContext::AddDockWindow(QWidget *newWindow, DockReference ref, QWidge
   }
 
   ToolWindowManager *manager = ToolWindowManager::managerOf(refWindow);
+
+  if(!manager)
+    manager = m_MainWindow->mainToolManager();
 
   ToolWindowManager::AreaReference areaRef((ToolWindowManager::AreaReferenceType)ref,
                                            manager->areaOf(refWindow), percentage);
