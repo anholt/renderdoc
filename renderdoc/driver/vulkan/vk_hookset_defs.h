@@ -560,7 +560,8 @@
   DeclExt(KHR_present_wait2);                          \
   DeclExt(EXT_fragment_density_map_offset);            \
   DeclExt(EXT_image_drm_format_modifier);              \
-  DeclExt(EXT_custom_resolve);
+  DeclExt(EXT_custom_resolve);                         \
+  DeclExt(EXT_multi_draw);
 
 // for simplicity and since the check itself is platform agnostic,
 // these aren't protected in platform defines
@@ -707,7 +708,8 @@
   CheckExt(KHR_present_wait2, VKXX);                          \
   CheckExt(EXT_fragment_density_map_offset, VKXX);            \
   CheckExt(EXT_image_drm_format_modifier, VKXX);              \
-  CheckExt(EXT_custom_resolve, VKXX);
+  CheckExt(EXT_custom_resolve, VKXX);                         \
+  CheckExt(EXT_multi_draw, VKXX);
 
 #define HookInitVulkanInstanceExts_PhysDev()                                                         \
   HookInitExtension(KHR_surface, GetPhysicalDeviceSurfaceSupportKHR);                                \
@@ -1114,6 +1116,8 @@
   HookInitExtension(KHR_present_wait2, WaitForPresent2KHR);                                          \
   HookInitExtension(EXT_image_drm_format_modifier, GetImageDrmFormatModifierPropertiesEXT);          \
   HookInitExtension(EXT_custom_resolve, CmdBeginCustomResolveEXT);                                   \
+  HookInitExtension(EXT_multi_draw, CmdDrawMultiEXT);                                                \
+  HookInitExtension(EXT_multi_draw, CmdDrawMultiIndexedEXT);                                         \
   HookInitExtension_Device_Win32();                                                                  \
   HookInitExtension_Device_Linux();                                                                  \
   HookInitExtension_Device_Android();                                                                \
@@ -2088,6 +2092,12 @@
               image, VkImageDrmFormatModifierPropertiesEXT *, pProperties);                          \
   HookDefine2(void, vkCmdBeginCustomResolveEXT, VkCommandBuffer, commandBuffer,                      \
               const VkBeginCustomResolveInfoEXT *, pBeginCustomResolveInfo);                         \
+  HookDefine6(void, vkCmdDrawMultiEXT, VkCommandBuffer, commandBuffer, uint32_t, drawCount,          \
+              const VkMultiDrawInfoEXT *, pVertexInfo, uint32_t, instanceCount, uint32_t,            \
+              firstInstance, uint32_t, stride);                                                      \
+  HookDefine7(void, vkCmdDrawMultiIndexedEXT, VkCommandBuffer, commandBuffer, uint32_t, drawCount,   \
+              const VkMultiDrawIndexedInfoEXT *, pIndexInfo, uint32_t, instanceCount, uint32_t,      \
+              firstInstance, uint32_t, stride, const int32_t *, pVertexOffset);                     \
   HookDefine_Win32();                                                                                \
   HookDefine_Linux();                                                                                \
   HookDefine_Android();                                                                              \

@@ -1410,6 +1410,9 @@ enum class VulkanChunk : uint32_t
   SetQueueAnnotation,
   SetCommandAnnotation,
   vkCmdBeginCustomResolveEXT,
+  vkCmdDrawMultiEXT,
+  vkCmdDrawMultiIndexedEXT,
+  vkCmdDrawMultiSubCommand,
   Max,
 };
 
@@ -1654,6 +1657,8 @@ DECLARE_REFLECTION_STRUCT(VkMemoryPriorityAllocateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkMemoryRequirements2);
 DECLARE_REFLECTION_STRUCT(VkMemoryToImageCopy);
 DECLARE_REFLECTION_STRUCT(VkMemoryUnmapInfo);
+DECLARE_REFLECTION_STRUCT(VkMultiDrawInfoEXT);
+DECLARE_REFLECTION_STRUCT(VkMultiDrawIndexedInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkMultisampledRenderToSingleSampledInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkMultisamplePropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkMutableDescriptorTypeCreateInfoEXT);
@@ -1763,6 +1768,8 @@ DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMemoryProperties2);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMeshShaderFeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMeshShaderPropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultisampledRenderToSingleSampledFeaturesEXT);
+DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultiDrawFeaturesEXT);
+DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultiDrawPropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultiviewFeatures);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultiviewPerViewViewportsFeaturesQCOM);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceMultiviewProperties);

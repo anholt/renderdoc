@@ -750,6 +750,626 @@ void WrappedVulkan::vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer bu
 }
 
 template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkCmdDrawMultiEXT(SerialiserType &ser, VkCommandBuffer commandBuffer,
+                                                uint32_t drawCount,
+                                                const VkMultiDrawInfoEXT *pVertexInfo,
+                                                uint32_t instanceCount, uint32_t firstInstance,
+                                                uint32_t stride)
+{
+  SERIALISE_ELEMENT(commandBuffer);
+  SERIALISE_ELEMENT(drawCount).Important();
+  VkMultiDrawInfoEXT *vertexInfo = NULL;
+  if(ser.IsWriting())
+  {
+    // Re-layout the pVertexInfo to be contiguous rather than strided, so that
+    // we can serialise with the normal _ARRAY macro.
+    vertexInfo = GetTempArray<VkMultiDrawInfoEXT>(drawCount);
+    for(uint32_t i = 0; i < drawCount; i++)
+      memcpy(&vertexInfo[i], (VkMultiDrawInfoEXT *)((char *)pVertexInfo + i * stride),
+             sizeof(VkMultiDrawInfoEXT));
+  }
+  SERIALISE_ELEMENT_ARRAY(vertexInfo, drawCount);
+  SERIALISE_ELEMENT(instanceCount).Important();
+  SERIALISE_ELEMENT(firstInstance).Important();
+  SERIALISE_ELEMENT(stride).OffsetOrSize();
+
+  // From here on out, all replay will use either the re-laid-out array
+  // allocated above, or the contiguous array that was deserialised.
+  stride = sizeof(VkMultiDrawInfoEXT);
+  pVertexInfo = vertexInfo;
+
+  Serialise_DebugMessages(ser);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  bool multidraw = drawCount > 1;
+
+  if(IsReplayingAndReading())
+  {
+    m_LastCmdBufferID = GetResID(commandBuffer);
+
+    // do execution (possibly partial)
+    if(IsActiveReplaying(m_State))
+    {
+      if(!multidraw)
+      {
+        // for single draws, it's pretty simple
+
+        // XXX? account for the fake indirect subcommand before checking if we're in re-record range
+        if(drawCount > 0)
+          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+
+        if(InRerecordRange(m_LastCmdBufferID))
+        {
+          commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          uint32_t eventId = HandlePreCallback(commandBuffer);
+
+          ObjDisp(commandBuffer)
+              ->CmdDrawMultiEXT(Unwrap(commandBuffer), drawCount, pVertexInfo, instanceCount,
+                                firstInstance, stride);
+
+          if(eventId && m_ActionCallback->PostDraw(eventId, ActionFlags::Drawcall, commandBuffer))
+          {
+            ObjDisp(commandBuffer)
+                ->CmdDrawMultiEXT(Unwrap(commandBuffer), drawCount, pVertexInfo, instanceCount,
+                                  firstInstance, stride);
+            m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
+          }
+        }
+      }
+      else
+      {
+        if(InRerecordRange(m_LastCmdBufferID))
+        {
+          commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          uint32_t curEID = m_RootEventID;
+
+          if(m_FirstEventID <= 1)
+          {
+            curEID = m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID;
+
+            if(IsCommandBufferPartial(m_LastCmdBufferID))
+              curEID += GetCommandBufferPartialSubmission(m_LastCmdBufferID)->beginEvent;
+          }
+
+          ActionUse use(m_CurChunkOffset, 0);
+          auto it = std::lower_bound(m_ActionUses.begin(), m_ActionUses.end(), use);
+
+          if(it == m_ActionUses.end())
+          {
+            RDCERR("Unexpected action not found in uses vector, offset %llu", m_CurChunkOffset);
+          }
+          else
+          {
+            uint32_t baseEventID = it->eventId;
+
+            // when we have a callback, submit every action individually to the callback
+            if(m_ActionCallback)
+            {
+              VkMarkerRegion::Begin(
+                  StringFormat::Fmt("Drawcall callback replay (drawCount=%u)", drawCount), commandBuffer);
+
+              for(uint32_t i = 0; i < drawCount; i++)
+              {
+                uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::Drawcall, i + 1);
+                const VkMultiDrawInfoEXT *drawInfo = &pVertexInfo[i];
+
+                // Single draw from the multi-draw command.
+                ObjDisp(commandBuffer)
+                    ->CmdDrawMultiEXT(Unwrap(commandBuffer), 1, drawInfo, instanceCount,
+                                      firstInstance, stride);
+
+                if(eventId &&
+                   m_ActionCallback->PostDraw(eventId, ActionFlags::Drawcall, commandBuffer))
+                {
+                  ObjDisp(commandBuffer)
+                      ->CmdDrawMultiEXT(Unwrap(commandBuffer), 1, drawInfo, instanceCount,
+                                        firstInstance, stride);
+                  m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
+                }
+              }
+
+              VkMarkerRegion::End(commandBuffer);
+            }
+            // To add the multidraw, we made an event N that is the 'parent' marker, then
+            // N+1, N+2, N+3, ... for each of the sub-draws. If the first sub-draw is selected
+            // then we'll replay up to N but not N+1, so just do nothing - we DON'T want to draw
+            // the first sub-draw in that range.
+            else if(m_LastEventID > baseEventID)
+            {
+              uint32_t drawidx = 0;
+
+              ActionDescription *action = m_Actions[curEID];
+
+              if(m_FirstEventID <= 1)
+              {
+                // if we're replaying part-way into a multidraw, we can replay the first part
+                // 'easily'
+                // by just reducing the drawCount parameter to however many we want to replay. This only
+                // works if we're replaying from the first multidraw to the nth (n less than Count)
+                drawCount = RDCMIN(drawCount, m_LastEventID - baseEventID);
+              }
+              else if(action->flags & ActionFlags::PopMarker)
+              {
+                // if the popmarker is selected (most likely implicitly by a parent marker)
+                // don't replay anything and don't try to set up the indirect buffer.
+                drawCount = 0;
+              }
+              else
+              {
+                // otherwise we do the 'hard' case, draw only one multidraw
+                // note we'll never be asked to do e.g. 3rd-7th of a multidraw. Only ever 0th-nth or
+                // a single draw.
+                //
+                // We also need to draw the same number of draws so that DrawIndex is faithful. In
+                // order to preserve the draw index we zero out the vertex count of previous draws.
+                drawidx = (curEID - baseEventID - 1);
+                for(uint32_t i = 0; i < drawidx; i++)
+                  vertexInfo[i].vertexCount = 0;
+                drawCount = drawidx + 1;
+              }
+
+              ObjDisp(commandBuffer)
+                  ->CmdDrawMultiEXT(Unwrap(commandBuffer), drawCount, pVertexInfo, instanceCount,
+                                    firstInstance, stride);
+            }
+          }
+        }
+
+        // multidraws skip the event ID past the whole thing
+        if(m_FirstEventID > 1)
+          m_RootEventID += drawCount + 1;
+        else
+          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID += drawCount + 1;
+      }
+    }
+    else
+    {
+      ObjDisp(commandBuffer)
+          ->CmdDrawMultiEXT(Unwrap(commandBuffer), drawCount, pVertexInfo, instanceCount,
+                            firstInstance, stride);
+
+      rdcstr name = "vkCmdDrawMultiEXT";
+
+      SDChunk *baseChunk = m_StructuredFile->chunks.back();
+
+      // for 'single' draws, don't do complex multi-draw just inline it
+      if(drawCount == 1)
+      {
+        ActionDescription action;
+
+        AddEvent();
+
+        // add a fake chunk for this individual draw
+        SDChunk *fakeChunk = new SDChunk("Multi-draw sub-command"_lit);
+        fakeChunk->metadata = baseChunk->metadata;
+        fakeChunk->metadata.chunkID = (uint32_t)VulkanChunk::vkCmdDrawMultiSubCommand;
+
+        {
+          StructuredSerialiser structuriser(fakeChunk, ser.GetChunkLookup());
+
+          structuriser.Serialise<uint32_t>("drawIndex"_lit, 0U);
+          structuriser.Serialise("vertexCount"_lit, pVertexInfo->vertexCount);
+          structuriser.Serialise("firstVertex"_lit, pVertexInfo->firstVertex);
+        }
+
+        m_StructuredFile->chunks.insert(m_StructuredFile->chunks.size() - 1, fakeChunk);
+
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+
+        AddEvent();
+
+        action.customName = name;
+        action.flags = ActionFlags::Drawcall | ActionFlags::Instanced;
+        action.numIndices = pVertexInfo->vertexCount;
+        action.numInstances = instanceCount;
+        action.indexOffset = 0;
+        action.vertexOffset = pVertexInfo->firstVertex;
+        action.instanceOffset = firstInstance;
+
+        AddAction(action);
+
+        return true;
+      }
+
+      ActionDescription action;
+      action.customName = name;
+      action.flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+
+      if(drawCount == 0)
+      {
+        action.flags = ActionFlags::Drawcall | ActionFlags::Instanced;
+        action.customName += "(0)";
+      }
+
+      AddEvent();
+      AddAction(action);
+
+      if(drawCount > 0)
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+
+      for(uint32_t i = 0; i < drawCount; i++)
+      {
+        ActionDescription multi;
+
+        multi.customName = name;
+
+        multi.flags |= ActionFlags::Drawcall | ActionFlags::Instanced;
+        multi.drawIndex = i;
+        multi.numIndices = pVertexInfo[i].vertexCount;
+        multi.numInstances = instanceCount;
+        multi.instanceOffset = firstInstance;
+        multi.indexOffset = 0;
+        multi.vertexOffset = pVertexInfo[i].firstVertex;
+        multi.instanceOffset = firstInstance;
+
+        // add a fake chunk for this individual indirect action
+        SDChunk *fakeChunk = new SDChunk("Multi-draw sub-command"_lit);
+        fakeChunk->metadata = baseChunk->metadata;
+        fakeChunk->metadata.chunkID = (uint32_t)VulkanChunk::vkCmdDrawMultiSubCommand;
+
+        {
+          StructuredSerialiser structuriser(fakeChunk, ser.GetChunkLookup());
+
+          VkMultiDrawInfoEXT *draw = (VkMultiDrawInfoEXT *)((char *)pVertexInfo + i * stride);
+          structuriser.Serialise<uint32_t>("drawIndex"_lit, i);
+          structuriser.Serialise("firstVertex"_lit, draw->firstVertex);
+          structuriser.Serialise("vertexCount"_lit, draw->vertexCount);
+        }
+
+        m_StructuredFile->chunks.push_back(fakeChunk);
+
+        AddEvent();
+        AddAction(multi);
+
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+      }
+
+      if(drawCount > 0)
+      {
+        AddEvent();
+        action.customName = name + " end";
+        action.flags = ActionFlags::PopMarker;
+        AddAction(action);
+      }
+    }
+  }
+
+  return true;
+}
+
+void WrappedVulkan::vkCmdDrawMultiEXT(VkCommandBuffer commandBuffer, uint32_t drawCount,
+                                      const VkMultiDrawInfoEXT *pVertexInfo, uint32_t instanceCount,
+                                      uint32_t firstInstance, uint32_t stride)
+{
+  SCOPED_DBG_SINK();
+
+  SERIALISE_TIME_CALL(
+      ObjDisp(commandBuffer)
+          ->CmdDrawMultiEXT(Unwrap(commandBuffer), drawCount, pVertexInfo, instanceCount, firstInstance, stride));
+
+  if(IsCaptureMode(m_State))
+  {
+    VkResourceRecord *record = GetRecord(commandBuffer);
+
+    CACHE_THREAD_SERIALISER();
+
+    ser.SetActionChunk();
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCmdDrawMultiEXT);
+    Serialise_vkCmdDrawMultiEXT(ser, commandBuffer, drawCount, pVertexInfo, instanceCount, firstInstance, stride);
+
+    record->AddChunk(scope.Get(&record->cmdInfo->alloc));
+  }
+}
+
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkCmdDrawMultiIndexedEXT(SerialiserType &ser,
+                                                       VkCommandBuffer commandBuffer,
+                                                       uint32_t drawCount, const VkMultiDrawIndexedInfoEXT *pIndexInfo,
+                                                       uint32_t instanceCount, uint32_t firstInstance, uint32_t stride,
+                                                       const int32_t *pVertexOffset)
+{
+  SERIALISE_ELEMENT(commandBuffer);
+  SERIALISE_ELEMENT(drawCount).Important();
+    VkMultiDrawIndexedInfoEXT *indexInfo = NULL;
+  if(ser.IsWriting())
+  {
+    // Re-layout the pVertexInfo to be contiguous rather than strided, so that
+    // we can serialise with the normal _ARRAY macro.
+    indexInfo = GetTempArray<VkMultiDrawIndexedInfoEXT>(drawCount);
+    for(uint32_t i = 0; i < drawCount; i++)
+      memcpy(&indexInfo[i], (VkMultiDrawIndexedInfoEXT *)((char *)pIndexInfo + i * stride),
+             sizeof(VkMultiDrawIndexedInfoEXT));
+  }
+  SERIALISE_ELEMENT_ARRAY(indexInfo, drawCount);
+  SERIALISE_ELEMENT(instanceCount).Important();
+  SERIALISE_ELEMENT(firstInstance).Important();
+  SERIALISE_ELEMENT(stride).OffsetOrSize();
+  bool vertexOffsetNonNull = pVertexOffset != NULL;
+  // Serialise the optional pVertexOffset argument.
+  SERIALISE_ELEMENT(vertexOffsetNonNull);
+  int32_t vertexOffset = 0;
+  if (vertexOffsetNonNull) {
+    if(ser.IsWriting())
+      vertexOffset = *pVertexOffset;
+    SERIALISE_ELEMENT(vertexOffset);
+    pVertexOffset = &vertexOffset;
+  }
+
+  // From here on out, all replay will use either the re-laid-out array
+  // allocated above, or the contiguous array that was deserialised.
+  stride = sizeof(VkMultiDrawIndexedInfoEXT);
+  pIndexInfo = indexInfo;
+
+  Serialise_DebugMessages(ser);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  bool multidraw = drawCount > 1;
+
+  if(IsReplayingAndReading())
+  {
+    m_LastCmdBufferID = GetResID(commandBuffer);
+
+    // do execution (possibly partial)
+    if(IsActiveReplaying(m_State))
+    {
+      if(!multidraw)
+      {
+        // for single draws, it's pretty simple
+
+        // account for the fake indirect subcommand before checking if we're in re-record range
+        if(drawCount > 0)
+          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+
+        if(InRerecordRange(m_LastCmdBufferID))
+        {
+          commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          uint32_t eventId = HandlePreCallback(commandBuffer);
+
+          ObjDisp(commandBuffer)
+              ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), drawCount, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
+
+          if(eventId && m_ActionCallback->PostDraw(eventId, ActionFlags::Drawcall, commandBuffer))
+          {
+            ObjDisp(commandBuffer)
+                ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), drawCount, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
+            m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
+          }
+        }
+      }
+      else
+      {
+        if(InRerecordRange(m_LastCmdBufferID))
+        {
+          commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          uint32_t curEID = m_RootEventID;
+
+          if(m_FirstEventID <= 1)
+          {
+            curEID = m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID;
+
+            if(IsCommandBufferPartial(m_LastCmdBufferID))
+              curEID += GetCommandBufferPartialSubmission(m_LastCmdBufferID)->beginEvent;
+          }
+
+          ActionUse use(m_CurChunkOffset, 0);
+          auto it = std::lower_bound(m_ActionUses.begin(), m_ActionUses.end(), use);
+
+          if(it == m_ActionUses.end())
+          {
+            RDCERR("Unexpected action not found in uses vector, offset %llu", m_CurChunkOffset);
+          }
+          else
+          {
+            uint32_t baseEventID = it->eventId;
+
+            // when we have a callback, submit every action individually to the callback
+            if(m_ActionCallback)
+            {
+              for(uint32_t i = 0; i < drawCount; i++)
+              {
+                uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::Drawcall, i + 1);
+
+                ObjDisp(commandBuffer)
+                    ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), 1, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset
+                    );
+
+                if(eventId &&
+                   m_ActionCallback->PostDraw(eventId, ActionFlags::Drawcall, commandBuffer))
+                {
+                  ObjDisp(commandBuffer)
+                      ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), 1, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
+                  m_ActionCallback->PostRedraw(eventId, ActionFlags::Drawcall, commandBuffer);
+                }
+
+                pIndexInfo = (VkMultiDrawIndexedInfoEXT *)((char *)pIndexInfo + stride);
+              }
+            }
+            // To add the multidraw, we made an event N that is the 'parent' marker, then
+            // N+1, N+2, N+3, ... for each of the sub-draws. If the first sub-draw is selected
+            // then we'll replay up to N but not N+1, so just do nothing - we DON'T want to draw
+            // the first sub-draw in that range.
+            else if(m_LastEventID > baseEventID)
+            {
+              uint32_t drawidx = 0;
+
+              ActionDescription *action = m_Actions[curEID];
+
+              if(m_FirstEventID <= 1)
+              {
+                // if we're replaying part-way into a multidraw, we can replay the first part
+                // 'easily'
+                // by just reducing the Count parameter to however many we want to replay. This only
+                // works if we're replaying from the first multidraw to the nth (n less than Count)
+                drawCount = RDCMIN(drawCount, m_LastEventID - baseEventID);
+              }
+              else if(action->flags & ActionFlags::PopMarker)
+              {
+                // if the popmarker is selected (most likely implicitly by a parent marker)
+                // don't replay anything and don't try to set up the indirect buffer.
+                drawCount = 0;
+              }
+              else
+              {
+                // otherwise we do the 'hard' case, draw only one multidraw
+                // note we'll never be asked to do e.g. 3rd-7th of a multidraw. Only ever 0th-nth or
+                // a single draw.
+                //
+                // We also need to draw the same number of draws so that DrawIndex is faithful. In
+                // order to preserve the draw index we zero out the vertex count of previous draws.
+                drawidx = (curEID - baseEventID - 1);
+
+                for(uint32_t i = 0; i < drawidx; i++)
+                  indexInfo[i].indexCount = 0;
+                drawCount = drawidx + 1;
+              }
+
+              if(drawCount > 0)
+              {
+                ObjDisp(commandBuffer)
+                    ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), drawCount, pIndexInfo,
+                                             instanceCount, firstInstance, stride, pVertexOffset);
+              }
+            }
+          }
+        }
+
+        // multidraws skip the event ID past the whole thing
+        if(m_FirstEventID > 1)
+          m_RootEventID += drawCount + 1;
+        else
+          m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID += drawCount + 1;
+      }
+    }
+    else
+    {
+      ObjDisp(commandBuffer)
+          ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), drawCount, pIndexInfo, instanceCount,
+                                   firstInstance, stride, pVertexOffset);
+
+      rdcstr name = "vkCmdDrawMultiIndexedEXT";
+
+      SDChunk *baseChunk = m_StructuredFile->chunks.back();
+
+      // for 'single' draws, don't do complex multi-draw just inline it
+      if(drawCount == 1)
+      {
+        ActionDescription action;
+
+        AddEvent();
+
+        action.customName = name;
+        action.flags = ActionFlags::Drawcall | ActionFlags::Instanced | ActionFlags::Indexed;
+        action.numIndices = pIndexInfo[0].indexCount;
+        action.numInstances = instanceCount;
+        action.indexOffset = pIndexInfo->firstIndex;
+        action.vertexOffset = pVertexOffset ? *pVertexOffset : pIndexInfo[0].vertexOffset;
+        action.instanceOffset = firstInstance;
+
+        AddAction(action);
+
+        return true;
+      }
+
+      ActionDescription action;
+      action.customName = name;
+      action.flags = ActionFlags::MultiAction | ActionFlags::PushMarker;
+
+      if(drawCount == 0)
+      {
+        action.customName += "(0)";
+        action.flags = ActionFlags::Drawcall | ActionFlags::Instanced | ActionFlags::Indexed;
+      }
+
+      AddEvent();
+      AddAction(action);
+
+      if(drawCount > 0)
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+
+      for(uint32_t i = 0; i < drawCount; i++)
+      {
+        ActionDescription multi;
+
+        multi.customName = name;
+
+        multi.flags |= ActionFlags::Drawcall | ActionFlags::Instanced | ActionFlags::Indexed;
+        multi.drawIndex = i;
+        multi.numIndices = pIndexInfo[i].indexCount;
+        multi.numInstances = instanceCount;
+        multi.indexOffset = pIndexInfo->firstIndex;
+        multi.vertexOffset = pVertexOffset ? *pVertexOffset : pIndexInfo[i].vertexOffset;
+        multi.instanceOffset = firstInstance;
+
+        // add a fake chunk for this individual draw
+        SDChunk *fakeChunk = new SDChunk("Multi-Draw sub-command"_lit);
+        fakeChunk->metadata = baseChunk->metadata;
+        fakeChunk->metadata.chunkID = (uint32_t)VulkanChunk::vkCmdDrawMultiSubCommand;
+
+        {
+          StructuredSerialiser structuriser(fakeChunk, ser.GetChunkLookup());
+
+          VkMultiDrawIndexedInfoEXT *draw =
+              (VkMultiDrawIndexedInfoEXT *)((char *)pIndexInfo + i * stride);
+          structuriser.Serialise<uint32_t>("drawIndex"_lit, i);
+          structuriser.Serialise("firstIndex"_lit, draw->firstIndex);
+          structuriser.Serialise("indexCount"_lit, draw->indexCount);
+          structuriser.Serialise("vertexOffset"_lit, draw->vertexOffset);
+        }
+
+        m_StructuredFile->chunks.push_back(fakeChunk);
+
+        AddEvent();
+        AddAction(multi);
+
+        m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID++;
+      }
+
+      if(drawCount > 0)
+      {
+        AddEvent();
+        action.customName = name + " end";
+        action.flags = ActionFlags::PopMarker;
+        AddAction(action);
+      }
+    }
+  }
+
+  return true;
+}
+
+void WrappedVulkan::vkCmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t drawCount,
+                                             const VkMultiDrawIndexedInfoEXT *pIndexInfo,
+                                             uint32_t instanceCount, uint32_t firstInstance,
+                                             uint32_t stride, const int32_t *pVertexOffset)
+{
+  SCOPED_DBG_SINK();
+
+  SERIALISE_TIME_CALL(
+      ObjDisp(commandBuffer)
+          ->CmdDrawMultiIndexedEXT(Unwrap(commandBuffer), drawCount, pIndexInfo, instanceCount,
+            firstInstance, stride, pVertexOffset));
+
+  if(IsCaptureMode(m_State))
+  {
+    VkResourceRecord *record = GetRecord(commandBuffer);
+
+    CACHE_THREAD_SERIALISER();
+
+    ser.SetActionChunk();
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCmdDrawMultiIndexedEXT);
+    Serialise_vkCmdDrawMultiIndexedEXT(ser, commandBuffer, drawCount, pIndexInfo, instanceCount, firstInstance, stride, pVertexOffset);
+
+    record->AddChunk(scope.Get(&record->cmdInfo->alloc));
+  }
+}
+
+template <typename SerialiserType>
 bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
                                                        VkCommandBuffer commandBuffer,
                                                        VkBuffer buffer, VkDeviceSize offset,
@@ -5622,3 +6242,11 @@ INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdTraceRaysIndirectKHR, VkCommandBuffer
                                 VkDeviceAddress indirectDeviceAddress);
 INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdTraceRaysIndirect2KHR, VkCommandBuffer commandBuffer,
                                 VkDeviceAddress indirectDeviceAddress);
+
+INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdDrawMultiEXT, VkCommandBuffer commandBuffer,
+                                uint32_t drawCount, const VkMultiDrawInfoEXT *pVertexInfo,
+                                uint32_t instanceCount, uint32_t firstInstance, uint32_t stride);
+INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdDrawMultiIndexedEXT, VkCommandBuffer commandBuffer,
+                                uint32_t drawCount, const VkMultiDrawIndexedInfoEXT *pIndexInfo,
+                                uint32_t instanceCount, uint32_t firstInstance, uint32_t stride,
+                                const int32_t *pVertexOffset);

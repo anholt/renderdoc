@@ -3366,4 +3366,13 @@ public:
   // VK_EXT_custom_resolve
   IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdBeginCustomResolveEXT, VkCommandBuffer commandBuffer,
                                 const VkBeginCustomResolveInfoEXT *pBeginCustomResolveInfo);
+
+  // VK_EXT_multi_draw
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdDrawMultiEXT, VkCommandBuffer commandBuffer,
+                                uint32_t drawCount, const VkMultiDrawInfoEXT *pVertexInfo,
+                                uint32_t instanceCount, uint32_t firstInstance, uint32_t stride);
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdDrawMultiIndexedEXT, VkCommandBuffer commandBuffer,
+                                uint32_t drawCount, const VkMultiDrawIndexedInfoEXT *pIndexInfo,
+                                uint32_t instanceCount, uint32_t firstInstance, uint32_t stride,
+                                const int32_t *pVertexOffset);
 };

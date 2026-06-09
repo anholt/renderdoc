@@ -1310,6 +1310,10 @@ static const VkExtensionProperties supportedExtensions[] = {
     },
 #endif
     {
+        VK_EXT_MULTI_DRAW_EXTENSION_NAME,
+        VK_EXT_MULTI_DRAW_SPEC_VERSION,
+    },
+    {
         VK_EXT_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_EXTENSION_NAME,
         VK_EXT_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_SPEC_VERSION,
     },
@@ -4934,6 +4938,15 @@ bool WrappedVulkan::ProcessChunk(ReadSerialiser &ser, VulkanChunk chunk)
       return Serialise_vkCmdPushDescriptorSetWithTemplate2(ser, VK_NULL_HANDLE, NULL);
     case VulkanChunk::vkCmdBeginCustomResolveEXT:
       return Serialise_vkCmdBeginCustomResolveEXT(ser, VK_NULL_HANDLE, NULL);
+
+    case VulkanChunk::vkCmdDrawMultiEXT:
+      return Serialise_vkCmdDrawMultiEXT(ser, VK_NULL_HANDLE, 0, NULL, 0, 0, 0);
+    case VulkanChunk::vkCmdDrawMultiIndexedEXT:
+      return Serialise_vkCmdDrawMultiIndexedEXT(ser, VK_NULL_HANDLE, 0, NULL, 0, 0, 0, NULL);
+    case VulkanChunk::vkCmdDrawMultiSubCommand:
+      // this is a fake chunk generated at runtime as part of multidraws.
+      // Just in case it gets exported and imported, completely ignore it.
+      return true;
 
     case VulkanChunk::SetQueueAnnotation:
       return Serialise_SetQueueAnnotation(ser, VK_NULL_HANDLE, rdcstr(), eRENDERDOC_AnnotationMax,

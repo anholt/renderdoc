@@ -1692,6 +1692,12 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_DENSITY_MAP_LAYERED_CREATE_INFO_VALVE,              \
                VkPipelineFragmentDensityMapLayeredCreateInfoVALVE)                                     \
                                                                                                        \
+  /* VK_EXT_multi_draw */                                                                              \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT,                              \
+               VkPhysicalDeviceMultiDrawFeaturesEXT)                                                   \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_PROPERTIES_EXT,                            \
+               VkPhysicalDeviceMultiDrawPropertiesEXT)                                                 \
+                                                                                                       \
   /* Surface creation structs. These would pull in dependencies on OS-specific includes. */            \
   /* So treat them as unsupported. */                                                                  \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR)                                 \
@@ -1938,10 +1944,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_IMPORT_METAL_IO_SURFACE_INFO_EXT)                                \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_EXPORT_METAL_SHARED_EVENT_INFO_EXT)                              \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_IMPORT_METAL_SHARED_EVENT_INFO_EXT)                              \
-                                                                                                       \
-  /* VK_EXT_multi_draw */                                                                              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT)                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_PROPERTIES_EXT)                       \
                                                                                                        \
   /* VK_EXT_opacity_micromap */                                                                        \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_MICROMAP_BUILD_INFO_EXT)                                         \
@@ -9523,6 +9525,21 @@ void DoSerialise(SerialiserType &ser, VkDrawIndexedIndirectCommand &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkMultiDrawInfoEXT &el)
+{
+  SERIALISE_MEMBER(firstVertex).Important();
+  SERIALISE_MEMBER(vertexCount).Important();
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkMultiDrawIndexedInfoEXT &el)
+{
+  SERIALISE_MEMBER(firstIndex).Important();
+  SERIALISE_MEMBER(indexCount).Important();
+  SERIALISE_MEMBER(vertexOffset);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkDrawMeshTasksIndirectCommandEXT &el)
 {
   SERIALISE_MEMBER(groupCountX);
@@ -14881,6 +14898,30 @@ void Deserialise(const VkCustomResolveCreateInfoEXT &el)
   delete[] el.pColorAttachmentFormats;
 }
 
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceMultiDrawFeaturesEXT &el)
+{
+  SERIALISE_MEMBER(multiDraw);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceMultiDrawFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceMultiDrawPropertiesEXT &el)
+{
+  SERIALISE_MEMBER(maxMultiDrawCount);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceMultiDrawPropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
 // pNext structs - always have deserialise for the next chain
 INSTANTIATE_SERIALISE_TYPE(VkAccelerationStructureBuildGeometryInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkAccelerationStructureBuildSizesInfoKHR);
@@ -15422,6 +15463,8 @@ INSTANTIATE_SERIALISE_TYPE(VkVertexInputAttributeDescription2EXT);
 INSTANTIATE_SERIALISE_TYPE(VkVertexInputBindingDescription2EXT);
 INSTANTIATE_SERIALISE_TYPE(VkWriteDescriptorSet);
 INSTANTIATE_SERIALISE_TYPE(VkWriteDescriptorSetAccelerationStructureKHR);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceMultiDrawFeaturesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceMultiDrawPropertiesEXT);
 
 // plain structs with no next chain
 INSTANTIATE_SERIALISE_TYPE(VkAabbPositionsKHR);
@@ -15509,6 +15552,8 @@ INSTANTIATE_SERIALISE_TYPE(VkVertexInputBindingDescription);
 INSTANTIATE_SERIALISE_TYPE(VkVertexInputBindingDivisorDescription);
 INSTANTIATE_SERIALISE_TYPE(VkViewport);
 INSTANTIATE_SERIALISE_TYPE(VkXYColorEXT);
+INSTANTIATE_SERIALISE_TYPE(VkMultiDrawInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkMultiDrawIndexedInfoEXT);
 
 INSTANTIATE_SERIALISE_TYPE(DescriptorSetSlot);
 INSTANTIATE_SERIALISE_TYPE(ImageRegionState);
