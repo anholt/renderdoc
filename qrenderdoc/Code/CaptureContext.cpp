@@ -1763,6 +1763,11 @@ void CaptureContext::RefreshUIStatus(const rdcarray<ICaptureViewer *> &exclude,
   }
 }
 
+void CaptureContext::InvokeOntoUIThread(std::function<void()> callback)
+{
+  GUIInvoke::call(GetMainWindow()->Widget(), callback);
+}
+
 void CaptureContext::AddMessages(const rdcarray<DebugMessage> &msgs)
 {
   m_UnreadMessageCount += msgs.count();

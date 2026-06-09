@@ -1340,6 +1340,10 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
   // pass-through functions that don't need the UI thread
   ///////////////////////////////////////////////////////////////////////
   //
+  virtual void InvokeOntoUIThread(std::function<void()> callback) override
+  {
+    return m_Obj.InvokeOntoUIThread(callback);
+  }
   virtual rdcstr TempCaptureFilename(const rdcstr &appname) override
   {
     return m_Obj.TempCaptureFilename(appname);

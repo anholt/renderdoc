@@ -147,6 +147,8 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Accessors
 
+  void InvokeOntoUIThread(std::function<void()> callback) override;
+
   IReplayManager &Replay() override { return m_Replay; }
   IExtensionManager &Extensions() override { return *this; }
   bool IsCaptureLoaded() override { return m_CaptureLoaded; }
