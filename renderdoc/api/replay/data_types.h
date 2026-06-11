@@ -2339,12 +2339,12 @@ frame.
 
 :type: ActionDescription
 )");
-  const ActionDescription *previous = NULL;
+  const ActionDescription *previousAction = NULL;
   DOCUMENT(R"(The next action in the frame, or ``None`` if this is the last action in the frame.
 
 :type: ActionDescription
 )");
-  const ActionDescription *next = NULL;
+  const ActionDescription *nextAction = NULL;
 
   DOCUMENT(R"(An 8-tuple of the :class:`ResourceId` ids for the color outputs, which can be used
 for very coarse bucketing of actions into similar passes by their outputs.

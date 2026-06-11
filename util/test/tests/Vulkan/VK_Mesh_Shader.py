@@ -51,7 +51,7 @@ class VK_Mesh_Shader(rdtest.TestCase):
 
         action = self.find_action("Mesh Shaders")
 
-        action = action.next
+        action = action.nextAction
         name = f"Pure Mesh Shader Test EID:{action.eventId}"
         with rdtest.log.auto_section(name):
             self.controller.SetFrameEvent(action.eventId, False)
@@ -67,7 +67,7 @@ class VK_Mesh_Shader(rdtest.TestCase):
             self.check_debug_pixel(x, y)
 
         y -= 100
-        action = action.next
+        action = action.nextAction
         name = f"Task Shader with Local Payload EID:{action.eventId}"
         with rdtest.log.auto_section(name):
             self.controller.SetFrameEvent(action.eventId, False)
@@ -85,7 +85,7 @@ class VK_Mesh_Shader(rdtest.TestCase):
         
         name = f"Mesh Shader with Points output"
         with rdtest.log.auto_section(name):
-            action = action.next
+            action = action.nextAction
             self.controller.SetFrameEvent(action.eventId, False)
             x = 290
             y = 90

@@ -2026,7 +2026,7 @@ void CombineUsageEvents(ICaptureContext &ctx, const rdcarray<EventUsage> &usage,
 
     // if the usage is different from the last, add a new entry,
     // or if the previous action link is broken.
-    if(u.usage != us || action == NULL || action->previous == 0 ||
+    if(u.usage != us || action == NULL || action->previousAction == 0 ||
        (splitByMarker && (parentEID != newParentEID)))
     {
       distinct = true;
@@ -2037,7 +2037,7 @@ void CombineUsageEvents(ICaptureContext &ctx, const rdcarray<EventUsage> &usage,
       // last event was where we were - otherwise it's a new
       // distinct set of actions and should have a separate
       // entry in the context menu
-      const ActionDescription *prev = action->previous;
+      const ActionDescription *prev = action->previousAction;
 
       while(prev != NULL && prev->eventId > end)
       {
@@ -2054,7 +2054,7 @@ void CombineUsageEvents(ICaptureContext &ctx, const rdcarray<EventUsage> &usage,
         if(!(prev->flags & (ActionFlags::Dispatch | ActionFlags::MeshDispatch |
                             ActionFlags::Drawcall | ActionFlags::CmdList)))
         {
-          prev = prev->previous;
+          prev = prev->previousAction;
         }
         else
         {

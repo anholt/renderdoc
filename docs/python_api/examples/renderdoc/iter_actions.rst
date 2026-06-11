@@ -7,7 +7,7 @@ The actions returned from :py:meth:`~renderdoc.ReplayController.GetRootActions` 
 
 The first way illustrated in this sample is to walk the tree using :py:attr:`~renderdoc.ActionDescription.children`, which contains the list of child actions at any point in the tree. There is also :py:attr:`~renderdoc.ActionDescription.parent` which points to the parent action.
 
-The second is to use :py:attr:`~renderdoc.ActionDescription.previous` and :py:attr:`~renderdoc.ActionDescription.next`, which point to the previous and next action respectively in a linear fashion, regardless of nesting depth.
+The second is to use :py:attr:`~renderdoc.ActionDescription.previousAction` and :py:attr:`~renderdoc.ActionDescription.nextAction`, which point to the previous and next action respectively in a linear fashion, regardless of nesting depth.
 
 In the example we use this iteration to determine the number of passes, using the action flags to denote the start of each pass by a starting clear call.
 

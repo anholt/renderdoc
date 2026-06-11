@@ -4179,8 +4179,8 @@ void EventBrowser::events_currentChanged(const QModelIndex &current, const QMode
   if(action && action->IsFakeMarker())
     action = &action->children.back();
 
-  ui->stepPrev->setEnabled(action && action->previous);
-  ui->stepNext->setEnabled(action && action->next);
+  ui->stepPrev->setEnabled(action && action->previousAction);
+  ui->stepNext->setEnabled(action && action->nextAction);
 
   // special case for the first action in the frame
   if(selectedEID == 0)
@@ -5345,7 +5345,7 @@ void EventBrowser::on_stepNext_clicked()
   const ActionDescription *action = m_Ctx.CurAction();
 
   if(action)
-    action = action->next;
+    action = action->nextAction;
 
   // special case for the first 'virtual' action at EID 0
   if(m_Ctx.CurEvent() == 0)
@@ -5359,7 +5359,7 @@ void EventBrowser::on_stepNext_clicked()
 
     // if it failed, possibly the next action is filtered out. Step along the list until we find one
     // which isn't
-    action = action->next;
+    action = action->nextAction;
   }
 }
 
@@ -5371,7 +5371,7 @@ void EventBrowser::on_stepPrev_clicked()
   const ActionDescription *action = m_Ctx.CurAction();
 
   if(action)
-    action = action->previous;
+    action = action->previousAction;
 
   while(action)
   {
@@ -5381,7 +5381,7 @@ void EventBrowser::on_stepPrev_clicked()
 
     // if it failed, possibly the previous action is filtered out. Step along the list until we find
     // one which isn't
-    action = action->previous;
+    action = action->previousAction;
   }
 
   // special case for the first 'virtual' action at EID 0

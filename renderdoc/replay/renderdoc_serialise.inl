@@ -576,7 +576,7 @@ void DoSerialise(SerialiserType &ser, ActionDescription &el)
   SERIALISE_MEMBER(copyDestinationSubresource);
 
   if(ser.IsReading())
-    el.parent = el.previous = el.next = NULL;
+    el.parent = el.previousAction = el.nextAction = NULL;
 
   SERIALISE_MEMBER(outputs);
   SERIALISE_MEMBER(depthOut);

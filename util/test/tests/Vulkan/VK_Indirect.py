@@ -370,13 +370,13 @@ class VK_Indirect(rdtest.TestCase):
 
             # Rewind to the start of the capture
             action: rd.ActionDescription = dispatches.children[0]
-            while action.previous is not None:
-                action = action.previous
+            while action.previousAction is not None:
+                action = action.previousAction
 
             # Ensure we can select all actions
             while action is not None:
                 self.controller.SetFrameEvent(action.eventId, False)
-                action = action.next
+                action = action.nextAction
 
             rdtest.log.success("Selected all {} actions".format(level))
 

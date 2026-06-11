@@ -3353,11 +3353,11 @@ rdcarray<uint32_t> D3D12Replay::GetPassEvents(uint32_t eventId)
 
     // if we've come to the start of the log we were outside of a list
     // to start with
-    if(start->previous == NULL)
+    if(start->previousAction == NULL)
       return passEvents;
 
     // step back
-    const ActionDescription *prev = start->previous;
+    const ActionDescription *prev = start->previousAction;
 
     // if the previous is a clear, we're done
     if(prev->flags & ActionFlags::Clear)
@@ -3383,7 +3383,7 @@ rdcarray<uint32_t> D3D12Replay::GetPassEvents(uint32_t eventId)
     if(start->flags & (ActionFlags::MeshDispatch | ActionFlags::Drawcall | ActionFlags::PassBoundary))
       passEvents.push_back(start->eventId);
 
-    start = start->next;
+    start = start->nextAction;
   }
 
   return passEvents;

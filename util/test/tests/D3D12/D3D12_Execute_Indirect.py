@@ -311,7 +311,7 @@ class D3D12_Execute_Indirect(rdtest.TestCase):
                     self.check_pixel_history_succeeds(x, 190)
                 if drawNum > 1:
                     self.check_pixel_history_succeeds(x, 170)
-                action = action.next
+                action = action.nextAction
 
         with rdtest.log.auto_section('Checking Count Buffer Draws'):
             base = self.find_action("Count Buffer Draws")
@@ -354,7 +354,7 @@ class D3D12_Execute_Indirect(rdtest.TestCase):
                             self.check_pixel_history_succeeds(x, 165)
                         if drawNum > 3:
                             self.check_pixel_history_succeeds(x, 185)
-                        action = action.next
+                        action = action.nextAction
 
         with rdtest.log.auto_section('Two Single Draws QuadOverdraw (Pass) replayed correctly'):
             for drawNum in range(2):
