@@ -435,15 +435,15 @@ is a layout type widget, to allow customising how children are added. By default
 added in a vertical layout.
 
 :param str windowTitle: The title of any window with this widget as its root.
-:param Callable[[CaptureContext, QWidget, str], None] closed: A callback that will be called when
-  the widget is closed by the user.
+:param Callable[[CaptureContext, QWidget, str], None] closed=None: **Optional parameter**. A callback
+  that will be called when the widget is closed by the user.
   This implicitly deletes the widget and all its children, which will no longer be valid even if a
   handle to them exists.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateToplevelWidget(const rdcstr &windowTitle, WidgetCallback closed) = 0;
+  virtual QWidget *CreateToplevelWidget(const rdcstr &windowTitle, WidgetCallback closed = NULL) = 0;
 
   DOCUMENT(R"(Closes a top-level widget as if the user had clicked to close.
 
@@ -751,13 +751,13 @@ The widget needs to be added to a parent to become part of a panel or window.
 
   DOCUMENT(R"(Create a normal button widget.
 
-:param Callable[[CaptureContext, QWidget, str], None] pressed: Callback to be called when the button
-  is pressed.
+:param Callable[[CaptureContext, QWidget, str], None] pressed=None: **Optional parameter**. Callback
+  to be called when the button is pressed.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateButton(WidgetCallback pressed) = 0;
+  virtual QWidget *CreateButton(WidgetCallback pressed = NULL) = 0;
 
   DOCUMENT(R"(Create a read-only label widget.
 
@@ -849,13 +849,13 @@ checkerboard to be rendered instead. This is the default behaviour when a widget
   DOCUMENT(R"(Create a checkbox widget which can be toggled between unchecked and checked. When
 created the checkbox is unchecked.
 
-:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the widget
-  is toggled.
+:param Callable[[CaptureContext, QWidget, str], None] changed=None: **Optional parameter**. Callback
+  to be called when the widget is toggled.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateCheckbox(WidgetCallback changed) = 0;
+  virtual QWidget *CreateCheckbox(WidgetCallback changed = NULL) = 0;
 
   DOCUMENT(R"(Create a radio box widget which can be toggled between unchecked and checked but with
 at most one radio box in any group of sibling radio boxes being checked.
@@ -863,13 +863,13 @@ at most one radio box in any group of sibling radio boxes being checked.
 Upon creation the radio box is unchecked, even in a group of other radio boxes that are unchecked.
 If you want a default radio box to be checked, you should use :meth:`SetWidgetChecked`.
 
-:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the widget
-  is toggled.
+:param Callable[[CaptureContext, QWidget, str], None] changed=None: **Optional parameter**. Callback
+  to be called when the widget is toggled.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateRadiobox(WidgetCallback changed) = 0;
+  virtual QWidget *CreateRadiobox(WidgetCallback changed = NULL) = 0;
 
   DOCUMENT(R"(Set whether the widget is checked or not. This only affects checkboxes and radio
 boxes and group box. If another type of widget is passed nothing will happen.
@@ -935,13 +935,13 @@ happen.
 
 :param bool singleLine: ``True`` if the widget should be a single-line entry, otherwise it is a
   multi-line text box.
-:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the text
-  in the textbox is changed.
+:param Callable[[CaptureContext, QWidget, str], None] changed=None: **Optional parameter**. Callback
+  to be called when the text in the textbox is changed.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateTextBox(bool singleLine, WidgetCallback changed) = 0;
+  virtual QWidget *CreateTextBox(bool singleLine, WidgetCallback changed = NULL) = 0;
 
   DOCUMENT(R"(Create a drop-down combo box widget.
 
@@ -950,14 +950,14 @@ When created there are no pre-defined entries in the drop-down section. This can
 
 :param bool editable: ``True`` if the widget should allow the user to enter any text they wish as
   well as being able to select a pre-defined entry.
-:param Callable[[CaptureContext, QWidget, str], None] changed: Callback to be called when the text
-  in the combobox is changed. This
+:param Callable[[CaptureContext, QWidget, str], None] changed=None: **Optional parameter**. Callback
+  to be called when the text in the combobox is changed. This
   will be called both when a new option is selected or when the user edits the text.
   Callback function signature must match :func:`WidgetCallback`.
 :return: The handle to the newly created widget.
 :rtype: QWidget
 )");
-  virtual QWidget *CreateComboBox(bool editable, WidgetCallback changed) = 0;
+  virtual QWidget *CreateComboBox(bool editable, WidgetCallback changed = NULL) = 0;
 
   DOCUMENT(R"(Set the pre-defined options in a drop-down combo box. If another type of widget is
 passed nothing will happen.

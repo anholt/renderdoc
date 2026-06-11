@@ -94,6 +94,8 @@ def make_c_typeval(ret: str, pattern: bool, typelist: List[str]):
 
     if ret in ['bool', 'void']:
         pass
+    elif ret == 'None':
+        ret = 'NULL'
     elif ret == 'True':
         ret = 'true'
     elif ret == 'False':
