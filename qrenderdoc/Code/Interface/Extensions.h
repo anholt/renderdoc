@@ -560,7 +560,7 @@ The dialog is only closed when the user closes the window explicitly or if you c
 
 .. note::
   Closing a dialog 'sucessfully' does nothing except modify the return value of
-  :meth:`CloseCurrentDialog`. It allows quick distinguishing between OK and Cancel actions without
+  :meth:`ShowWidgetAsDialog`. It allows quick distinguishing between OK and Cancel actions without
   having to carry that information separately in a global or other state.
 
 :param bool success: ``True`` if the dialog was successful (the user clicked an OK/Accept type
