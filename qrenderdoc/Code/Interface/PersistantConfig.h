@@ -30,7 +30,11 @@
 
 class QMutex;
 
-DOCUMENT(R"(Contains the output from invoking a :class:`ShaderProcessingTool`, including both the
+DOCUMENT(R"(
+ShaderToolOutput()
+ShaderToolOutput(other: ShaderToolOutput)
+
+Contains the output from invoking a :class:`ShaderProcessingTool`, including both the
 actual output data desired as well as any stdout/stderr messages.
 )");
 struct ShaderToolOutput
@@ -48,7 +52,11 @@ struct ShaderToolOutput
   bytebuf result;
 };
 
-DOCUMENT(R"(Describes an external program that can be used to process shaders, typically either
+DOCUMENT(R"(
+ShaderProcessingTool()
+ShaderProcessingTool(other: ShaderProcessingTool)
+
+Describes an external program that can be used to process shaders, typically either
 compiling from a high-level language to a binary format, or decompiling from the binary format to
 a high-level language or textual representation.
 
@@ -58,6 +66,9 @@ struct ShaderProcessingTool
 {
   DOCUMENT("");
   ShaderProcessingTool() = default;
+  ShaderProcessingTool(const ShaderProcessingTool &) = default;
+  ShaderProcessingTool &operator=(const ShaderProcessingTool &) = default;
+
   VARIANT_CAST(ShaderProcessingTool);
   bool operator==(const ShaderProcessingTool &o) const
   {
@@ -159,7 +170,12 @@ DECLARE_REFLECTION_STRUCT(ShaderProcessingTool);
 #define BUGREPORT_URL "https://renderdoc.org/bugreporter"
 #endif
 
-DOCUMENT("Describes a submitted bug report.");
+DOCUMENT(R"(
+BugReport()
+BugReport(other: BugReport)
+
+Describes a submitted bug report.
+)");
 struct BugReport
 {
   DOCUMENT("");
@@ -879,7 +895,10 @@ struct CustomPersistentStorage
 };
 #endif
 
-DOCUMENT(R"(A persistant config file that is automatically loaded and saved, which contains any
+DOCUMENT(R"(
+PersistantConfig()
+
+A persistant config file that is automatically loaded and saved, which contains any
 settings and information that needs to be preserved from one run to the next.
 
 The config is retrieved by calling :meth:`CaptureContext.Config`.

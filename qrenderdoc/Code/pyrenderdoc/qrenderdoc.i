@@ -114,6 +114,9 @@ TEMPLATE_FIXEDARRAY_DECLARE(rdcfixedarray);
   static int capviewer_init(PyObject *self, PyObject *args) {
     PyObject *resultobj = 0;
     ICaptureViewer *result = 0;
+    
+    if(!SWIG_Python_UnpackTuple(args, "new_CaptureViewer", 0, 0, 0))
+      return -1;
 
     result = new PythonCaptureViewer(self);
     resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_ICaptureViewer, SWIG_BUILTIN_INIT | 0);

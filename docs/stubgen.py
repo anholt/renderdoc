@@ -390,15 +390,32 @@ def gen_class(file: Stream, class_obj: Type):
 
     bases_string = ", ".join([b.__name__ for b in bases])
 
-    file.println(f"class {class_obj.__name__}({bases_string}):")
-    file.indent()
-
     if class_obj.__doc__ is None:
         raise ValueError("Unexpected None docstring")
 
+    lines = class_obj.__doc__.strip().splitlines()
+
+    constructors: List[List[Tuple[str, str]]] = []
+    while lines[0].strip().startswith(class_obj.__name__ + "("):
+        args = lines[0].strip()
+        start = args.find("(")
+        args = args[start + 1 : -1]
+        annot_split = lambda arg: (arg.split(":")[0].strip(), arg.split(":")[1].strip())
+        constructors.append([annot_split(arg) for arg in args.split(",") if arg != ""])
+        del lines[0]
+
+    if len(constructors) > 0:
+        file.println("from typing import overload")
+        file.println("")
+
+    class_doc = ("\n".join(lines)).strip()
+
+    file.println(f"class {class_obj.__name__}({bases_string}):")
+    file.indent()
+
     file.println("# Original docstring")
     file.println('"""')
-    file.printlines(class_obj.__doc__)
+    file.printlines(class_doc)
     file.println('"""')
     file.println("")
     file.println("")
@@ -453,6 +470,47 @@ def gen_class(file: Stream, class_obj: Type):
                 file.println('"""')
                 file.println("")
     else:
+        for ctor in constructors:
+            ctor_def = f"def __init__(self, "
+            for param, annot in ctor:
+                if annot != class_obj.__name__:
+                    # a default value comes in with the annotation,
+                    # we don't split it out otherwise so strip it here
+                    type_str = annot.split("=")[0].strip()
+                    add_dependencies(class_obj, deps, type_str)
+                    ctor_def += f"{param}: {annot}, "
+                else:
+                    # escape any self-references in ''s
+                    ctor_def += f"{param}: '{annot}', "
+
+            ctor_def = ctor_def[:-2] + "):"
+
+            file.println("@overload")
+            file.println(ctor_def)
+            file.indent()
+            file.println('"""')
+            # copy constructors have only one parameter of our own type
+            if len(ctor) == 1 and ctor[0][1] == class_obj.__name__:
+                file.println(
+                    f"Construct a new {class_obj.__name__} with a deep copy of the input."
+                )
+            # default constructors have no parameters
+            elif ctor == []:
+                file.println(
+                    f"Construct a new default-initialised {class_obj.__name__}."
+                )
+            # more complex value constructor with parameters
+            else:
+                file.println(
+                    f"Construct a new {class_obj.__name__} using provided values."
+                )
+            file.println('"""')
+            file.println("pass")
+            file.dedent()
+            file.println("")
+        if len(constructors) > 0:
+            file.println("")
+
         for item_name in class_obj.__dict__.keys():
             if item_name.startswith("__"):
                 continue
@@ -506,6 +564,7 @@ def gen_class(file: Stream, class_obj: Type):
                 file.println('"""')
                 file.printlines(doc)
                 file.println('"""')
+                file.println("")
             else:
                 raise ValueError(
                     f"Unknown type of member {item_name} in {class_obj.__name__}"

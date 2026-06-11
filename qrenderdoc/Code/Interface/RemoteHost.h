@@ -38,7 +38,13 @@ struct RemoteHostData;
 // are unexpectedly removed (such as disconnecting an auto-populated device) these structs are
 // copied around and they have a shared locked data pointer. All accessors then lock and look up the
 // data there to fetch or modify
-DOCUMENT("A handle for interacting with a remote server on a given host.");
+DOCUMENT(R"(
+RemoteHost()
+RemoteHost(other: RemoteHost)
+RemoteHost(hostname: str)
+
+A handle for interacting with a remote server on a given host.
+)");
 class RemoteHost
 {
 public:

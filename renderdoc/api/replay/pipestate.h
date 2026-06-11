@@ -29,7 +29,10 @@
 #include "gl_pipestate.h"
 #include "vk_pipestate.h"
 
-DOCUMENT(R"(An API-agnostic view of the common aspects of the pipeline state. This allows simple
+DOCUMENT(R"(
+PipeState()
+
+An API-agnostic view of the common aspects of the pipeline state. This allows simple
 access to e.g. find out the bound resources or vertex buffers, or certain pipeline state which is
 available on all APIs.
 

@@ -95,10 +95,18 @@ struct ICaptureContext;
 #include "PersistantConfig.h"
 #include "RemoteHost.h"
 
-DOCUMENT("Contains all of the settings that control how to capture an executable.");
+DOCUMENT(R"(
+CaptureSettings()
+CaptureSettings(other: CaptureSettings)
+
+Contains all of the settings that control how to capture an executable.
+)");
 struct CaptureSettings
 {
+  DOCUMENT("");
   CaptureSettings();
+  CaptureSettings(const CaptureSettings &) = default;
+  CaptureSettings &operator=(const CaptureSettings &) = default;
 
   VARIANT_CAST(CaptureSettings);
 
@@ -151,7 +159,11 @@ struct CaptureSettings
 
 DECLARE_REFLECTION_STRUCT(CaptureSettings);
 
-DOCUMENT(R"(The details of a capture that has been made on a connection but may not
+DOCUMENT(R"(
+ConnectedTempCapture()
+ConnectedTempCapture(other: ConnectedTempCapture)
+
+The details of a capture that has been made on a connection but may not
 have been saved to disk or local.
 )");
 struct ConnectedTempCapture
@@ -1804,7 +1816,11 @@ protected:
 
 DECLARE_REFLECTION_STRUCT(IPixelHistoryView);
 
-DOCUMENT("An interface implemented by any object wanting to be notified of capture events.");
+DOCUMENT(R"(
+CaptureViewer()
+
+An interface implemented by any object wanting to be notified of capture events.
+)");
 struct ICaptureViewer
 {
   DOCUMENT("Called whenever a capture is opened.");
@@ -2193,7 +2209,13 @@ enum class CaptureModifications : uint32_t
 
 BITMASK_OPERATORS(CaptureModifications);
 
-DOCUMENT("A description of a bookmark on an event");
+DOCUMENT(R"(
+EventBookmark()
+EventBookmark(other: EventBookmark)
+EventBookmark(eventId: int)
+
+A description of a bookmark on an event
+)");
 struct EventBookmark
 {
   DOCUMENT(R"(The :data:`eventId <renderdoc.APIEvent.eventId>` at which this bookmark is placed.
@@ -2210,6 +2232,7 @@ struct EventBookmark
 
   DOCUMENT("");
   EventBookmark() = default;
+  EventBookmark(const EventBookmark &) = default;
   EventBookmark(uint32_t e) : eventId(e) {}
   bool operator==(const EventBookmark &o) const { return eventId == o.eventId; }
   bool operator!=(const EventBookmark &o) const { return eventId != o.eventId; }

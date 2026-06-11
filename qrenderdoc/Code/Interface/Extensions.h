@@ -279,7 +279,12 @@ BITMASK_OPERATORS(DialogButton);
 DISABLE_PYTHON_FLAG_ENUMS;
 #endif
 
-DOCUMENT("The metadata for an extension.");
+DOCUMENT(R"(
+ExtensionMetadata()
+ExtensionMetadata(other: ExtensionMetadata)
+
+The metadata for an extension.
+)");
 struct ExtensionMetadata
 {
   DOCUMENT("");

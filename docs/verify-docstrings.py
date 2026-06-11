@@ -113,14 +113,14 @@ def make_c_typeval(ret: str, pattern: bool, typelist: List[str]):
     elif ret == 'Tuple[str,str]': # special case
         ret = 'rdcstrpair'
     elif ret[0:9] == 'Callable[':
-        ret = '(std::function<void\(\)>|[A-Za-z_]+Callback)' if pattern else 'std::function/NamedCallback'
+        ret = r'(std::function<void\(\)>|[A-Za-z_]+Callback)' if pattern else 'std::function/NamedCallback'
     elif ret[0:5] == 'List[':
         inner = make_c_typeval(ret[5:-1], pattern, typelist)
         ret = '(const )?rdcarray<{}> ?[&*]?'.format(inner) if pattern else 'rdcarray<{}>'.format(inner)
     elif ret[0:6] == 'Tuple[':
         inners = [make_c_typeval(i.strip(), pattern, typelist) for i in ret[6:-1].split(',')]
         if pattern:
-            inner = ',\s*'.join(inners)
+            inner = r',\s*'.join(inners)
         else:
             inner = ', '.join(inners)
 
@@ -166,7 +166,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
     default_val = ''
     for p in params:
         if len(funcargs[0]) > 0:
-            funcargs[0] += ',\s*'
+            funcargs[0] += r',\s*'
             funcargs[1] += ', '
 
         default_val = p[2].lstrip()
@@ -177,7 +177,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
         funcargs[1] += make_c_typeval(p[0], False, typelist) + ' ' + p[1]
 
         if default_val != "":
-            funcargs[0] += f"\s*=\s*{default_val}"
+            funcargs[0] += f"\\s*=\\s*{default_val}"
             funcargs[1] += f" = {default_val}"
 
     result = RTYPE_PATTERN.search(docstring)
@@ -190,7 +190,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
     if global_func:
         global_pattern = '(RENDERDOC_CC\s*RENDERDOC_)?'
 
-    pattern = '(?s){} ?{}{}\(\s*{}\)'.format(make_c_typeval(ret, True, typelist), global_pattern, objname, funcargs[0])
+    pattern = r'(?s){} ?{}{}\(\s*{}\)'.format(make_c_typeval(ret, True, typelist), global_pattern, objname, funcargs[0])
     clean = '{} {}({})'.format(make_c_typeval(ret, False, typelist), objname, funcargs[1])
 
     match = re.search(pattern, source, re.MULTILINE | re.DOTALL)
@@ -198,7 +198,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
     pattern2 = None
     # global functions returning strings can't return an rdcstr, they have to return const char *
     if match is None and ret == 'str':
-        pattern2 = '(?s)const char \*{}{}\(\s*{}\)'.format(global_pattern, objname, funcargs[0])
+        pattern2 = r'(?s)const char \*{}{}\(\s*{}\)'.format(global_pattern, objname, funcargs[0])
         match = re.search(pattern2, source, re.MULTILINE | re.DOTALL)
 
     if match is None:
@@ -291,8 +291,8 @@ for mod_name in check_mods:
                 print("Checking class {}".format(qualname))
 
             # Grab the source to just this class to search in
-            source = re.search('(struct|class|union) I?' + objname + '(\n|\s*:[^A-Za-z][\s:a-zA-Z]*\n)\{.*?^}', headers, re.MULTILINE | re.DOTALL)
-            
+            source = re.search('(struct|class|union) I?' + objname + r'(\n|\s*:[^A-Za-z][\s:a-zA-Z]*\n)\{.*?^}', headers, re.MULTILINE | re.DOTALL)
+
             namespace = None
 
             if source is None and objname[0:2] in ['VK', 'GL']:
@@ -310,13 +310,19 @@ for mod_name in check_mods:
                 namespace = namespace.group(0)
 
             if source is None and namespace is not None:
-                source = re.search('(struct|class|union) I?' + objname + '[^{]*\{.*?^}', namespace, re.MULTILINE | re.DOTALL)
-                
+                source = re.search('(struct|class|union) I?' + objname + r'[^{]*\{.*?^}', namespace, re.MULTILINE | re.DOTALL)
+
             source = source.group(0)
 
             instance = None
+            copyable = False
             try:
                 instance = obj()
+                try:
+                    dupe_instance = obj(instance)
+                    copyable = True
+                except NotImplementedError:
+                    pass
             except TypeError:
                 pass
 
@@ -327,6 +333,29 @@ for mod_name in check_mods:
                 instance = obj("")
 
             instance_warned = False
+
+            # for types that we can create, we expect by default to
+            # see a default constructor and a copy constructor,
+            # unless we see a note that the type is not copyable
+            if instance is not None:
+                lines = docstring.strip().splitlines()
+                if lines[0].strip() != f"{obj.__name__}()":
+                    count += 1
+                    print(
+                        f"Error {count:3}: {obj.__name__} can be created, "
+                        "expect default constructor as first real line of its docstring."
+                    )
+                elif (
+                    copyable
+                    and lines[1].strip() != f"{obj.__name__}(other: {obj.__name__})"
+                ):
+                    count += 1
+                    print(
+                        f"Error {count:3}: {obj.__name__} can be copied, "
+                        "expect copy constructor as second entry in its docstring:\n"
+                        f"Actual   > {lines[1]}\n"
+                        f"Expected > {obj.__name__}(other: {obj.__name__})"
+                    )
 
             for member_name in obj.__dict__.keys():
                 if '__' in member_name or member_name in ['this', 'thisown']:
@@ -407,7 +436,7 @@ for mod_name in check_mods:
                         count += 1
                         print("Error {:3}: {}.{} is missing :type: declaration, should be {}".format(count, qualname, member_name, type_name))
                     else:
-                        type_decl = re.sub('Tuple\[.*\]', 'tuple', type_decl)
+                        type_decl = re.sub(r'Tuple\[.*\]', 'tuple', type_decl)
                         if type_decl != type_name:
                             count += 1
                             print("Error {:3}: {}.{} has wrong :type: declaration {}, should be {}".format(count, qualname, member_name, type_decl, type_name))
