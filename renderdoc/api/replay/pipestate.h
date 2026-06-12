@@ -188,7 +188,7 @@ public:
 :rtype: bool
 )");
   bool SupportsBarriers() const { return IsCaptureLoaded() && (IsCaptureVK() || IsCaptureD3D12()); }
-  DOCUMENT(R"(Determines whether or not the PostVS data is aligned in the typical fashion (ie.
+  DOCUMENT(R"(Determines whether or not the PostVS data is aligned in the typical fashion (i.e.
 vectors not crossing ``float4`` boundaries). APIs that use stream-out or transform feedback have
 tightly packed data, but APIs that rewrite shaders to dump data might have these alignment
 requirements.

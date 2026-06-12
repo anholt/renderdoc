@@ -20,7 +20,7 @@ On windows by default RenderDoc builds against python 3.6 which is what it's dis
 
 This can be overridden by setting an overridden path under the ``Python Configuration`` section in the properties of the ``qrenderdoc`` project and ``pyrenderdoc_module``/``qrenderdoc_module`` projects. It must point to a python installation.
 
-RenderDoc requires pythonXY.lib, include files such as include/Python.h, as well as a .zip of the standard library. If you installed python with an installer you have the first two, and can generate the standard library zip by zipping the contents of the Lib folder. If you downloaded the embeddable zip distribution you will only have the standard library zip, you need to obtain the include files and ``.lib`` file separately.
+RenderDoc requires ``pythonXY.lib``, include files such as include/Python.h, as well as a .zip of the standard library. If you installed python with an installer you have the first two, and can generate the standard library zip by zipping the contents of the Lib folder. If you downloaded the embeddable zip distribution you will only have the standard library zip, you need to obtain the include files and ``.lib`` file separately.
 
 .. note::
 

@@ -467,7 +467,7 @@ struct BoundVBuffer
 :type: int
 )");
   uint32_t byteStride = 0;
-  DOCUMENT(R"(The size of the buffer binding, or 0xFFFFFFFF if the whole buffer is bound.
+  DOCUMENT(R"(The size of the buffer binding, or ``0xFFFFFFFF`` if the whole buffer is bound.
 
 :type: int
 )");
@@ -1305,7 +1305,7 @@ from the vertex buffer before advancing to the next value.
 )");
   bool genericEnabled = false;
   DOCUMENT(R"(Only valid for attributes on OpenGL. If the attribute has been set up for integers to
-be converted to floats (glVertexAttribFormat with GL_INT) we store the format as integers. This is
+be converted to floats (``glVertexAttribFormat`` with ``GL_INT``) we store the format as integers. This is
 fine if the application has a float input in the shader it just means we display the raw integer
 instead of the casted float. However if the shader has an integer input this is invalid and it will
 read something undefined - possibly the int bits of the casted float.

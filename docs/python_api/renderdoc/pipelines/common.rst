@@ -164,6 +164,3 @@ Shader Messages
 
 .. autoclass:: renderdoc.ShaderComputeMessageLocation
   :members:
-
-
-* qrenderdoc.ShaderMessageViewer

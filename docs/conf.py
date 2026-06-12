@@ -60,6 +60,21 @@ sys.path.insert(0, os.path.abspath('sphinx_exts'))
 # ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx_paramlinks', 'sphinxcontrib_jquery']
 
+if tags.has('spelling'): # type: ignore
+    extensions.append('sphinxcontrib.spelling')
+    spelling_lang = tokenizer_lang = 'en_US'
+    spelling_show_suggestions = True
+    spelling_exclude_patterns = ['credits_*']
+    spelling_word_list_filename = [
+            # for personal ease and to avoid too many renames, british english words
+            # as well as a few english words not in the spelling dictionary
+            'spelling_english.txt',
+            # graphics-specific terms or proper nouns
+            'spelling_graphics.txt',
+            # more general technology language or terms
+            'spelling_general.txt'
+        ]
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 

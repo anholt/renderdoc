@@ -79,7 +79,7 @@ First we create a class to handle our window and to derive from :py:class:`qrend
         def OnEventChanged(self, event):
             pass
 
-Here we implement stubs for the different events. More information on when they are sent can be found in the class documentation. We use the :py:class:`qrenderdoc.MiniQtHelper` to create a top-level window for ourselves with the 'breadcrumbs' title, then register oureslves as a capture viewer. The mini-Qt helper is useful to provide simple access to Qt widgets in a portable way from the RenderDoc UI, without relying on full Qt python bindings that may not be available depending on how RenderDoc was built.
+Here we implement stubs for the different events. More information on when they are sent can be found in the class documentation. We use the :py:class:`qrenderdoc.MiniQtHelper` to create a top-level window for ourselves with the 'breadcrumbs' title, then register ourselves as a capture viewer. The mini-Qt helper is useful to provide simple access to Qt widgets in a portable way from the RenderDoc UI, without relying on full Qt python bindings that may not be available depending on how RenderDoc was built.
 
 We will need to unregister ourselves as a capture viewer when the window is closed, which happens in the ``window_closed()`` callback that we'll define later.
 

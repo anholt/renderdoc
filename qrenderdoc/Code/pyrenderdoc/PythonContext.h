@@ -62,7 +62,7 @@ public:
   void PausePythonThreading();
   void ResumePythonThreading();
 
-  static void GlobalInit(PersistantConfig &config);
+  static void GlobalInit(PersistentConfig &config);
   static void GlobalShutdown();
 
   static QStringList GetApplicationExtensionsPaths();
@@ -81,7 +81,7 @@ public:
 
   static void PrepareDebuggerWait();
   static bool WaitForDebugger();
-  static void LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location);
+  static void LaunchDebugger(QWidget *window, PersistentConfig &config, QString context_location);
 
   PyParseError CheckPyParse(const QByteArray &script, const rdcstr &scriptNameForErrors);
 

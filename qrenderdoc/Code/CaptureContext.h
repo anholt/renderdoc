@@ -63,7 +63,7 @@ class CaptureContext : public ICaptureContext, IExtensionManager
   Q_DECLARE_TR_FUNCTIONS(CaptureContext);
 
 public:
-  CaptureContext(PersistantConfig &cfg);
+  CaptureContext(PersistentConfig &cfg);
   ~CaptureContext();
 
   void Begin(QString paramFilename, QString remoteHost, uint32_t remoteIdent, bool temp,
@@ -305,7 +305,7 @@ public:
   const GLPipe::State *CurGLPipelineState() override { return m_CurGLPipelineState; }
   const VKPipe::State *CurVulkanPipelineState() override { return m_CurVulkanPipelineState; }
   const PipeState &CurPipelineState() override { return *m_CurPipelineState; }
-  PersistantConfig &Config() override { return m_Config; }
+  PersistentConfig &Config() override { return m_Config; }
 private:
   ReplayManager m_Replay;
 
@@ -316,7 +316,7 @@ private:
   const PipeState *m_CurPipelineState;
   PipeState m_DummyPipelineState;
 
-  PersistantConfig &m_Config;
+  PersistentConfig &m_Config;
 
   QVector<ICaptureViewer *> m_CaptureViewers;
 

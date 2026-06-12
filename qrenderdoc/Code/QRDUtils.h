@@ -391,7 +391,7 @@ struct Formatter
     NoFlags = 0x0,
     OffsetSize = 0x1,
   };
-  static void setParams(const PersistantConfig &config);
+  static void setParams(const PersistentConfig &config);
   static void setPalette(QPalette palette);
   static void shutdown();
 

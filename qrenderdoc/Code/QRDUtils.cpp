@@ -2839,7 +2839,7 @@ float Formatter::m_FixedFontBaseSize = 10.0f;
 QColor Formatter::m_DarkChecker, Formatter::m_LightChecker;
 OffsetSizeDisplayMode Formatter::m_OffsetSizeDisplayMode = OffsetSizeDisplayMode::Auto;
 
-void Formatter::setParams(const PersistantConfig &config)
+void Formatter::setParams(const PersistentConfig &config)
 {
   m_minFigures = qMax(0, config.Formatter_MinFigures);
   m_maxFigures = qMax(2, config.Formatter_MaxFigures);

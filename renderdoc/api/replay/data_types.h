@@ -862,7 +862,7 @@ human-readable name by the application.
 
   DOCUMENT(R"(The chunk indices in the structured file that initialised this resource.
 
-This will at least contain the first call that created it, but may contain other auxilliary calls.
+This will at least contain the first call that created it, but may contain other auxiliary calls.
 
 :type: List[int]
 )");
@@ -937,7 +937,7 @@ struct DescriptorStoreDescription
 )");
   ResourceId resourceId;
 
-  DOCUMENT(R"(For descriptor stores which contain desriptors all of identical size, the size of each
+  DOCUMENT(R"(For descriptor stores which contain descriptors all of identical size, the size of each
 descriptor. Descriptors are assumed to be tightly packed so stride is equal to size.
 
 :type: int
@@ -2639,7 +2639,7 @@ Uuid()
 Uuid(other: Uuid)
 Uuid(word1: int, word2: int, word3: int, word4: int)
 
-A 128-bit Uuid.
+A 128-bit UUID.
 )");
 struct Uuid
 {
@@ -2660,7 +2660,7 @@ struct Uuid
   bool operator<(const Uuid &rhs) const { return words < rhs.words; }
   DOCUMENT("Compares two ``Uuid`` objects for equality.");
   bool operator==(const Uuid &rhs) const { return words == rhs.words; }
-  DOCUMENT(R"(The Uuid bytes as a tuple of four 32-bit integers.
+  DOCUMENT(R"(The UUID bytes as a tuple of four 32-bit integers.
 
 :type: Tuple[int,int,int,int]
 )")
@@ -2925,7 +2925,7 @@ struct ModificationValue
   }
   DOCUMENT(R"(The color value.
 
-If the modifications are for a color target, tthe contents will all be ``0``.
+If the modifications are for a color target, the contents will all be ``0``.
 
 :type: PixelValue
 )");
@@ -3146,7 +3146,7 @@ pixel.
   }
 
   DOCUMENT(R"(Update the depth-test failure state based on known shader output depth value and
-preMod reference value, quantised to a certain number of depth bits with epsilon.
+:data:`preMod` reference value, quantised to a certain number of depth bits with epsilon.
 
 This is primarily used internally and should not be needed to be called externally.
 

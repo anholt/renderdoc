@@ -92,7 +92,7 @@ struct ICaptureContext;
 
 #include "Analytics.h"
 #include "Extensions.h"
-#include "PersistantConfig.h"
+#include "PersistentConfig.h"
 #include "RemoteHost.h"
 
 DOCUMENT(R"(
@@ -256,7 +256,7 @@ closest shortcut to a given action. The search goes from the widget with the foc
 chain of parents, with the first match being used. If no matches are found, then a 'global' default
 will be invoked, if it exists.
 
-:param str shortcut: The text string representing the shortcut, e.g. 'Ctrl+S'.
+:param str shortcut: The text string representing the shortcut, e.g. :kbd:`Ctrl+S`.
 :param QWidget widget: A handle to the widget to use as the context for this shortcut, or ``None``
   for a global shortcut. Note that if an existing global shortcut exists the new one will not be
   registered.
@@ -271,7 +271,7 @@ will be invoked, if it exists.
 
 See the documentation for :meth:`RegisterShortcut` for what these shortcuts are for.
 
-:param str shortcut: The text string representing the shortcut, e.g. 'Ctrl+S'. To unregister all
+:param str shortcut: The text string representing the shortcut, e.g. :kbd:`Ctrl+S`. To unregister all
   shortcuts for a particular widget, you can pass an empty string here. In this case,
   :paramref:`UnregisterShortcut.widget` must not be ``None``.
 :param QWidget widget: A handle to the widget used as the context for the shortcut, or ``None``
@@ -1113,7 +1113,7 @@ should not assume that these names will match those in the :class:`~renderdoc.Gr
   DOCUMENT(R"(Asks the connected program to take captures beginning at a certain frame
 number.
 
-If the frame number has already passed when the request is recevied, no capture is made.
+If the frame number has already passed when the request is received, no capture is made.
 
 :param int frameNumber: The first frame number to capture.
 :param int numFrames: How many frames to capture including the first. If set to 0, nothing
@@ -1545,7 +1545,7 @@ created if the file fails to load
   DOCUMENT(R"(Creates a new script editor with a given name and text contents.
 
 :param str name: The name to give the editor, does not have to be a filename.
-:param str text: The contents to prefill in the script, can be blank.
+:param str text: The contents to start with in the editor, can be blank.
 )");
   virtual void CreateNewScriptEditor(rdcstr name, rdcstr text) = 0;
 
@@ -2028,7 +2028,7 @@ This can be used to identify if a command is long-running to display a progress 
 The callback can optionally have a tag provided.
 
 Tags are for cases when we might send a request - e.g. to pick a vertex or pixel -
-and want to pre-empt it with a new request before the first has returned. Either because some
+and want to preempt it with a new request before the first has returned. Either because some
 other work is taking a while or because we're sending requests faster than they can be
 processed.
 
@@ -2832,8 +2832,8 @@ combination with :meth:`DebugMessages` and :meth:`AddMessages` to filter the cur
 
 Examples of fields are:
 
-* 'comments' for generic comments to be displayed in a text field
-* 'hwinfo' for a plaintext summary of the hardware and driver configuration of the system.
+* ``comments`` for generic comments to be displayed in a text field
+* ``hwinfo`` for a plaintext summary of the hardware and driver configuration of the system.
 
 :param str key: The name of the notes field to retrieve.
 :return: The contents, or an empty string if the field doesn't exist.
@@ -3417,12 +3417,12 @@ capture's API.
 )");
   virtual const PipeState &CurPipelineState() = 0;
 
-  DOCUMENT(R"(Retrieve the current persistant config.
+  DOCUMENT(R"(Retrieve the current persistent config.
 
-:return: The current persistant config manager.
-:rtype: PersistantConfig
+:return: The current persistent config manager.
+:rtype: PersistentConfig
 )");
-  virtual PersistantConfig &Config() = 0;
+  virtual PersistentConfig &Config() = 0;
 
   DOCUMENT(R"(Retrieve the manager for extensions.
 

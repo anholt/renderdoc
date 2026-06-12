@@ -319,8 +319,8 @@ TEMPLATE_FIXEDARRAY_DECLARE(rdcfixedarray);
 }
 
   %feature("docstring") R"(Returns a string representation of an object. This is quite similar to
-the built-in repr() function but it iterates over struct members and prints them out, where normally
-repr() would stop and say something like 'Swig Object of type ...'.
+the built-in ``repr()`` function but it iterates over struct members and prints them out, where normally
+``repr()`` would stop and say something like 'Swig Object of type ...'.
 
 :param Any obj: The object to dump
 :return: The string representation of the object.

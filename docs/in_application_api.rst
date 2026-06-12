@@ -62,7 +62,7 @@ To do this you'll use your platforms dynamic library functions to see if the lib
 
 
     :param RENDERDOC_Version version: is the version number of the API for which you want the interface struct.
-    :param void** outAPIPointers: will be filled with the address of the API's function pointer struct, if supported. E.g. if ``eRENDERDOC_API_Version_1_1_1`` is requested, outAPIPointers will be filled with ``RENDERDOC_API_1_1_1*`` or any newer version that is compatible with API 1.1.1, but nothing lower.
+    :param void** outAPIPointers: will be filled with the address of the API's function pointer struct, if supported. E.g. if ``eRENDERDOC_API_Version_1_1_1`` is requested, ``outAPIPointers`` will be filled with ``RENDERDOC_API_1_1_1*`` or any newer version that is compatible with API 1.1.1, but nothing lower.
     :return: The function returns 1 if the API version is valid and available, and the struct pointer is filled. The function returns 0 if the API version is invalid or not supported, or the pointer parameter is invalid.
 
 .. cpp:function:: void GetAPIVersion(int *major, int *minor, int *patch)
@@ -122,7 +122,7 @@ To do this you'll use your platforms dynamic library functions to see if the lib
 
 .. cpp:enumerator:: RENDERDOC_CaptureOption::eRENDERDOC_Option_VerifyBufferWrites
 
-    specifies whether any mapped memory updates should be bounds-checked for overruns, and uninitialised buffers are initialised to 0xdddddddd to catch use of uninitialised data. Only supported on D3D11 and OpenGL. Default is off.
+    specifies whether any mapped memory updates should be bounds-checked for overruns, and uninitialised buffers are initialised to ``0xdddddddd`` to catch use of uninitialised data. Only supported on D3D11 and OpenGL. Default is off.
 
 .. cpp:enumerator:: RENDERDOC_CaptureOption::eRENDERDOC_Option_HookIntoChildren
 
@@ -280,8 +280,8 @@ To do this you'll use your platforms dynamic library functions to see if the lib
 
     This function modifies the current mask which determines what sections of the overlay render on each window.
 
-    :param uint32_t And: is a 32-bit value the mask is binary-AND'd with before processing ``Or``.
-    :param uint32_t Or: is a 32-bit value the mask is binary-OR'd with after processing ``And``.
+    :param uint32_t And: is a 32-bit value that will be combined using binary AND with the mask first, to remove bits.
+    :param uint32_t Or: is a 32-bit value that will be combined using binary OR with the mask second, to add bits.
 
 .. cpp:function:: void RemoveHooks()
 

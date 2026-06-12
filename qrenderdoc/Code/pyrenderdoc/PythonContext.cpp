@@ -431,7 +431,7 @@ void PythonContext::PrepareDebugTracing()
   }
 }
 
-void PythonContext::GlobalInit(PersistantConfig &config)
+void PythonContext::GlobalInit(PersistentConfig &config)
 {
   // must happen on the UI thread
   if(qApp->thread() != QThread::currentThread())
@@ -2375,7 +2375,7 @@ bool PythonContext::WaitForDebugger()
   return ret;
 }
 
-void PythonContext::LaunchDebugger(QWidget *window, PersistantConfig &config, QString context_location)
+void PythonContext::LaunchDebugger(QWidget *window, PersistentConfig &config, QString context_location)
 {
   if(!m_DebugPy)
     return;

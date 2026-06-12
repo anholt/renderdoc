@@ -680,7 +680,7 @@ struct OM
 :type: bool
 )");
   bool depthReadOnly = false;
-  DOCUMENT(R"(``True`` if stenncil access to the depth-stencil target is read-only.
+  DOCUMENT(R"(``True`` if stencil access to the depth-stencil target is read-only.
 
 :type: bool
 )");

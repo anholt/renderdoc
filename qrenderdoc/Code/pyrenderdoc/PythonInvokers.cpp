@@ -1448,7 +1448,7 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
     return m_Obj.CurVulkanPipelineState();
   }
   virtual const PipeState &CurPipelineState() override { return m_Obj.CurPipelineState(); }
-  virtual PersistantConfig &Config() override { return m_Obj.Config(); }
+  virtual PersistentConfig &Config() override { return m_Obj.Config(); }
   //
   ///////////////////////////////////////////////////////////////////////
   // functions that invoke onto the UI thread

@@ -171,7 +171,7 @@ SWIGPY_DESTRUCTOR_CLOSURE(capviewer_deinit) /* defines capviewer_deinit_destruct
 %include <stdint.i>
 
 %include "Code/Interface/QRDInterface.h"
-%include "Code/Interface/PersistantConfig.h"
+%include "Code/Interface/PersistentConfig.h"
 %include "Code/Interface/RemoteHost.h"
 %include "Code/Interface/Extensions.h"
 

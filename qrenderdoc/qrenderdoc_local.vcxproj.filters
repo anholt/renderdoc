@@ -591,9 +591,6 @@
     <ClCompile Include="$(IntDir)generated\moc_PythonContext.cpp">
       <Filter>Generated Files</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Interface\PersistantConfig.cpp">
-      <Filter>Code\Interface</Filter>
-    </ClCompile>
     <ClCompile Include="Code\Interface\RemoteHost.cpp">
       <Filter>Code\Interface</Filter>
     </ClCompile>
@@ -797,6 +794,9 @@
     </ClCompile>
     <ClCompile Include="Widgets\Extended\RDToolTip.cpp">
       <Filter>Widgets\Extended</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Interface\PersistentConfig.cpp">
+      <Filter>Code\Interface</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1088,9 +1088,6 @@
     <ClInclude Include="$(IntDir)generated\ui_FindReplace.h">
       <Filter>Generated Files</Filter>
     </ClInclude>
-    <ClInclude Include="Code\Interface\PersistantConfig.h">
-      <Filter>Code\Interface</Filter>
-    </ClInclude>
     <ClInclude Include="Code\Interface\RemoteHost.h">
       <Filter>Code\Interface</Filter>
     </ClInclude>
@@ -1183,6 +1180,9 @@
     </ClInclude>
     <ClInclude Include="$(IntDir)generated\ui_CameraControlsDialog.h">
       <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\Interface\PersistentConfig.h">
+      <Filter>Code\Interface</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

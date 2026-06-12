@@ -127,7 +127,7 @@ struct MeshFormat
 :type: ResourceId
 )");
   ResourceId indexResourceId;
-  DOCUMENT(R"(The offset in bytes where the indices start in idxbuf.
+  DOCUMENT(R"(The offset in bytes where the indices start in :data:`indexResourceId`.
 
 :type: int
 )");
@@ -330,7 +330,7 @@ MeshDisplay()
 MeshDisplay(other: MeshDisplay)
 
 Describes how to render a mesh preview of one or more meshes. Describes the camera configuration as
-well as what options to use when rendering both the current mesh, and any other auxilliary meshes.
+well as what options to use when rendering both the current mesh, and any other auxiliary meshes.
 
 .. data:: NoHighlight
 
@@ -1328,7 +1328,7 @@ struct GPUDevice
 :type: GPUVendor
 )");
   GPUVendor vendor = GPUVendor::Unknown;
-  DOCUMENT(R"(The PCI deviceID of this GPU.
+  DOCUMENT(R"(The PCI device ID of this GPU.
 
 :type: int
 )");

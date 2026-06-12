@@ -106,7 +106,7 @@ struct ShaderProcessingTool
 :type: str
 )");
   rdcstr executable;
-  DOCUMENT(R"(The command line argmuents to pass to the program.
+  DOCUMENT(R"(The command line arguments to pass to the program.
 
 :type: str
 )");
@@ -237,7 +237,7 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   type name;
 
 // Since this macro is already complex enough, the documentation for each of these members is
-// in the docstring for PersistantConfig as :data: members.
+// in the docstring for PersistentConfig as :data: members.
 // Please keep that docstring up to date when you add/remove/change these config settings.
 // Note that only public properties should be documented.
 #define CONFIG_SETTINGS()                                                                          \
@@ -661,7 +661,7 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING_VAL(public, QString, rdcstr, ExternalTool_RadeonGPUProfiler, "")                  \
                                                                                                    \
   DOCUMENT(                                                                                        \
-      "``True`` if the user has had the annotation viewer displayed when hidden upon loading a"    \
+      "``True`` if the user has had the annotation viewer displayed when hidden upon loading a "   \
       "capture that contains annotations. After this is set to true, we won't auto-show the \n"    \
       "annotation viewer automatically.\n"                                                         \
       "\n"                                                                                         \
@@ -814,19 +814,19 @@ DOCUMENT(R"(The unit that GPU durations are displayed in.
 
 .. data:: Seconds
 
-  The durations are displayed as seconds (s).
+  The durations are displayed as seconds (``s``).
 
 .. data:: Milliseconds
 
-  The durations are displayed as milliseconds (ms).
+  The durations are displayed as milliseconds (``ms``).
 
 .. data:: Microseconds
 
-  The durations are displayed as microseconds (µs).
+  The durations are displayed as microseconds (``µs``).
 
 .. data:: Nanoseconds
 
-  The durations are displayed as nanoseconds (ns).
+  The durations are displayed as nanoseconds (``ns``).
 )");
 enum class TimeUnit : int
 {
@@ -896,9 +896,9 @@ struct CustomPersistentStorage
 #endif
 
 DOCUMENT(R"(
-PersistantConfig()
+PersistentConfig()
 
-A persistant config file that is automatically loaded and saved, which contains any
+A persistent config file that is automatically loaded and saved, which contains any
 settings and information that needs to be preserved from one run to the next.
 
 The config is retrieved by calling :meth:`CaptureContext.Config`.
@@ -906,7 +906,7 @@ The config is retrieved by calling :meth:`CaptureContext.Config`.
 For more information about some of these settings that are user-facing see
 :ref:`the documentation for the settings window <settings-window>`.
 )");
-class PersistantConfig
+class PersistentConfig
 {
 public:
   DOCUMENT(R"(Returns a list of all remote hosts.
@@ -939,8 +939,8 @@ public:
   DOCUMENT("");
   CONFIG_SETTINGS()
 public:
-  PersistantConfig();
-  ~PersistantConfig();
+  PersistentConfig();
+  ~PersistentConfig();
 
   DOCUMENT(R"(Loads the config from a given filename. This happens automatically on startup, so it's
 not recommended that you call this function manually.

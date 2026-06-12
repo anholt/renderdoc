@@ -532,7 +532,7 @@ layout type widgets.
   virtual QWidget *GetChild(QWidget *parent, int32_t index) = 0;
 
   DOCUMENT(R"(Destroy a widget. Widgets stay alive unless explicitly destroyed here, OR in one other
-case when they are in a widget hiearchy under a top-level window which the user closes, which can
+case when they are in a widget hierarchy under a top-level window which the user closes, which can
 be detected with the callback parameter in :meth:`CreateToplevelWidget`.
 
 If the widget being destroyed is a top-level window, it will be closed. Otherwise if it is part of a
@@ -564,7 +564,7 @@ The dialog is only closed when the user closes the window explicitly or if you c
   DOCUMENT(R"(Close the active modal dialog. This does nothing if no dialog is being shown.
 
 .. note::
-  Closing a dialog 'sucessfully' does nothing except modify the return value of
+  Closing a dialog 'successfully' does nothing except modify the return value of
   :meth:`ShowWidgetAsDialog`. It allows quick distinguishing between OK and Cancel actions without
   having to carry that information separately in a global or other state.
 
@@ -836,7 +836,7 @@ output so there is no need to do that manually.
 )");
   virtual void SetWidgetReplayOutput(QWidget *widget, IReplayOutput *output) = 0;
 
-  DOCUMENT(R"(Set the default backkground color for a rendering widget. This background color is
+  DOCUMENT(R"(Set the default background color for a rendering widget. This background color is
 used when no output is currently configured, e.g. when a capture is closed.
 
 For all other widget types this has no effect.
@@ -1040,7 +1040,7 @@ the current value.
 
 If maximum is smaller than minimum, minimum is set as the maximum, too. If the current value falls
 outside the new range, the progress bar is reset. Use range (0, 0) to set the progress bar to
-indeterminated state (the progress cannot be estimated or is not being calculated).
+indeterminate state (the progress cannot be estimated or is not being calculated).
 
 :param QWidget pbar: the progress bar.
 :param int minimum: the minimum value.

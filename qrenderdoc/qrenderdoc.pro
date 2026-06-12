@@ -181,7 +181,7 @@ SOURCES += Code/qrenderdoc.cpp \
     Code/Interface/QRDInterface.cpp \
     Code/Interface/Analytics.cpp \
     Code/Interface/ShaderProcessingTool.cpp \
-    Code/Interface/PersistantConfig.cpp \
+    Code/Interface/PersistentConfig.cpp \
     Code/Interface/RemoteHost.cpp \
     Styles/StyleData.cpp \
     Styles/RDStyle/RDStyle.cpp \
@@ -270,7 +270,7 @@ HEADERS += Code/CaptureContext.h \
     Code/pyrenderdoc/interface_check.h \
     Code/Interface/QRDInterface.h \
     Code/Interface/Analytics.h \
-    Code/Interface/PersistantConfig.h \
+    Code/Interface/PersistentConfig.h \
     Code/Interface/Extensions.h \
     Code/Interface/RemoteHost.h \
     Styles/StyleData.h \

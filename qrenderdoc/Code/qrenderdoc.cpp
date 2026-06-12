@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
 
     {
       QCoreApplication application(argc, mod_argv);
-      PersistantConfig cfg;
+      PersistentConfig cfg;
       PythonContext::GlobalInit(cfg);
 
       logstream << "Checking python binding consistency.\n";
@@ -509,7 +509,7 @@ int main(int argc, char *argv[])
   RegisterMetatypeConversions();
 
   {
-    PersistantConfig config;
+    PersistentConfig config;
 
     {
       QString configPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);

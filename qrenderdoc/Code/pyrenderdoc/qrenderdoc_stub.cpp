@@ -93,7 +93,7 @@ ShaderToolOutput ShaderProcessingTool::CompileShader(QWidget *window, rdcstr sou
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PersistantConfig.cpp stubs
+// PersistentConfig.cpp stubs
 ////////////////////////////////////////////////////////////////////////////////
 
 rdcstr BugReport::URL() const
@@ -101,56 +101,56 @@ rdcstr BugReport::URL() const
   return "";
 }
 
-bool PersistantConfig::SetStyle()
+bool PersistentConfig::SetStyle()
 {
   return false;
 }
 
-PersistantConfig::PersistantConfig()
+PersistentConfig::PersistentConfig()
 {
 }
 
-PersistantConfig::~PersistantConfig()
+PersistentConfig::~PersistentConfig()
 {
 }
 
-bool PersistantConfig::Load(const rdcstr &filename)
-{
-  return false;
-}
-
-bool PersistantConfig::Save()
+bool PersistentConfig::Load(const rdcstr &filename)
 {
   return false;
 }
 
-void PersistantConfig::Close()
+bool PersistentConfig::Save()
+{
+  return false;
+}
+
+void PersistentConfig::Close()
 {
 }
 
-rdcarray<RemoteHost> PersistantConfig::GetRemoteHosts()
+rdcarray<RemoteHost> PersistentConfig::GetRemoteHosts()
 {
   return {};
 }
 
-RemoteHost PersistantConfig::GetRemoteHost(const rdcstr &)
+RemoteHost PersistentConfig::GetRemoteHost(const rdcstr &)
 {
   return RemoteHost();
 }
 
-void PersistantConfig::AddRemoteHost(RemoteHost host)
+void PersistentConfig::AddRemoteHost(RemoteHost host)
 {
 }
 
-void PersistantConfig::RemoveRemoteHost(RemoteHost host)
+void PersistentConfig::RemoveRemoteHost(RemoteHost host)
 {
 }
 
-void PersistantConfig::UpdateEnumeratedProtocolDevices()
+void PersistentConfig::UpdateEnumeratedProtocolDevices()
 {
 }
 
-void PersistantConfig::SetupFormatting()
+void PersistentConfig::SetupFormatting()
 {
 }
 

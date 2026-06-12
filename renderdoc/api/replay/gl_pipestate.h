@@ -78,8 +78,8 @@ struct VertexAttribute
 
   DOCUMENT(R"(Only valid for integer formatted attributes, ``True`` if they are cast to float.
 
-This is because they were specified with an integer format but glVertexAttribFormat (not
-glVertexAttribIFormat) so they will be cast.
+This is because they were specified with an integer format but ``glVertexAttribFormat`` (not
+``glVertexAttribIFormat``) so they will be cast.
 
 :type: bool
 )");

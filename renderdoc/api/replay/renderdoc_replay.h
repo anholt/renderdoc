@@ -191,7 +191,7 @@ inline const WindowingData CreateAndroidWindowingData(ANativeWindow *window)
 typedef void *NSView;
 typedef void *CALayer;
 
-DOCUMENT(R"(Create a :class:`WindowingData` for an metal/opengl-compatible macOS ``CALayer`` handle
+DOCUMENT(R"(Create a :class:`WindowingData` for an Metal/OpenGL-compatible macOS ``CALayer`` handle
 and ``NSView`` handle (as void pointers).
 
 :param NSView view: The native ``NSView`` handle for this window.
@@ -581,7 +581,7 @@ Multiple ranges within the store can be queried at once, and are returned in a c
 
   DOCUMENT(R"(Retrieve the list of possible disassembly targets for :meth:`DisassembleShader`. The
 values are implementation dependent but will always include a default target first which is the
-native disassembly of the shader. Further options may be available for additional diassembly views
+native disassembly of the shader. Further options may be available for additional disassembly views
 or hardware-specific ISA formats.
 
 :param bool withPipeline: More disassembly may be available when a pipeline is specified.
@@ -1214,7 +1214,7 @@ The details of the types of messages that can be received are listed under
 :class:`TargetControlMessage`.
 
 .. note:: If no message has been received, this function will pump the connection. You are expected
-  to continually call this function and process any messages to kee pthe connection alive.
+  to continually call this function and process any messages to keep the connection alive.
 
   This function will block but only to a limited degree. If no message is waiting after a small time
   it will return with a No-op message to allow further processing.
@@ -1378,14 +1378,14 @@ by calling :meth:`EmbedDependenciesIntoCapture`.
 )");
   virtual ResultDetails RemoveDependenciesFromCapture() = 0;
 
-  DOCUMENT(R"(Are there any depdendent files embedded in the capture i.e. shader debug files.
+  DOCUMENT(R"(Are there any dependent files embedded in the capture i.e. shader debug files.
 
 :return: ``True`` if the capture has embedded dependent files, or ``False`` if the capture does not any embedded dependent files.
 :rtype: bool
 )");
   virtual bool HasEmbeddedDependencies() = 0;
 
-  DOCUMENT(R"(Does the capture have references to dependecies i.e. shader debug files.
+  DOCUMENT(R"(Does the capture have references to dependencies i.e. shader debug files.
 
 :return: ``True`` if the capture has references to dependent files, or ``False`` if the capture does not contain references to dependent files.
 :rtype: bool
@@ -1396,7 +1396,7 @@ by calling :meth:`EmbedDependenciesIntoCapture`.
 by the capture i.e. shader debug files.
 
 .. note::
-  The nicknames can be arbitary and do not have to be a filename or a file path.
+  The nicknames can be arbitrary and do not have to be a filename or a file path.
 
 :return: A list of the nicknames used to reference dependencies.
 :rtype: List[str]
@@ -1690,7 +1690,7 @@ microseconds. May be 1.0 if all timestamps and durations are already in microsec
 )");
   virtual double TimestampFrequency() = 0;
 
-  DOCUMENT(R"(Sets the matadata for this capture handle.
+  DOCUMENT(R"(Sets the metadata for this capture handle.
 
 This function may only be called if the handle is 'empty' - i.e. no file has been opened with
 :meth:`OpenFile` or :meth:`OpenBuffer`.
@@ -2120,7 +2120,7 @@ DOCUMENT(R"(When debugging RenderDoc it can be useful to capture itself by doing
 temporary name. This function checks to see if a given self-hosted DLL is available.
 
 :param str dllname: The name of the self-hosted capture module.
-:return: Whether the specified dll is loaded, ready for self-hosted capture.
+:return: Whether the specified DLL is loaded, ready for self-hosted capture.
 :rtype: bool
 )");
 extern "C" RENDERDOC_API bool RENDERDOC_CC RENDERDOC_CanSelfHostedCapture(const rdcstr &dllname);
@@ -2263,7 +2263,7 @@ extern "C" RENDERDOC_API bool RENDERDOC_CC RENDERDOC_IsReleaseBuild();
 
 DOCUMENT(R"(Retrieves the commit hash used to build.
 
-This will be in the form "0123456789abcdef0123456789abcdef01234567"
+This will be in the form ``0123456789abcdef0123456789abcdef01234567``
 
 :return: The commit hash.
 :rtype: str

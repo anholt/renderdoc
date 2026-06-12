@@ -593,8 +593,8 @@ value.
   bytebuf specializationData;
 
   DOCUMENT(R"(The specialization constant ID for each entry in the specialization constant block of
-reflection info. This corresponds to the constantID in VkSpecializationMapEntry, while the offset
-and size into specializationData can be obtained from the reflection info.
+reflection info. This corresponds to the ``constantID`` in ``VkSpecializationMapEntry``, while the offset
+and size into ``specializationData`` can be obtained from the reflection info.
 
 :type: List[int]
 )")
@@ -857,7 +857,7 @@ and a fragment in none of them is discarded.
 )");
   bool discardRectanglesExclusive = true;
 
-  DOCUMENT(R"(Whether depth clip range is set to [-1, 1] through VK_EXT_depth_clip_control.
+  DOCUMENT(R"(Whether depth clip range is set to ``[-1, 1]`` through ``VK_EXT_depth_clip_control``.
 
 :type: bool
 )");
@@ -1208,8 +1208,8 @@ Describes the setup of a renderpass and subpasses.
 
 .. data:: AttachmentUnused
 
-  Alias for VK_ATTACHMENT_UNUSED, for use by the UI to know when a value in colorAttachmentLocations
-  or colorAttachmentInputIndices is mapped to VK_ATTACHMENT_UNUSED.
+  Alias for ``VK_ATTACHMENT_UNUSED``, for use by the UI to know when a value in ``colorAttachmentLocations``
+  or ``colorAttachmentInputIndices`` is mapped to ``VK_ATTACHMENT_UNUSED``.
 )");
 struct RenderPass
 {
@@ -1329,19 +1329,19 @@ If the list is empty, multiview is disabled and rendering is as normal.
 )");
   rdcarray<uint32_t> multiviews;
 
-  DOCUMENT(R"(If VK_QCOM_fragment_density_map_offset is enabled, contains a list of offsets applied 
+  DOCUMENT(R"(If ``VK_QCOM_fragment_density_map_offset`` is enabled, contains a list of offsets applied 
 to the fragment density map during rendering.
 
-If the list is empty, fdm_offset is disabled and rendering is as normal.
+If the list is empty, ``fdm_offset`` is disabled and rendering is as normal.
 
 :type: List[Offset]
 )");
   rdcarray<Offset> fragmentDensityOffsets;
 
-  DOCUMENT(R"(If VK_EXT_multisampled_render_to_single_sampled is enabled, contains the number of
+  DOCUMENT(R"(If ``VK_EXT_multisampled_render_to_single_sampled`` is enabled, contains the number of
 samples used to render this subpass.
 
-If the subpass is not internally multisampled, tileOnlyMSAASampleCount is set to 0.
+If the subpass is not internally multisampled, ``tileOnlyMSAASampleCount`` is set to 0.
 
 :type: int
 )");

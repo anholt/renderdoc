@@ -126,7 +126,7 @@ rdcstrpairs convertFromVariant(const QVariantMap &val)
   return ret;
 }
 
-bool PersistantConfig::Deserialize(const rdcstr &filename)
+bool PersistentConfig::Deserialize(const rdcstr &filename)
 {
   QFile f(filename);
 
@@ -155,7 +155,7 @@ bool PersistantConfig::Deserialize(const rdcstr &filename)
   return false;
 }
 
-bool PersistantConfig::Serialize(const rdcstr &filename)
+bool PersistentConfig::Serialize(const rdcstr &filename)
 {
   if(!filename.isEmpty())
     m_Filename = filename;
@@ -193,7 +193,7 @@ CustomPersistentStorage::CustomPersistentStorage(rdcstr name)
     GetCustomStorage().push_back({name, this});
 }
 
-QVariantMap PersistantConfig::storeValues() const
+QVariantMap PersistentConfig::storeValues() const
 {
   QVariantMap ret;
 
@@ -224,7 +224,7 @@ QVariantMap PersistantConfig::storeValues() const
   return ret;
 }
 
-void PersistantConfig::applyValues(const QVariantMap &values)
+void PersistentConfig::applyValues(const QVariantMap &values)
 {
 #undef CONFIG_SETTING_VAL
 #undef CONFIG_SETTING
@@ -325,13 +325,13 @@ void PersistantConfig::applyValues(const QVariantMap &values)
 
 static QMutex RemoteHostLock;
 
-rdcarray<RemoteHost> PersistantConfig::GetRemoteHosts()
+rdcarray<RemoteHost> PersistentConfig::GetRemoteHosts()
 {
   QMutexLocker autolock(&RemoteHostLock);
   return RemoteHostList;
 }
 
-RemoteHost PersistantConfig::GetRemoteHost(const rdcstr &hostname)
+RemoteHost PersistentConfig::GetRemoteHost(const rdcstr &hostname)
 {
   RemoteHost ret;
 
@@ -350,7 +350,7 @@ RemoteHost PersistantConfig::GetRemoteHost(const rdcstr &hostname)
   return ret;
 }
 
-void PersistantConfig::AddRemoteHost(RemoteHost host)
+void PersistentConfig::AddRemoteHost(RemoteHost host)
 {
   if(!host.IsValid())
     return;
@@ -370,7 +370,7 @@ void PersistantConfig::AddRemoteHost(RemoteHost host)
   RemoteHostList.push_back(host);
 }
 
-void PersistantConfig::RemoveRemoteHost(RemoteHost host)
+void PersistentConfig::RemoveRemoteHost(RemoteHost host)
 {
   if(!host.IsValid())
     return;
@@ -387,7 +387,7 @@ void PersistantConfig::RemoveRemoteHost(RemoteHost host)
   }
 }
 
-void PersistantConfig::UpdateEnumeratedProtocolDevices()
+void PersistentConfig::UpdateEnumeratedProtocolDevices()
 {
   rdcarray<RemoteHost> enumeratedDevices;
 
@@ -441,7 +441,7 @@ void PersistantConfig::UpdateEnumeratedProtocolDevices()
   }
 }
 
-bool PersistantConfig::SetStyle()
+bool PersistentConfig::SetStyle()
 {
   for(int i = 0; i < StyleData::numAvailable; i++)
   {
@@ -460,17 +460,17 @@ bool PersistantConfig::SetStyle()
   return false;
 }
 
-PersistantConfig::PersistantConfig()
+PersistentConfig::PersistentConfig()
 {
   m_Legacy = new LegacyData;
 }
 
-PersistantConfig::~PersistantConfig()
+PersistentConfig::~PersistentConfig()
 {
   delete m_Legacy;
 }
 
-bool PersistantConfig::Load(const rdcstr &filename)
+bool PersistentConfig::Load(const rdcstr &filename)
 {
   bool ret = Deserialize(filename);
 
@@ -597,7 +597,7 @@ bool PersistantConfig::Load(const rdcstr &filename)
   return ret;
 }
 
-bool PersistantConfig::Save()
+bool PersistentConfig::Save()
 {
   if(m_Filename.isEmpty())
     return true;
@@ -623,12 +623,12 @@ bool PersistantConfig::Save()
   return ret;
 }
 
-void PersistantConfig::Close()
+void PersistentConfig::Close()
 {
   m_Filename = QString();
 }
 
-void PersistantConfig::SetupFormatting()
+void PersistentConfig::SetupFormatting()
 {
   Formatter::setParams(*this);
 }

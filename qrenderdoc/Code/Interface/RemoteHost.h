@@ -29,7 +29,7 @@ class RemoteHost;
 // do not include any headers here, they must all be in QRDInterface.h
 #include "QRDInterface.h"
 
-class PersistantConfig;
+class PersistentConfig;
 class ReplayManager;
 
 struct RemoteHostData;
@@ -169,7 +169,8 @@ public:
 :rtype: bool
 )");
   bool IsLocalhost() const { return m_hostname == "localhost"; }
-  DOCUMENT(R"(Returns ``True`` if this host represents a valid remote host.
+  DOCUMENT(R"(
+:return: Returns ``True`` if this host represents a valid remote host.
 :rtype: bool
 )");
   bool IsValid() const { return m_data && !m_hostname.isEmpty(); }
@@ -184,7 +185,7 @@ private:
   RemoteHostData *m_data = NULL;
 
   // allow config to set our data
-  friend class PersistantConfig;
+  friend class PersistentConfig;
   void SetFriendlyName(const rdcstr &name);
 
   // allow ReplayManager to call these functions to change the status. Otherwise they are read-only

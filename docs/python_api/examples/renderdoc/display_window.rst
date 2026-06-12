@@ -7,7 +7,7 @@ In this example we will open a window and iterate through the capture on a loop,
 
     This is intended for use with the python module directly, as the UI already has a texture viewer panel to do this with much more control. The principle is the same though and it can be useful reference of how to iterate over a capture.
 
-To create a window we use tkinter, since it is provided with the Python distribution.
+To create a window we use ``tkinter``, since it is provided with the Python distribution.
 
 .. highlight:: python
 .. code:: python
@@ -19,7 +19,7 @@ To create a window we use tkinter, since it is provided with the Python distribu
     window = tkinter.Tk()
     window.geometry("1280x720")
 
-Next we need to determine which windowing systems the RenderDoc implementation supports, and create a :py:class:`~renderdoc.WindowingData` object for the window we want to render to. For the purposes of this example we will look for Win32 since it's the simplest to set up - needing only a window handle that we can get from tkinter easily. XCB/XLib require a display connection, which would be possible to get from another library such as Qt.
+Next we need to determine which windowing systems the RenderDoc implementation supports, and create a :py:class:`~renderdoc.WindowingData` object for the window we want to render to. For the purposes of this example we will look for Win32 since it's the simplest to set up - needing only a window handle that we can get from ``tkinter`` easily. ``XCB``/``XLib`` require a display connection, which would be possible to get from another library such as Qt.
 
 Once we have the :py:class:`~renderdoc.WindowingData`, we can create a :py:class:`~renderdoc.ReplayOutput` using :py:meth:`~renderdoc.ReplayController.CreateOutput`.
 
@@ -43,7 +43,7 @@ Once we have the :py:class:`~renderdoc.WindowingData`, we can create a :py:class
     # Create a texture output on the window
     out = controller.CreateOutput(windata, rd.ReplayOutputType.Texture)
 
-In order to iterate over all actions we need some global state first from :py:meth:`~renderdoc.ReplayController.GetTextures` and :py:meth:`~renderdoc.ReplayController.GetRootActions`, and we'll also define a helper function to fetch a particular texture by resourceId, so that we can easily look up the details for a texture.
+In order to iterate over all actions we need some global state first from :py:meth:`~renderdoc.ReplayController.GetTextures` and :py:meth:`~renderdoc.ReplayController.GetRootActions`, and we'll also define a helper function to fetch a particular texture by :class:`~renderdoc.ResourceId`, so that we can easily look up the details for a texture.
 
 .. highlight:: python
 .. code:: python
@@ -128,7 +128,7 @@ Finally we move to the next action in the list for the next time ``advance`` is 
         else:
             window.after(50, advance)
 
-Once we have the callbacks defined, we call them once to initialise the display and set up the repeated callbacks, and start the tkinter main window loop.
+Once we have the callbacks defined, we call them once to initialise the display and set up the repeated callbacks, and start the ``tkinter`` main window loop.
 
 .. highlight:: python
 .. code:: python

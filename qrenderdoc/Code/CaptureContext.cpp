@@ -68,7 +68,7 @@
 
 #include "pipestate.inl"
 
-CaptureContext::CaptureContext(PersistantConfig &cfg) : m_Config(cfg)
+CaptureContext::CaptureContext(PersistentConfig &cfg) : m_Config(cfg)
 {
   RENDERDOC_PROFILEFUNCTION();
 
