@@ -326,7 +326,7 @@ void MakeShaderReflection(DXBC::DXBCContainer *dxbc, const ShaderEntryPoint &ent
   {
     refl->debugInfo.encoding = ShaderEncoding::HLSL;
 
-    refl->debugInfo.sourceDebugInformation = true;
+    refl->debugInfo.sourceDebugInformation = dxbc->GetDebugInfo()->HasSourceDebugInfo();
 
     refl->debugInfo.compileFlags = dxbc->GetDebugInfo()->GetShaderCompileFlags();
 

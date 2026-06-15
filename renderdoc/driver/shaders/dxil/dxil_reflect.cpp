@@ -1663,7 +1663,7 @@ DXBC::Reflection *Program::BuildReflection()
       }
     }
     if(!Files.empty())
-      m_CompileFlags.flags.push_back({"preferSourceDebug", "1"});
+      m_SourceInfo = true;
   }
 
   if(dx.source.args && dx.source.args->children.size() == 1)

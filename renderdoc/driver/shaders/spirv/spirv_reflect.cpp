@@ -1085,7 +1085,6 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
 
   if(knownExtSet[ExtSet_ShaderDbg] != Id() && !reflection.debugInfo.files.empty())
   {
-    reflection.debugInfo.compileFlags.flags.push_back({"preferSourceDebug", "1"});
     reflection.debugInfo.sourceDebugInformation = true;
   }
 

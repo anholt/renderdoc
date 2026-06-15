@@ -1717,6 +1717,7 @@ public:
   rdcstr GetCompilerSig() const override { return m_CompilerSig; }
   rdcstr GetEntryFunction() const override { return m_EntryPoint; }
   rdcstr GetShaderProfile() const override { return m_Profile; }
+  bool HasSourceDebugInfo() const override { return m_SourceInfo; }
   ShaderCompileFlags GetShaderCompileFlags() const override { return m_CompileFlags; }
   void GetLineInfo(size_t instruction, uintptr_t offset, LineColumnInfo &lineInfo) const override;
   void GetCallstack(size_t instruction, uintptr_t offset, rdcarray<rdcstr> &callstack) const override;
@@ -1793,6 +1794,7 @@ protected:
   uint32_t m_DXILVersion;
 
   rdcstr m_CompilerSig, m_EntryPoint, m_Profile;
+  bool m_SourceInfo = false;
   ShaderCompileFlags m_CompileFlags;
   DXBC::ThreadScope m_Threadscope = DXBC::ThreadScope::Thread;
 

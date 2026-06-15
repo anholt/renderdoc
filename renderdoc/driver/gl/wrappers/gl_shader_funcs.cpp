@@ -329,8 +329,6 @@ void WrappedOpenGL::ShaderData::ProcessCompilation(WrappedOpenGL &drv, ResourceI
           reflection->debugInfo.debugStatus = spvReflection.debugInfo.debugStatus;
           reflection->debugInfo.sourceDebugInformation =
               spvReflection.debugInfo.sourceDebugInformation;
-          if(reflection->debugInfo.sourceDebugInformation)
-            reflection->debugInfo.compileFlags.flags.push_back({"preferSourceDebug", "1"});
 
           if(HasExt[ARB_shader_storage_buffer_object])
           {
