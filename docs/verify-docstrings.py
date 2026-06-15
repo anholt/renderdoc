@@ -188,7 +188,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
 
     global_pattern = ''
     if global_func:
-        global_pattern = '(RENDERDOC_CC\s*RENDERDOC_)?'
+        global_pattern = r'(RENDERDOC_CC\s*RENDERDOC_)?'
 
     pattern = r'(?s){} ?{}{}\(\s*{}\)'.format(make_c_typeval(ret, True, typelist), global_pattern, objname, funcargs[0])
     clean = '{} {}({})'.format(make_c_typeval(ret, False, typelist), objname, funcargs[1])
@@ -232,10 +232,10 @@ def check_used_types(objname, module, used_types):
                 break
 
             # Allow some types that are opaque
-            if parent == rd and t in ['ANativeWindow', 'NSView', 'CALayer', 'wl_display', 'wl_surface', 'HWND', 'xcb_connection_t', 'xcb_window_t', 'Display', 'Drawable']:
+            if parent is rd and t in ['ANativeWindow', 'NSView', 'CALayer', 'wl_display', 'wl_surface', 'HWND', 'xcb_connection_t', 'xcb_window_t', 'Display', 'Drawable']:
                 break
 
-            if parent == qrd and t in ['QWidget']:
+            if parent is qrd and t in ['QWidget']:
                 break
 
             idx = t.find('.')
@@ -394,14 +394,14 @@ for mod_name in check_mods:
                     if type(value).__module__ != mod_name:
                         type_name = type(value).__module__ + '.' + type_name
 
-                    type_name = re.sub('(.*)rdcarray_of_(.*)', 'List[\\1\\2]', type_name)
-                    type_name = re.sub('(renderdoc\.)?u?int[163264]{2}_t', 'int', type_name)
-                    type_name = re.sub('(renderdoc\.)?rdcstr', 'str', type_name)
-                    type_name = re.sub('Pipe_', '', type_name)
-                    type_name = re.sub('StructuredBufferList', 'List[bytes]', type_name)
-                    type_name = re.sub('StructuredObjectList', 'List[SDObject]', type_name)
-                    type_name = re.sub('StructuredChunkList', 'List[SDChunk]', type_name)
-                    type_name = re.sub('^builtins.', '', type_name)
+                    type_name = re.sub(r'(.*)rdcarray_of_(.*)', 'List[\\1\\2]', type_name)
+                    type_name = re.sub(r'(renderdoc\.)?u?int[163264]{2}_t', 'int', type_name)
+                    type_name = re.sub(r'(renderdoc\.)?rdcstr', 'str', type_name)
+                    type_name = re.sub(r'Pipe_', '', type_name)
+                    type_name = re.sub(r'StructuredBufferList', 'List[bytes]', type_name)
+                    type_name = re.sub(r'StructuredObjectList', 'List[SDObject]', type_name)
+                    type_name = re.sub(r'StructuredChunkList', 'List[SDChunk]', type_name)
+                    type_name = re.sub(r'^builtins.', '', type_name)
 
                     if 'importlib._bootstrap' in type_name:
                         type_name = re.sub('^importlib._bootstrap.', '', type_name)
