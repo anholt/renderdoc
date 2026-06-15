@@ -1544,7 +1544,7 @@ or an error has occurred.
 
 :param int proxyid: The index in the array returned by :meth:`LocalProxies` to use as a local proxy,
   or :data:`NoPreference` to indicate no preference for any proxy.
-:param str logfile: The path on the remote system where the file is. If the file is only available
+:param str filename: The path on the remote system where the file is. If the file is only available
   locally you can use :meth:`CopyCaptureToRemote` to transfer it over the remote connection.
 :param ReplayOptions opts: The options controlling how the capture should be replayed.
 :param Callable[[float], None] progress: A callback that will be repeatedly called with an updated progress
@@ -1555,7 +1555,7 @@ or an error has occurred.
 :rtype: Tuple[ResultDetails,ReplayController]
 )");
   virtual rdcpair<ResultDetails, IReplayController *> OpenCapture(
-      uint32_t proxyid, const rdcstr &logfile, const ReplayOptions &opts,
+      uint32_t proxyid, const rdcstr &filename, const ReplayOptions &opts,
       RENDERDOC_ProgressCallback progress) = 0;
 
   DOCUMENT(R"(Close a capture analysis handle previously opened by :meth:`OpenCapture`.
@@ -2046,13 +2046,13 @@ This function must be called when the process is running with administrator/supe
 
 :param str pathmatch: A string to match against each new process's executable path to determine
   which corresponds to the program we actually want to capture.
-:param str logfile: Where to store any captures.
+:param str capturefile: Where to store any captures.
 :param CaptureOptions opts: The capture options to use when injecting into the program.
 :return: The result of the operation, if the result succeeded the hook is now active.
 :rtype: ResultDetails
 )");
 extern "C" RENDERDOC_API ResultDetails RENDERDOC_CC RENDERDOC_StartGlobalHook(
-    const rdcstr &pathmatch, const rdcstr &logfile, const CaptureOptions &opts);
+    const rdcstr &pathmatch, const rdcstr &capturefile, const CaptureOptions &opts);
 
 DOCUMENT(R"(Stop the global hook that was activated by :func:`StartGlobalHook`.
 
