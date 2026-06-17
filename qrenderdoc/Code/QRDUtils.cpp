@@ -56,6 +56,7 @@
 #include "Code/Resources.h"
 #include "Widgets/Extended/RDListWidget.h"
 #include "Widgets/Extended/RDTreeWidget.h"
+#include "scintilla/include/qt/ScintillaEdit.h"
 
 // normally this is in the renderdoc core library, but it's needed for the 'unknown enum' path,
 // so we implement it here using QString. It's inefficient, but this is a very uncommon path -
@@ -3677,6 +3678,15 @@ void UpdateVisibleColumns(rdcstr windowTitle, int columnCount, QHeaderView *head
 
     header->moveSection(header->visualIndex(logicalIdx), i);
   }
+}
+
+void EnsureLineScrolled(ScintillaEdit *editor, int line)
+{
+  int firstLine = editor->firstVisibleLine();
+  int linesVisible = editor->linesOnScreen();
+
+  if(editor->isVisible() && (line < firstLine || line > (firstLine + linesVisible - 1)))
+    editor->setFirstVisibleLine(qMax(0, line - linesVisible / 2));
 }
 
 const rdcarray<SDObject *> &StructuredDataItemModel::objects() const

@@ -1062,6 +1062,10 @@ void *AccessWaylandPlatformInterface(const QByteArray &resource, QWindow *window
 void UpdateVisibleColumns(rdcstr windowTitle, int columnCount, QHeaderView *header,
                           const QStringList &headers);
 
+class ScintillaEdit;
+
+void EnsureLineScrolled(ScintillaEdit *editor, int line);
+
 // A version of QToolButton that can also handle right clicks
 class QRClickToolButton : public QToolButton
 {

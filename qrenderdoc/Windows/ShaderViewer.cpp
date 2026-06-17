@@ -235,36 +235,21 @@ ShaderViewer::ShaderViewer(ICaptureContext &ctx, QWidget *parent)
   ui->outputSig->setFont(Formatter::PreferredFont());
   ui->callstack->setFont(Formatter::PreferredFont());
 
-  // we create this up front so its state stays persistent as much as possible.
-  m_FindReplace = new FindReplace(this);
-
   m_FindResults = MakeEditor(lit("findresults"), QString(), SCLEX_NULL);
   m_FindResults->setReadOnly(true);
   m_FindResults->setWindowTitle(lit("Find Results"));
+
+  // we create this up front so its state stays persistent as much as possible.
+  m_FindReplace = new FindReplace(m_Scintillas, this);
+  m_FindReplace->setFindIndicator(1);
+  m_FindReplace->setDockManager(ui->docking);
+
+  m_FindReplace->setFindAllResultsDisplay(m_FindResults);
 
   // remove margins
   m_FindResults->setMarginWidthN(0, 0);
   m_FindResults->setMarginWidthN(1, 0);
   m_FindResults->setMarginWidthN(2, 0);
-
-  QObject::connect(m_FindReplace, &FindReplace::performFind, this, &ShaderViewer::performFind);
-  QObject::connect(m_FindReplace, &FindReplace::performFindAll, this, &ShaderViewer::performFindAll);
-  QObject::connect(m_FindReplace, &FindReplace::performReplace, this, &ShaderViewer::performReplace);
-  QObject::connect(m_FindReplace, &FindReplace::performReplaceAll, this,
-                   &ShaderViewer::performReplaceAll);
-  QObject::connect(m_FindReplace, &FindReplace::keyPress, [this](QKeyEvent *e) {
-    if(e->key() == Qt::Key_Escape)
-    {
-      // the find replace dialog is the only thing allowed to float. If it's in a floating area,
-      // hide it on escape
-      ToolWindowManagerArea *area = ui->docking->areaOf(m_FindReplace);
-
-      if(area && ui->docking->isFloating(m_FindReplace))
-      {
-        ui->docking->hideToolWindow(m_FindReplace);
-      }
-    }
-  });
 
   ui->docking->addToolWindow(m_FindReplace, ToolWindowManager::NoArea);
   ui->docking->setToolWindowProperties(m_FindReplace, ToolWindowManager::HideOnClose);
@@ -273,17 +258,15 @@ ShaderViewer::ShaderViewer(ICaptureContext &ctx, QWidget *parent)
   ui->docking->setToolWindowProperties(
       m_FindResults, ToolWindowManager::HideOnClose | ToolWindowManager::DisallowFloatWindow);
 
-  QObject::connect(m_FindResults, &ScintillaEdit::doubleClick, this,
-                   &ShaderViewer::resultsDoubleClick);
-
   {
     m_DisassemblyView =
         MakeEditor(lit("scintillaDisassem"), QString(),
                    m_Ctx.APIProps().pipelineType == GraphicsAPI::Vulkan ? SCLEX_GLSL : SCLEX_HLSL);
     m_DisassemblyView->setReadOnly(true);
 
-    QObject::connect(m_DisassemblyView, &ScintillaEdit::keyPressed, this,
-                     &ShaderViewer::readonly_keyPressed);
+    QObject::connect(m_DisassemblyView, &ScintillaEdit::keyPressed, [this](QKeyEvent *ev) {
+      m_FindReplace->handleEditorKeypress(m_DisassemblyView, ev);
+    });
 
     m_Scintillas.push_back(m_DisassemblyView);
 
@@ -469,13 +452,12 @@ void ShaderViewer::editShader(ResourceId id, ShaderStage stage, const QString &e
     ScintillaEdit *scintilla = AddFileScintilla(name, text, shaderEncoding);
 
     scintilla->setReadOnly(false);
-    QObject::connect(scintilla, &ScintillaEdit::keyPressed, this, &ShaderViewer::editable_keyPressed);
 
     QObject::connect(scintilla, &ScintillaEdit::modified,
                      [this](int type, int, int, int, const QByteArray &, int, int, int) {
                        if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
                                   SC_MOD_BEFOREDELETE))
-                         m_FindState = FindState();
+                         m_FindReplace->clearFindState();
 
                        MarkModification();
                      });
@@ -520,7 +502,8 @@ void ShaderViewer::editShader(ResourceId id, ShaderStage stage, const QString &e
   m_Errors->setMarginWidthN(1, 0);
   m_Errors->setMarginWidthN(2, 0);
 
-  QObject::connect(m_Errors, &ScintillaEdit::keyPressed, this, &ShaderViewer::readonly_keyPressed);
+  QObject::connect(m_Errors, &ScintillaEdit::keyPressed,
+                   [this](QKeyEvent *ev) { m_FindReplace->handleEditorKeypress(m_Errors, ev); });
 
   ui->docking->addToolWindow(
       m_Errors, ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
@@ -687,7 +670,7 @@ void ShaderViewer::debugShader(const ShaderReflection *shader, ResourceId pipeli
         if(m_ShaderDetails->debugInfo.entryLocation.lineStart > 0)
         {
           GUIInvoke::defer(scintilla, [scintilla, this]() {
-            ensureLineScrolled(scintilla, m_ShaderDetails->debugInfo.entryLocation.lineStart);
+            EnsureLineScrolled(scintilla, m_ShaderDetails->debugInfo.entryLocation.lineStart);
           });
         }
       }
@@ -1666,7 +1649,9 @@ ScintillaEdit *ShaderViewer::AddFileScintilla(const QString &name, const QString
   scintilla->setWindowTitle(name);
   ((QWidget *)scintilla)->setProperty("name", name);
 
-  QObject::connect(scintilla, &ScintillaEdit::keyPressed, this, &ShaderViewer::readonly_keyPressed);
+  QObject::connect(scintilla, &ScintillaEdit::keyPressed, [this, scintilla](QKeyEvent *ev) {
+    m_FindReplace->handleEditorKeypress(scintilla, ev);
+  });
 
   ToolWindowManager::AreaReference ref(ToolWindowManager::EmptySpace);
 
@@ -1700,20 +1685,8 @@ ScintillaEdit *ShaderViewer::MakeEditor(const QString &name, const QString &text
   ret->indicSetFore(INDICATOR_REGHIGHLIGHT, SCINTILLA_COLOUR(0, 100, 0));
   ret->indicSetStyle(INDICATOR_REGHIGHLIGHT, INDIC_ROUNDBOX);
 
-  // set up find result highlight style
-  ret->indicSetFore(INDICATOR_FINDRESULT, SCINTILLA_COLOUR(200, 200, 64));
-  ret->indicSetStyle(INDICATOR_FINDRESULT, INDIC_FULLBOX);
-  ret->indicSetAlpha(INDICATOR_FINDRESULT, 50);
-  ret->indicSetOutlineAlpha(INDICATOR_FINDRESULT, 80);
-
-  QColor highlightColor = palette().color(QPalette::Highlight).toRgb();
-
-  ret->indicSetFore(
-      INDICATOR_FINDALLHIGHLIGHT,
-      SCINTILLA_COLOUR(highlightColor.red(), highlightColor.green(), highlightColor.blue()));
-  ret->indicSetStyle(INDICATOR_FINDALLHIGHLIGHT, INDIC_FULLBOX);
-  ret->indicSetAlpha(INDICATOR_FINDALLHIGHLIGHT, 120);
-  ret->indicSetOutlineAlpha(INDICATOR_FINDALLHIGHLIGHT, 180);
+  if(m_FindReplace)
+    m_FindReplace->configureFindIndicator(ret);
 
   // C# Highlight for bookmarks
   ret->markerSetBack(BOOKMARK_MARKER, SCINTILLA_COLOUR(51, 153, 255));
@@ -1748,32 +1721,6 @@ void ShaderViewer::SetTextAndUpdateMargin0(ScintillaEdit *sc, const QString &tex
   sptr_t width = sc->textWidth(SC_MARGIN_RTEXT, QString::number(numLines).toUtf8().data());
 
   sc->setMarginWidthN(0, int(width));
-}
-
-void ShaderViewer::readonly_keyPressed(QKeyEvent *event)
-{
-  if(event->key() == Qt::Key_F && (event->modifiers() & Qt::ControlModifier))
-  {
-    m_FindReplace->setReplaceMode(false);
-    SetFindTextFromCurrentWord();
-    on_findReplace_clicked();
-  }
-
-  if(event->key() == Qt::Key_F3)
-  {
-    if(event->modifiers() & Qt::ControlModifier)
-      SetFindTextFromCurrentWord();
-    find((event->modifiers() & Qt::ShiftModifier) == 0);
-  }
-}
-
-void ShaderViewer::editable_keyPressed(QKeyEvent *event)
-{
-  if(event->key() == Qt::Key_H && (event->modifiers() & Qt::ControlModifier))
-  {
-    m_FindReplace->setReplaceMode(true);
-    on_findReplace_clicked();
-  }
 }
 
 void ShaderViewer::debug_contextMenu(const QPoint &pos)
@@ -4074,7 +4021,7 @@ void ShaderViewer::updateDebugState()
       int pos = m_DisassemblyView->positionFromLine(lineInfo.disassemblyLine - 1);
       m_DisassemblyView->setSelection(pos, pos);
 
-      ensureLineScrolled(m_DisassemblyView, lineInfo.disassemblyLine - 1);
+      EnsureLineScrolled(m_DisassemblyView, lineInfo.disassemblyLine - 1);
     }
 
     if(IsLastState() && (lineInfo.fileIndex < 0 || lineInfo.fileIndex >= m_FileScintillas.count()))
@@ -4140,7 +4087,7 @@ void ShaderViewer::updateDebugState()
         int pos = m_CurInstructionScintilla->positionFromLine(lineInfo.lineStart - 1);
         m_CurInstructionScintilla->setSelection(pos, pos);
 
-        ensureLineScrolled(m_CurInstructionScintilla, lineInfo.lineStart - 1);
+        EnsureLineScrolled(m_CurInstructionScintilla, lineInfo.lineStart - 1);
       }
     }
   }
@@ -5480,15 +5427,6 @@ const ShaderVariable *ShaderViewer::GetDebugVariable(const DebugVariableReferenc
   return NULL;
 }
 
-void ShaderViewer::ensureLineScrolled(ScintillaEdit *s, int line)
-{
-  int firstLine = s->firstVisibleLine();
-  int linesVisible = s->linesOnScreen();
-
-  if(s->isVisible() && (line < firstLine || line > (firstLine + linesVisible - 1)))
-    s->setFirstVisibleLine(qMax(0, line - linesVisible / 2));
-}
-
 uint32_t ShaderViewer::CurrentStep()
 {
   return (uint32_t)m_CurrentStateIdx;
@@ -6269,18 +6207,7 @@ ShaderEncoding ShaderViewer::currentEncoding()
 
 void ShaderViewer::on_findReplace_clicked()
 {
-  if(m_FindReplace->isVisible())
-  {
-    ToolWindowManager::raiseToolWindow(m_FindReplace);
-  }
-  else
-  {
-    ui->docking->moveToolWindow(
-        m_FindReplace, ToolWindowManager::AreaReference(ToolWindowManager::NewFloatingArea));
-    ui->docking->setToolWindowProperties(m_FindReplace, ToolWindowManager::HideOnClose);
-  }
-  ui->docking->areaOf(m_FindReplace)->parentWidget()->activateWindow();
-  m_FindReplace->takeFocus();
+  m_FindReplace->raiseOrShow();
 }
 
 void ShaderViewer::PopulateCompileTools()
@@ -6760,379 +6687,6 @@ ScintillaEdit *ShaderViewer::nextScintilla(ScintillaEdit *cur)
     return m_Scintillas[0];
 
   return NULL;
-}
-
-void ShaderViewer::find(bool down)
-{
-  ScintillaEdit *cur = currentScintilla();
-
-  if(!cur)
-    return;
-
-  QString find = m_FindReplace->findText();
-
-  sptr_t flags = 0;
-
-  if(m_FindReplace->matchCase())
-    flags |= SCFIND_MATCHCASE;
-  if(m_FindReplace->matchWord())
-    flags |= SCFIND_WHOLEWORD;
-  if(m_FindReplace->regexp())
-    flags |= SCFIND_REGEXP | SCFIND_POSIX;
-
-  FindReplace::SearchContext context = m_FindReplace->context();
-
-  QString findHash = QFormatStr("%1%2%3%4").arg(find).arg(flags).arg((int)context).arg(down);
-
-  if(findHash != m_FindState.hash)
-  {
-    m_FindState.hash = findHash;
-    m_FindState.start = 0;
-    m_FindState.end = cur->length();
-    m_FindState.offset = cur->currentPos();
-    if(down && cur->selectionStart() == m_FindState.offset &&
-       cur->selectionEnd() - m_FindState.offset == find.length())
-      m_FindState.offset += find.length();
-  }
-
-  int start = m_FindState.start + m_FindState.offset;
-  int end = m_FindState.end;
-
-  if(!down)
-    end = m_FindState.start;
-
-  QPair<int, int> result = cur->findText(flags, find.toUtf8().data(), start, end);
-
-  m_FindState.prevResult = result;
-
-  if(result.first == -1)
-  {
-    sptr_t maxOffset = down ? 0 : m_FindState.end;
-
-    // if we're at offset 0 searching down, there are no results. Same for offset max and
-    // searching up
-    if(m_FindState.offset == maxOffset)
-      return;
-
-    // otherwise, we can wrap the search around
-
-    if(context == FindReplace::AllFiles)
-    {
-      cur = nextScintilla(cur);
-      ToolWindowManager::raiseToolWindow(cur);
-      cur->activateWindow();
-      cur->QWidget::setFocus();
-    }
-
-    m_FindState.offset = maxOffset;
-
-    start = m_FindState.start + m_FindState.offset;
-    end = m_FindState.end;
-
-    if(!down)
-      end = m_FindState.start;
-
-    result = cur->findText(flags, find.toUtf8().data(), start, end);
-
-    m_FindState.prevResult = result;
-
-    if(result.first == -1)
-      return;
-  }
-
-  cur->setSelection(result.first, result.second);
-
-  ensureLineScrolled(cur, cur->lineFromPosition(result.first));
-
-  if(down)
-    m_FindState.offset = result.second - m_FindState.start;
-  else
-    m_FindState.offset = result.first - m_FindState.start;
-}
-
-void ShaderViewer::performFind()
-{
-  find(m_FindReplace->direction() == FindReplace::Down);
-}
-
-void ShaderViewer::performFindAll()
-{
-  ScintillaEdit *cur = currentScintilla();
-
-  if(!cur)
-    return;
-
-  QString find = m_FindReplace->findText();
-
-  sptr_t flags = 0;
-
-  QString results = tr("Find all \"%1\"").arg(find);
-
-  if(m_FindReplace->matchCase())
-  {
-    flags |= SCFIND_MATCHCASE;
-    results += tr(", Match case");
-  }
-
-  if(m_FindReplace->matchWord())
-  {
-    flags |= SCFIND_WHOLEWORD;
-    results += tr(", Match whole word");
-  }
-
-  if(m_FindReplace->regexp())
-  {
-    flags |= SCFIND_REGEXP | SCFIND_POSIX;
-    results += tr(", with Regular Expressions");
-  }
-
-  FindReplace::SearchContext context = m_FindReplace->context();
-
-  if(context == FindReplace::File)
-    results += tr(", in current file\n");
-  else
-    results += tr(", in all files\n");
-
-  // trash the find state for any incremental finds
-  m_FindState = FindState();
-
-  QList<ScintillaEdit *> scintillas = m_Scintillas;
-
-  if(context == FindReplace::File)
-    scintillas = {cur};
-
-  QList<QPair<int, int>> resultList;
-
-  m_FindAllResults.clear();
-
-  QByteArray findUtf8 = find.toUtf8();
-
-  if(findUtf8.isEmpty())
-    return;
-
-  for(ScintillaEdit *s : scintillas)
-  {
-    sptr_t start = 0;
-    sptr_t end = s->length();
-
-    s->setIndicatorCurrent(INDICATOR_FINDRESULT);
-    s->indicatorClearRange(start, end);
-
-    QPair<int, int> result;
-
-    do
-    {
-      result = s->findText(flags, findUtf8.data(), start, end);
-
-      if(result.first >= 0)
-      {
-        int line = s->lineFromPosition(result.first);
-        sptr_t lineStart = s->positionFromLine(line);
-        sptr_t lineEnd = s->lineEndPosition(line);
-
-        s->indicatorFillRange(result.first, result.second - result.first);
-
-        QString lineText = QString::fromUtf8(s->textRange(lineStart, lineEnd));
-
-        results += QFormatStr("  %1(%2): ").arg(s->windowTitle()).arg(line + 1, 4);
-        int startPos = results.length();
-
-        results += lineText;
-        results += lit("\n");
-
-        resultList.push_back(
-            qMakePair(result.first - lineStart + startPos, result.second - lineStart + startPos));
-
-        m_FindAllResults.push_back({s, result.first});
-      }
-
-      start = result.second;
-
-    } while(result.first >= 0);
-  }
-
-  results += tr("Matching lines: %1").arg(resultList.count());
-
-  m_FindResults->setReadOnly(false);
-  m_FindResults->setText(results.toUtf8().data());
-
-  m_FindResults->setIndicatorCurrent(INDICATOR_FINDALLHIGHLIGHT);
-  m_FindResults->indicatorClearRange(0, m_FindResults->length());
-
-  m_FindResults->setIndicatorCurrent(INDICATOR_FINDRESULT);
-
-  for(QPair<int, int> r : resultList)
-    m_FindResults->indicatorFillRange(r.first, r.second - r.first);
-
-  m_FindResults->setReadOnly(true);
-
-  if(m_FindResults->isVisible())
-  {
-    ToolWindowManager::raiseToolWindow(m_FindResults);
-  }
-  else
-  {
-    ui->docking->moveToolWindow(m_FindResults,
-                                ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
-                                                                 ui->docking->areaOf(cur), 0.2f));
-    ui->docking->setToolWindowProperties(
-        m_FindResults, ToolWindowManager::HideOnClose | ToolWindowManager::DisallowFloatWindow);
-  }
-}
-
-void ShaderViewer::resultsDoubleClick(int position, int line)
-{
-  if(line >= 1 && line - 1 < m_FindAllResults.count())
-  {
-    m_FindResults->setIndicatorCurrent(INDICATOR_FINDALLHIGHLIGHT);
-    m_FindResults->indicatorClearRange(0, m_FindResults->length());
-
-    sptr_t start = m_FindResults->positionFromLine(line);
-    sptr_t length = m_FindResults->lineLength(line);
-    m_FindResults->indicatorFillRange(start, length);
-
-    m_FindResults->setSelection(position, position);
-
-    ScintillaEdit *s = m_FindAllResults[line - 1].first;
-    int resultPos = m_FindAllResults[line - 1].second;
-    ToolWindowManager::raiseToolWindow(s);
-    s->activateWindow();
-    s->QWidget::setFocus();
-    s->clearSelections();
-    s->setSelection(resultPos, resultPos);
-    s->scrollCaret();
-  }
-}
-
-void ShaderViewer::performReplace()
-{
-  ScintillaEdit *cur = currentScintilla();
-
-  if(!cur)
-    return;
-
-  QString find = m_FindReplace->findText();
-
-  if(find.isEmpty())
-    return;
-
-  sptr_t flags = 0;
-
-  if(m_FindReplace->matchCase())
-    flags |= SCFIND_MATCHCASE;
-  if(m_FindReplace->matchWord())
-    flags |= SCFIND_WHOLEWORD;
-  if(m_FindReplace->regexp())
-    flags |= SCFIND_REGEXP | SCFIND_POSIX;
-
-  FindReplace::SearchContext context = m_FindReplace->context();
-
-  bool down = m_FindReplace->direction() == FindReplace::Down;
-  QString findHash = QFormatStr("%1%2%3%4").arg(find).arg(flags).arg((int)context).arg(down);
-
-  // if we didn't have a valid previous find, just do a find and bail
-  if(findHash != m_FindState.hash)
-  {
-    performFind();
-    return;
-  }
-
-  if(m_FindState.prevResult.first == -1)
-    return;
-
-  cur->setTargetRange(m_FindState.prevResult.first, m_FindState.prevResult.second);
-
-  FindState save = m_FindState;
-
-  QString replaceText = m_FindReplace->replaceText();
-
-  // otherwise we have a valid previous find. Do the replace now
-  // note this will invalidate the find state (as most user operations would), so we save/restore
-  // the state
-  if(m_FindReplace->regexp())
-    cur->replaceTargetRE(-1, replaceText.toUtf8().data());
-  else
-    cur->replaceTarget(-1, replaceText.toUtf8().data());
-
-  m_FindState = save;
-
-  // adjust the offset if we replaced text and it went up or down in size
-  m_FindState.offset += (replaceText.count() - find.count());
-
-  // move to the next result
-  performFind();
-}
-
-void ShaderViewer::performReplaceAll()
-{
-  ScintillaEdit *cur = currentScintilla();
-
-  if(!cur)
-    return;
-
-  QString find = m_FindReplace->findText();
-  QString replace = m_FindReplace->replaceText();
-
-  if(find.isEmpty())
-    return;
-
-  sptr_t flags = 0;
-
-  if(m_FindReplace->matchCase())
-    flags |= SCFIND_MATCHCASE;
-  if(m_FindReplace->matchWord())
-    flags |= SCFIND_WHOLEWORD;
-  if(m_FindReplace->regexp())
-    flags |= SCFIND_REGEXP | SCFIND_POSIX;
-
-  FindReplace::SearchContext context = m_FindReplace->context();
-
-  (void)context;
-
-  // trash the find state for any incremental finds
-  m_FindState = FindState();
-
-  QList<ScintillaEdit *> scintillas = m_Scintillas;
-
-  if(context == FindReplace::File)
-    scintillas = {cur};
-
-  int numReplacements = 0;
-
-  for(ScintillaEdit *s : scintillas)
-  {
-    sptr_t start = 0;
-    sptr_t end = s->length();
-
-    QPair<int, int> result;
-
-    QByteArray findUtf8 = find.toUtf8();
-    QByteArray replaceUtf8 = replace.toUtf8();
-
-    do
-    {
-      result = s->findText(flags, findUtf8.data(), start, end);
-
-      if(result.first >= 0)
-      {
-        s->setTargetRange(result.first, result.second);
-
-        if(m_FindReplace->regexp())
-          s->replaceTargetRE(-1, replaceUtf8.data());
-        else
-          s->replaceTarget(-1, replaceUtf8.data());
-
-        numReplacements++;
-      }
-
-      start = result.second + (replaceUtf8.count() - findUtf8.count());
-
-    } while(result.first >= 0);
-  }
-
-  RDDialog::information(
-      this, tr("Replace all"),
-      tr("%1 replacements made in %2 files").arg(numReplacements).arg(scintillas.count()));
 }
 
 void ShaderViewer::ToggleBookmark()

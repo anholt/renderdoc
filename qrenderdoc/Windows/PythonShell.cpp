@@ -37,6 +37,7 @@
 #include "Code/ScintillaSyntax.h"
 #include "Code/pyrenderdoc/PythonContext.h"
 #include "Widgets/Extended/RDToolTip.h"
+#include "Widgets/FindReplace.h"
 #include "scintilla/include/SciLexer.h"
 #include "toolwindowmanager/ToolWindowManagerArea.h"
 #include "ui_PythonShell.h"
@@ -171,6 +172,29 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   QObject::connect(ui->lineInput, &RDLineEdit::leave, [this]() { hideFunccompleteTooltip(); });
 
+  // we create this up front so its state stays persistent as much as possible.
+  m_FindReplace = new FindReplace(m_Scintillas, this);
+  m_FindReplace->allowFindAll(false);
+  m_FindReplace->setDockManager(ui->docking);
+
+  {
+    m_FindResults = new ScintillaEdit(this);
+
+    m_FindResults->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
+    m_FindResults->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
+    m_FindResults->styleSetBack(
+        100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
+
+    ConfigureSyntax(m_FindResults, SCLEX_NULL);
+    m_FindResults->usePopUp(SC_POPUP_NEVER);
+    m_FindResults->setWrapMode(SC_WRAP_WORD);
+    m_FindResults->setReadOnly(true);
+    m_FindResults->setWindowTitle(lit("Find Results"));
+  }
+
+  m_FindReplace->setFindIndicator(2);
+  m_FindReplace->setFindAllResultsDisplay(m_FindResults);
+
   ui->lineInput->setFont(Formatter::FixedFont());
   ui->interactiveOutput->setFont(Formatter::FixedFont());
   ui->scriptOutput->setFont(Formatter::FixedFont());
@@ -247,6 +271,13 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   ui->saveScript->setEnabled(false);
 
   setupTabs();
+
+  ui->docking->addToolWindow(m_FindReplace, ToolWindowManager::NoArea);
+  ui->docking->setToolWindowProperties(m_FindReplace, ToolWindowManager::HideOnClose);
+
+  ui->docking->addToolWindow(m_FindResults, ToolWindowManager::NoArea);
+  ui->docking->setToolWindowProperties(
+      m_FindResults, ToolWindowManager::HideOnClose | ToolWindowManager::DisallowFloatWindow);
 
   ui->docking->addToolWindow(
       ui->replGroup, ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
@@ -598,6 +629,8 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
 
   editor->indicSetFore(0, 0x0000ff);
 
+  m_FindReplace->configureFindIndicator(editor);
+
   editor->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
   editor->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
   editor->styleSetBack(
@@ -672,6 +705,8 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
                      if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
                                 SC_MOD_BEFOREDELETE))
                      {
+                       m_FindReplace->clearFindState();
+
                        markEditorModified(editor, true);
                        updateEditorTitle(editor);
 
@@ -709,6 +744,10 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
       return;
 
     if(!editor->geometry().contains(editor->mapFromGlobal(QCursor::pos())))
+      return;
+
+    QWidget *widgetInCursor = QApplication::widgetAt(QCursor::pos());
+    if(widgetInCursor && editor != widgetInCursor && editor != widgetInCursor->parentWidget())
       return;
 
     sptr_t pos = editor->positionFromPointClose(x, y);
@@ -774,6 +813,8 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
           selectedHelp(typeName);
       }
     }
+
+    m_FindReplace->handleEditorKeypress(editor, ev);
   });
 
   if(m_Scintillas.empty())
@@ -1098,6 +1139,11 @@ void PythonShell::runScript(bool debugging)
 
   if(debugging)
     PythonContext::LaunchDebugger(this, m_Ctx.Config(), QString());
+}
+
+void PythonShell::on_findReplace_clicked()
+{
+  m_FindReplace->raiseOrShow();
 }
 
 void PythonShell::on_execute_clicked()

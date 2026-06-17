@@ -251,7 +251,34 @@
      </widget>
     </item>
     <item>
-     <widget class="Line" name="sep">
+     <widget class="Line" name="sep1">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QToolButton" name="findReplace">
+      <property name="toolTip">
+       <string>Find &amp; Replace</string>
+      </property>
+      <property name="text">
+       <string>Find</string>
+      </property>
+      <property name="icon">
+       <iconset resource="../Resources/resources.qrc">
+        <normaloff>:/find.png</normaloff>:/find.png</iconset>
+      </property>
+      <property name="toolButtonStyle">
+       <enum>Qt::ToolButtonTextBesideIcon</enum>
+      </property>
+      <property name="autoRaise">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="Line" name="sep2">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>

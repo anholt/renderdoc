@@ -34,6 +34,7 @@ class QTextEdit;
 class RDToolTip;
 class QTimer;
 class QCompleter;
+class FindReplace;
 class QStringListModel;
 class QFileSystemWatcher;
 class RDTreeWidgetItem;
@@ -98,6 +99,7 @@ public:
 
 private slots:
   // automatic slots
+  void on_findReplace_clicked();
   void on_execute_clicked();
   void on_clear_clicked();
   void on_newScript_clicked();
@@ -177,10 +179,14 @@ private:
 
   QList<ScintillaEdit *> m_Scintillas;
 
+  FindReplace *m_FindReplace;
+  ScintillaEdit *m_FindResults = NULL;
+
   void setupTabs();
 
   ScintillaEdit *curEditor();
   ScintillaEdit *makeEditor(rdcstr filename);
+
   void updateEditorCloseButton();
 
   void addRecentFile(rdcstr filename);
