@@ -67,7 +67,7 @@ Before doing anything, we must initialise the replay API. We do that by calling 
 
     rd.InitialiseReplay(rd.GlobalEnvironment(), [])
 
-To begin with, we use :py:meth:`~renderdoc.OpenCaptureFile` to obtain a :py:class:`~renderdoc.CaptureFile` instance. This gives us access to control over a capture file at a meta level. For more information see the :py:class:`CaptureFile` reference - the interface can also be used to create.
+To begin with, we use :py:meth:`~renderdoc.OpenCaptureFile` to obtain a :py:class:`~renderdoc.CaptureFile` instance. This gives us access to control over a capture file at a meta level. For more information see the :py:class:`renderdoc.CaptureFile` reference - the interface can also be used to create.
 
 To open a file, use :py:meth:`~renderdoc.CaptureFile.OpenFile` on the :py:class:`~renderdoc.CaptureFile` instance. This function allows conversion from other formats via an importer, but here we'll use it just for opening a regular ``rdc`` file. It returns a :py:class:`~renderdoc.ResultDetails` which can be used to determine what went wrong in the event that there was a problem. We then check that the capture uses an API which can be replayed locally - for example not every platform supports ``D3D11``, so on linux this would return no local replay support.
 

@@ -248,22 +248,22 @@ DOCUMENT(R"(Represents the base type of a shader variable in debugging or consta
 .. data:: ConstantBlock
 
   A reference to a constant block bound to the shader. Variables with this type are stored with
-  opaque contents and should be decoded with :meth:`ShaderVariable.GetBinding`.
+  opaque contents and should be decoded with :meth:`ShaderVariable.GetBindIndex`.
 
 .. data:: ReadOnlyResource
 
   A reference to a read only resource bound to the shader. Variables with this type are stored with
-  opaque contents and should be decoded with :meth:`ShaderVariable.GetBinding`.
+  opaque contents and should be decoded with :meth:`ShaderVariable.GetBindIndex`.
 
 .. data:: ReadWriteResource
 
   A reference to a read/write resource bound to the shader. Variables with this type are stored with
-  opaque contents and should be decoded with :meth:`ShaderVariable.GetBinding`.
+  opaque contents and should be decoded with :meth:`ShaderVariable.GetBindIndex`.
 
 .. data:: Sampler
 
   A reference to a sampler bound to the shader. Variables with this type are stored with opaque
-  contents and should be decoded with :meth:`ShaderVariable.GetBinding`.
+  contents and should be decoded with :meth:`ShaderVariable.GetBindIndex`.
 
 .. data:: Unknown
 
@@ -367,8 +367,8 @@ DOCUMENT(R"(Represents the component type of a channel in a texture or element i
 
 .. data:: Depth
 
-  An opaque value storing depth information, either :data:`floating point <float>` for 32-bit depth
-  values or else :data:`unsigned normalised <UNorm>` for other bit sizes.
+  An opaque value storing depth information, either :data:`Float` for 32-bit depth
+  values or else :data:`UNorm` for other bit sizes.
 
 .. data:: UNormSRGB
 
@@ -2030,7 +2030,7 @@ DOCUMENT(R"(Identifies a shader encoding used to pass shader code to an API.
 .. data:: OpenGLSPIRV
 
   SPIR-V binary shader, as used by OpenGL. This format is technically not distinct from
-  :data:`VulkanSPIRV` but is considered unique here since it really *should* have been a different
+  :data:`SPIRV` but is considered unique here since it really *should* have been a different
   format, and introducing a separation allows better selection of tools automatically.
 
 .. data:: OpenGLSPIRVAsm
@@ -2612,6 +2612,10 @@ DOCUMENT(R"(The stage in a pipeline where a shader runs
 .. data:: Callable
 
   A callable shader, called by shader code via index during ray processing.
+
+.. data:: Invalid
+
+  An invalid/unknown shader stage.
 )");
 enum class ShaderStage : uint8_t
 {
@@ -2644,6 +2648,7 @@ enum class ShaderStage : uint8_t
   Callable,
 
   Count,
+  Invalid = Count,
 };
 
 ITERABLE_OPERATORS(ShaderStage);
@@ -4513,7 +4518,7 @@ DOCUMENT(R"(Specifies a windowing system to use for creating an output window.
 
 .. data:: Xlib
 
-  The windowing data refers to an Xlib window. See :func:`CreateXLibWindowingData`.
+  The windowing data refers to an Xlib window. See :func:`CreateXlibWindowingData`.
 
 .. data:: XCB
 
@@ -4755,7 +4760,7 @@ enum class TextureCategory : uint32_t
 BITMASK_OPERATORS(TextureCategory);
 DECLARE_REFLECTION_ENUM(TextureCategory);
 
-DOCUMENT(R"(A set of flags for ``ShaderStage`` stages
+DOCUMENT(R"(A set of flags for :class:`ShaderStage` stages
 
 .. data:: Unknown
 
@@ -4880,7 +4885,7 @@ DOCUMENT(R"(For a shader stage mask that only covers one shader stage, return th
 
 .. note::
   If the shader stage mask covers multiple stages, only the first matching stage will be returned.
-  If the mask is empty, :data:`ShaderStage.Count` will be returned.
+  If the mask is empty, :data:`ShaderStage.Invalid` will be returned.
 
 :param ShaderStageMask stageMask: The shader stage mask.
 :return: The first shader stage covered by the mask.
@@ -4896,7 +4901,7 @@ constexpr inline ShaderStage FirstStageForMask(ShaderStageMask stageMask)
          : (stageMask & ShaderStageMask::Compute)  ? ShaderStage::Compute
          : (stageMask & ShaderStageMask::Task)     ? ShaderStage::Task
          : (stageMask & ShaderStageMask::Mesh)     ? ShaderStage::Mesh
-                                                   : ShaderStage::Count;
+                                                   : ShaderStage::Invalid;
 }
 
 DOCUMENT(R"(A set of flags for events that may occur while debugging a shader

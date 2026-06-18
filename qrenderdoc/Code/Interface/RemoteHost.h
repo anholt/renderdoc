@@ -66,7 +66,7 @@ public:
       "Ping the host to check current status - if the server is running, connection status, etc.");
   void CheckStatus();
 
-  DOCUMENT(R"(Runs the command specified in :data:`runCommand`. Returns
+  DOCUMENT(R"(Runs the command specified in :meth:`RunCommand`. Returns
 :class:`~renderdoc.ResultDetails` which indicates success or the type of failure.
 
 :return: The result from launching the remote server.
@@ -141,7 +141,7 @@ public:
 
   DOCUMENT(R"(Create a connection to the remote server.
 
-:return: The status of opening the capture, whether success or failure, and a :class:`RemoteServer`
+:return: The status of opening the capture, whether success or failure, and a :class:`~renderdoc.RemoteServer`
   instance if it were successful
 :rtype: Tuple[renderdoc.ResultDetails, renderdoc.RemoteServer]
 )");

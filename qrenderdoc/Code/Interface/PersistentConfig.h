@@ -91,7 +91,7 @@ struct ShaderProcessingTool
       return output < o.output;
     return false;
   }
-  DOCUMENT(R"(The :class:`KnownShaderTool` identifying which known tool this program is.
+  DOCUMENT(R"(The :class:`~renderdoc.KnownShaderTool` identifying which known tool this program is.
 
 :type: renderdoc.KnownShaderTool
 )");
@@ -305,8 +305,8 @@ DECLARE_REFLECTION_STRUCT(BugReport);
   CONFIG_SETTING_VAL(public, QString, rdcstr, DefaultCaptureSaveDirectory, "")                     \
                                                                                                    \
   DOCUMENT(                                                                                        \
-      "A :class:`ReplayOptions` containing the configured default replay options to use in most "  \
-      "scenarios when no specific options are given.\n"                                            \
+      "A :class:`~renderdoc.ReplayOptions` containing the configured default replay options to "   \
+      "use in most scenarios when no specific options are given.\n"                                \
       "\n:"                                                                                        \
       "type: renderdoc.ReplayOptions");                                                            \
   CONFIG_SETTING(public, QVariant, ReplayOptions, DefaultReplayOptions)                            \
@@ -778,8 +778,8 @@ DECLARE_REFLECTION_STRUCT(BugReport);
                                                                                                    \
   DOCUMENT("");                                                                                    \
   DOCUMENT(                                                                                        \
-      "``False`` if :class:`ResourceUsage` should combine resource usage across marker "           \
-      "boundaries.\n"                                                                              \
+      "``False`` if :class:`~renderdoc.ResourceUsage` should combine resource usage across "       \
+      "marker boundaries.\n"                                                                       \
       "\n:"                                                                                        \
       "Defaults to ``False``."                                                                     \
       ""                                                                                           \
@@ -968,7 +968,7 @@ loading. It can explicitly save and close before relaunching.
 )");
   void Close();
 
-  DOCUMENT("Configures the :class:`Formatter` class with the settings from this config.");
+  DOCUMENT("Configures the internal number formatter class with the settings from this config.");
   void SetupFormatting();
 
   DOCUMENT(R"(Sets the UI style to the value in :data:`UIStyle`.

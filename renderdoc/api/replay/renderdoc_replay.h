@@ -408,8 +408,8 @@ well as control the replay and analysis functionality available.
   Not an actual member function - the signature for any ``PreviewWindowCallback`` callbacks.
 
   Called when a preview window could optionally be opened to display some information. It will be
-  called repeatedly with :paramref:`active` set to ``True`` to allow any platform-specific message
-  pumping.
+  called repeatedly with :paramref:`PreviewWindowCallback.active` set to ``True`` to allow any
+  platform-specific message pumping.
 
   :param bool active: ``True`` if a preview window is active/opened, ``False`` if it has closed.
   :return: The windowing data for a preview window, or empty/default values if no window should be
@@ -1068,8 +1068,8 @@ otherwise.
 :param ResourceId buffer: The id of the buffer to use for data. If
   :data:`ConstantBlock.bufferBacked` is ``False`` this is ignored.
 :param int offset: Retrieve buffer contents starting at this byte offset.
-:param int length: Retrieve this many bytes after :paramref:`offset`. May be 0 to fetch the rest of the
-  buffer.
+:param int length: Retrieve this many bytes after :paramref:`GetCBufferVariableContents.offset`.
+  May be 0 to fetch the rest of the buffer.
 :return: The shader variables with their contents.
 :rtype: List[ShaderVariable]
 )");
@@ -2238,7 +2238,7 @@ DOCUMENT(R"(Add a message to RenderDoc's logfile.
   if a debugger is attached, and fatal errors will kill the process after logging.
 :param str project: A short project tag, which should be uppercase and either 3 or 4 characters.
 :param str file: The file where this log message came from.
-:param int line: The line number in :paramref:`file` where this log message came from.
+:param int line: The line number in :paramref:`LogMessage.file` where this log message came from.
 :param str text: The text of the message.
 )");
 extern "C" RENDERDOC_API void RENDERDOC_CC RENDERDOC_LogMessage(LogType type, const rdcstr &project,

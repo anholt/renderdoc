@@ -659,7 +659,7 @@ Maps the contents of a high-level source variable to one or more shader variable
 A single high-level variable may be represented by multiple mappings but only along regular
 boundaries, typically whole vectors. For example an array may have each element in a different
 mapping, or a matrix may have a mapping per row. The properties such as :data:`rows` and
-:data:`elements` reflect the *parent* object.
+:data:`columns` reflect the *parent* object.
 
 .. note::
 

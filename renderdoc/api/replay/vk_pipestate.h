@@ -928,7 +928,7 @@ to ``0.0`` to ``1.0``.
   DOCUMENT(R"(The extra size in pixels to increase primitives by during conservative rasterization,
 in the x and y directions in screen space.
 
-See :data:`conservativeRasterizationMode`
+See :data:`conservativeRasterization`
 
 :type: float
 )");

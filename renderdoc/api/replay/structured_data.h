@@ -1501,7 +1501,7 @@ DOCUMENT(R"(Make a structured object as an enum value.
 
 .. note::
   The enum will be stored just as an integer value, but the string name of the enumeration value can
-  be set with :meth:`SDObject.SetCustomString` if desired.
+  be set by changing the string data member if desired.
 
 :param str name: The name of the object.
 :param int val: The integer value of the enum itself.

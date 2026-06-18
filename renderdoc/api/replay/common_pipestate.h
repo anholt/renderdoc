@@ -612,7 +612,7 @@ descriptors with a secondary counter.
   uint32_t bufferStructCount = 0;
 
   DOCUMENT(R"(The byte size of a single element in the view. Either the byte size of
-:data:`viewFormat`, or the structured buffer element size, as appropriate.
+:data:`format`, or the structured buffer element size, as appropriate.
 
 :type: int
 )");

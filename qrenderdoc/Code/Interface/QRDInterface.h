@@ -337,10 +337,10 @@ This window is retrieved by calling :meth:`CaptureContext.GetEventBrowser`.
   text inside the filter's parameter list up to where the cursor is. The callback should return a
   list of identifiers used for auto-completion.
 
-  The list does not have to be pre-filtered for matches to the :paramref:`params`, that is provided
-  to allow different autocompletion at different stages (e.g. if there are no parameters, you can
-  autocomplete a property, if a property is already present you can autocomplete valid values for
-  it)
+  The list does not have to be pre-filtered for matches to the :paramref:`AutoCompleteCallback.params`,
+  that is provided to allow different autocompletion at different stages (e.g. if there are no
+  parameters, you can autocomplete a property, if a property is already present you can
+  autocomplete valid values for it)
 
   :param CaptureContext context: The current capture context.
   :param str filter: The name of the filter function.
@@ -748,13 +748,13 @@ DOCUMENT(R"(Specifies a type of followed resource for the :class:`TextureViewer`
 .. data:: ReadWrite
 
   The index specifies a resource within the given shader's
-  :data:`read-write resources <~renderdoc.ShaderReflection.readWriteResources>`. The array element
+  :data:`~renderdoc.ShaderReflection.readWriteResources`. The array element
   then specifies the index within that resource's array, if applicable.
 
 .. data:: ReadOnly
 
   The index specifies a resource within the given shader's
-  :data:`read-only resources <~renderdoc.ShaderReflection.readOnlyResources>`. The array element
+  :data:`~renderdoc.ShaderReflection.readOnlyResources`. The array element
   then specifies the index within that resource's array, if applicable.
 
 .. data:: OutputDepthResolve
@@ -882,7 +882,7 @@ If no location is currently selected or there is no current texture, this will r
 :param bool autofit: ``True`` if the zoom level should be auto-calculated continuously to
   automatically fit the texture completely in view.
 :param float zoom: The zoom level as a percentage, with 100% being 1.0. Ignored if
-  :paramref:`autofit` is ``True``.
+  :paramref:`SetZoomLevel.autofit` is ``True``.
 )");
   virtual void SetZoomLevel(bool autofit, float zoom) = 0;
 
@@ -2403,7 +2403,7 @@ been made.
   DOCUMENT(R"(Register that a resource has replaced, so that the UI can be updated to reflect the
 change.
 
-This should be called at the same time as :meth:`ReplayController.ReplaceResource`.
+This should be called at the same time as :meth:`~renderdoc.ReplayController.ReplaceResource`.
 
 :param renderdoc.ResourceId from: The id of the resource being replaced.
 :param renderdoc.ResourceId to: The id of the resource replacing it.
@@ -2413,9 +2413,9 @@ This should be called at the same time as :meth:`ReplayController.ReplaceResourc
   DOCUMENT(R"(Register that a replacement has been removed, so that the UI can be updated to reflect
 the change.
 
-This should be called at the same time as :meth:`ReplayController.RemoveReplacement`.
+This should be called at the same time as :meth:`~renderdoc.ReplayController.RemoveReplacement`.
 
-See :meth:`ReplaceResource`.
+See :meth:`RegisterReplacement`.
 
 :param renderdoc.ResourceId id: The id of the original resource that was previously replaced.
 )");
@@ -2994,7 +2994,7 @@ on the UI thread.
 )");
   virtual IDebugMessageView *GetDebugMessageView() = 0;
 
-  DOCUMENT(R"(Retrieve the current singleton :class:`LogView`.
+  DOCUMENT(R"(Retrieve the current singleton :class:`DiagnosticLogView`.
 
 :return: The current window, which is created (but not shown) it there wasn't one open.
 :rtype: DiagnosticLogView

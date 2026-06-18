@@ -477,7 +477,7 @@ particular subresource (such as array slice, mip or multi-sampled sample).
 
 .. data:: ResolveSamples
 
-  Value for :data:`sampleIdx` if the samples should be averaged.
+  Value for :data:`Subresource.sample` if the samples should be averaged.
 )");
 struct TextureDisplay
 {

@@ -156,6 +156,38 @@ pygments_style = 'default'
 # If true, keep warnings as "system message" paragraphs in the built documents.
 #keep_warnings = False
 
+# warn about all missing references
+nitpicky = True
+nitpick_ignore = {
+        ('py:class', 'datetime'),
+        ('cpp:identifier', 'uint32_t'),
+        ('cpp:identifier', 'uint64_t'),
+        ('cpp:identifier', 'int32_t'),
+        ('cpp:identifier', 'int64_t'),
+
+        # opaque types
+        ('py:class', 'QWidget'),
+        ('py:class', 'HWND'),
+        ('py:class', 'Display'),
+        ('py:class', 'Drawable'),
+        ('py:class', 'xcb_connection_t'),
+        ('py:class', 'xcb_window_t'),
+        ('py:class', 'wl_display'),
+        ('py:class', 'wl_surface'),
+        ('py:class', 'ANativeWindow'),
+        ('py:class', 'NSView'),
+        ('py:class', 'CALayer'),
+        ('py:class', 'NSView'),
+
+        # faux-defined callback types
+        ('py:func', 'ProgressCallback'),
+        ('py:func', 'KillCallback'),
+        ('py:func', 'PreviewWindowCallback'),
+        ('py:func', 'SaveCallback'),
+        ('py:func', 'ReplaceCallback'),
+        ('py:func', 'RevertCallback'),
+}
+
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
