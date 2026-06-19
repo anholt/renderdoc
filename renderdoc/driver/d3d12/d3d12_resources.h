@@ -1480,6 +1480,7 @@ class WrappedID3D12Resource
   size_t DeleteOverlappingAccStructsInRangeAtOffset(D3D12BufferOffset bufferOffset);
 
   WrappedID3D12Heap *m_Heap = NULL;
+  uint64_t m_HeapOffset = 0;
 
   Threading::CriticalSection m_accStructResourcesCS;
   rdcflatmap<D3D12BufferOffset, D3D12AccelerationStructure *> m_accelerationStructMap;
@@ -1498,6 +1499,7 @@ public:
   }
 
   WrappedID3D12Heap *GetHeap() { return m_Heap; }
+  uint64_t GetHeapOffset() { return m_HeapOffset; }
 
   ID3D12Pageable *UnwrappedResidencyPageable()
   {
@@ -1575,6 +1577,7 @@ public:
       device->AddReplayResource(GetResourceID(), this);
 
     m_Heap = (WrappedID3D12Heap *)heap;
+    m_HeapOffset = HeapOffset;
     SAFE_ADDREF(m_Heap);
 
     // assuming only valid for buffers

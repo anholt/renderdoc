@@ -465,8 +465,10 @@ void DoSerialise(SerialiserType &ser, TextureDescription &el)
   SERIALISE_MEMBER(msQual);
   SERIALISE_MEMBER(msSamp);
   SERIALISE_MEMBER(byteSize);
+  SERIALISE_MEMBER(memory);
+  SERIALISE_MEMBER(memoryOffset);
 
-  SIZE_CHECK(72);
+  SIZE_CHECK(88);
 }
 
 template <typename SerialiserType>
@@ -476,8 +478,10 @@ void DoSerialise(SerialiserType &ser, BufferDescription &el)
   SERIALISE_MEMBER(creationFlags);
   SERIALISE_MEMBER(gpuAddress);
   SERIALISE_MEMBER(length);
+  SERIALISE_MEMBER(memory);
+  SERIALISE_MEMBER(memoryOffset);
 
-  SIZE_CHECK(32);
+  SIZE_CHECK(48);
 }
 
 template <typename SerialiserType>

@@ -345,7 +345,16 @@ rdcarray<BufferDescription> VulkanReplay::GetBuffers()
 
 TextureDescription VulkanReplay::GetTexture(ResourceId id)
 {
-  VulkanCreationInfo::Image &iminfo = m_pDriver->m_CreationInfo.m_Image[id];
+  auto imit = m_pDriver->m_CreationInfo.m_Image.find(id);
+  if(imit == m_pDriver->m_CreationInfo.m_Image.end())
+  {
+    RDCERR("Invalid image id");
+    return {};
+  }
+
+  VulkanCreationInfo::Image &iminfo = imit->second;
+
+  VkImage liveWrappedImage = GetResourceManager()->GetHandle<VkImage>(id);
 
   TextureDescription ret = {};
   ret.resourceId = id;
@@ -357,10 +366,27 @@ TextureDescription VulkanReplay::GetTexture(ResourceId id)
   ret.depth = iminfo.extent.depth;
   ret.mips = iminfo.mipLevels;
 
-  ret.byteSize = 0;
-  for(uint32_t s = 0; s < ret.mips; s++)
-    ret.byteSize += GetByteSize(ret.width, ret.height, ret.depth, iminfo.format, s);
-  ret.byteSize *= ret.arraysize;
+  VkMemoryRequirements mrq = {0};
+  VkDevice dev = m_pDriver->GetDev();
+
+  // some entries in m_Images don't have a live handle - e.g. swapchains
+  if(liveWrappedImage != VK_NULL_HANDLE)
+    ObjDisp(dev)->GetImageMemoryRequirements(Unwrap(dev), Unwrap(liveWrappedImage), &mrq);
+
+  ret.byteSize = mrq.size;
+  if(ret.byteSize == 0)
+  {
+    for(uint32_t s = 0; s < ret.mips; s++)
+      ret.byteSize += GetByteSize(ret.width, ret.height, ret.depth, iminfo.format, s);
+    ret.byteSize *= ret.arraysize;
+  }
+
+  LockedConstImageStateRef lockedImage = m_pDriver->FindConstImageState(id);
+  if(lockedImage && lockedImage->isMemoryBound)
+  {
+    ret.memory = lockedImage->boundMemory;
+    ret.memoryOffset = lockedImage->boundMemoryOffset;
+  }
 
   ret.msQual = 0;
   ret.msSamp = RDCMAX(1U, (uint32_t)iminfo.samples);
@@ -399,13 +425,23 @@ TextureDescription VulkanReplay::GetTexture(ResourceId id)
 
 BufferDescription VulkanReplay::GetBuffer(ResourceId id)
 {
-  VulkanCreationInfo::Buffer &bufinfo = m_pDriver->m_CreationInfo.m_Buffer[id];
+  auto bufit = m_pDriver->m_CreationInfo.m_Buffer.find(id);
+  if(bufit == m_pDriver->m_CreationInfo.m_Buffer.end())
+  {
+    RDCERR("Invalid image id");
+    return {};
+  }
+
+  VulkanCreationInfo::Buffer &bufinfo = bufit->second;
 
   BufferDescription ret;
   ret.resourceId = id;
   ret.length = bufinfo.size;
   ret.creationFlags = BufferCategory::NoFlags;
   ret.gpuAddress = bufinfo.gpuAddress;
+
+  ret.memory = bufinfo.boundMemory;
+  ret.memoryOffset = bufinfo.boundMemoryOffset;
 
   if(bufinfo.usage & (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT))
     ret.creationFlags |= BufferCategory::ReadWrite;

@@ -975,7 +975,8 @@ struct BufferDescription
   bool operator==(const BufferDescription &o) const
   {
     return resourceId == o.resourceId && creationFlags == o.creationFlags &&
-           gpuAddress == o.gpuAddress && length == o.length;
+           gpuAddress == o.gpuAddress && length == o.length && memory == o.memory &&
+           memoryOffset == o.memoryOffset;
   }
   bool operator<(const BufferDescription &o) const
   {
@@ -987,6 +988,10 @@ struct BufferDescription
       return gpuAddress < o.gpuAddress;
     if(!(length == o.length))
       return length < o.length;
+    if(!(memory == o.memory))
+      return memory < o.memory;
+    if(!(memoryOffset == o.memoryOffset))
+      return memoryOffset < o.memoryOffset;
     return false;
   }
   DOCUMENT(R"(The unique :class:`ResourceId` that identifies this buffer.
@@ -1012,6 +1017,21 @@ struct BufferDescription
 :type: int
 )");
   uint64_t length = 0;
+
+  DOCUMENT(R"(The unique :class:`ResourceId` that identifies the memory object this
+buffer has a fixed binding to. For objects that do not have an explicit memory binding
+or for sparse buffers, this will not be set.
+
+:type: ResourceId
+)");
+  ResourceId memory;
+
+  DOCUMENT(R"(The byte offset in :data:`memory` where the buffer is bound. If
+:data:`memory` is unset, this will be 0.
+
+:type: int
+)");
+  uint64_t memoryOffset = 0;
 };
 
 DECLARE_REFLECTION_STRUCT(BufferDescription);
@@ -1035,7 +1055,7 @@ struct TextureDescription
            height == o.height && depth == o.depth && resourceId == o.resourceId &&
            cubemap == o.cubemap && mips == o.mips && arraysize == o.arraysize &&
            creationFlags == o.creationFlags && msQual == o.msQual && msSamp == o.msSamp &&
-           byteSize == o.byteSize;
+           byteSize == o.byteSize && memory == o.memory && memoryOffset == o.memoryOffset;
   }
   bool operator<(const TextureDescription &o) const
   {
@@ -1067,6 +1087,10 @@ struct TextureDescription
       return msSamp < o.msSamp;
     if(!(byteSize == o.byteSize))
       return byteSize < o.byteSize;
+    if(!(memory == o.memory))
+      return memory < o.memory;
+    if(!(memoryOffset == o.memoryOffset))
+      return memoryOffset < o.memoryOffset;
     return false;
   }
   DOCUMENT(R"(The format of each pixel in the texture.
@@ -1152,6 +1176,21 @@ struct TextureDescription
 :type: int
 )");
   uint64_t byteSize;
+
+  DOCUMENT(R"(The unique :class:`ResourceId` that identifies the memory object this
+texture has a fixed binding to. For objects that do not have an explicit memory binding
+or for sparse textures, this will not be set.
+
+:type: ResourceId
+)");
+  ResourceId memory;
+
+  DOCUMENT(R"(The byte offset in :data:`memory` where the texture is bound. If
+:data:`memory` is unset, this will be 0.
+
+:type: int
+)");
+  uint64_t memoryOffset = 0;
 };
 
 DECLARE_REFLECTION_STRUCT(TextureDescription);

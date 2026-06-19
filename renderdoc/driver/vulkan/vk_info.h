@@ -656,6 +656,9 @@ struct VulkanCreationInfo
 
     VkMemoryRequirements mrq;
 
+    ResourceId boundMemory;
+    uint64_t boundMemoryOffset;
+
     ResourceId inlineDescriptorId;
   };
   std::unordered_map<ResourceId, Buffer> m_Buffer;

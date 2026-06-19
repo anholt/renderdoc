@@ -432,6 +432,12 @@ BufferDescription D3D12Replay::GetBuffer(ResourceId id)
   ret.creationFlags = BufferCategory::NoFlags;
   ret.gpuAddress = it->second->GetOriginalVA();
 
+  if(it->second->GetHeap())
+  {
+    ret.memory = it->second->GetHeap()->GetResourceID();
+    ret.memoryOffset = it->second->GetHeapOffset();
+  }
+
   const rdcarray<EventUsage> &usage = m_pDevice->GetQueue()->GetUsage(id);
 
   for(size_t i = 0; i < usage.size(); i++)
@@ -479,11 +485,29 @@ TextureDescription D3D12Replay::GetTexture(ResourceId id)
   ret.mips = desc.MipLevels;
   ret.msQual = desc.SampleDesc.Quality;
   ret.msSamp = RDCMAX(1U, desc.SampleDesc.Count);
-  ret.byteSize = 0;
-  for(uint32_t i = 0; i < ret.mips; i++)
-    ret.byteSize += GetByteSize(ret.width, ret.height, ret.depth, desc.Format, i);
-  ret.byteSize *= ret.arraysize;
-  ret.byteSize *= ret.msSamp;
+
+  if(desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+  {
+    ret.byteSize = desc.Width;
+  }
+  else
+  {
+    ret.byteSize = m_pDevice->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
+  }
+
+  if(ret.byteSize == 0)
+  {
+    for(uint32_t i = 0; i < ret.mips; i++)
+      ret.byteSize += GetByteSize(ret.width, ret.height, ret.depth, desc.Format, i);
+    ret.byteSize *= ret.arraysize;
+    ret.byteSize *= ret.msSamp;
+  }
+
+  if(it->second->GetHeap())
+  {
+    ret.memory = it->second->GetHeap()->GetResourceID();
+    ret.memoryOffset = it->second->GetHeapOffset();
+  }
 
   switch(ret.dimension)
   {
