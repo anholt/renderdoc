@@ -160,6 +160,10 @@ private:
 
   static const int CURRENT_MARKER = 0;
 
+  bool m_CurLineDirty = false;
+  int m_CurLine = 0;
+  QTimer *m_CurLineTimer = NULL;
+
   PythonContext *interactiveContext = NULL, *scriptContext = NULL, *completionContext = NULL;
 
   QList<QString> history;

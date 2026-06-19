@@ -211,6 +211,28 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_SyntaxCheckTimer->setSingleShot(true);
   m_SyntaxCheckTimer->setInterval(1200);
 
+  // only update the current line intermittently. We don't need to update every single time and if
+  // there is a large number of traces this will rate limit it.
+  m_CurLineTimer = new QTimer(this);
+  m_CurLineTimer->setSingleShot(false);
+  m_CurLineTimer->setInterval(10);
+
+  QObject::connect(m_CurLineTimer, &QTimer::timeout, [this]() {
+    if(m_CurLineDirty)
+    {
+      if(runningScriptEditor)
+      {
+        runningScriptEditor->markerDeleteAll(CURRENT_MARKER);
+        runningScriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
+
+        runningScriptEditor->markerAdd(m_CurLine > 0 ? m_CurLine - 1 : 0, CURRENT_MARKER);
+        runningScriptEditor->markerAdd(m_CurLine > 0 ? m_CurLine - 1 : 0, CURRENT_MARKER + 1);
+      }
+
+      m_CurLineDirty = false;
+    }
+  });
+
   completionContext = new PythonContext();
   setGlobals(completionContext);
 
@@ -1116,6 +1138,8 @@ void PythonShell::runScript(bool debugging)
   if(debugging)
     PythonContext::PrepareDebuggerWait();
 
+  m_CurLineTimer->start();
+
   LambdaThread *thread = new LambdaThread([this, debugging, script, context, editor]() {
     PythonContext::AddDebuggableThread();
 
@@ -1125,6 +1149,8 @@ void PythonShell::runScript(bool debugging)
     scriptContext = NULL;
 
     GUIInvoke::call(this, [this, context]() {
+      m_CurLineTimer->stop();
+
       context->Finish();
       runningScriptEditor = NULL;
       enableButtons(true);
@@ -1273,11 +1299,10 @@ void PythonShell::traceLine(const QString &file, int line)
   if(!runningScriptEditor)
     return;
 
-  runningScriptEditor->markerDeleteAll(CURRENT_MARKER);
-  runningScriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
-
-  runningScriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER);
-  runningScriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER + 1);
+  // we only update the current line on a fixed timer to avoid DoS'ing ourselves with too many rapid
+  // updates. Both happen on the UI thread so we just need a simple flag
+  m_CurLine = line;
+  m_CurLineDirty = true;
 }
 
 void PythonShell::exception(const QString &extension, const QString &type, const QString &value,
