@@ -673,6 +673,29 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CAPTURE_DESCRIPTOR_DATA_INFO_EXT,              \
                VkAccelerationStructureCaptureDescriptorDataInfoEXT)                                    \
                                                                                                        \
+  /* VK_EXT_descriptor_heap */                                                                         \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_DESCRIPTOR_HEAP_INFO_EXT,                  \
+               VkCommandBufferInheritanceDescriptorHeapInfoEXT)                                        \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT,                               \
+               VkDescriptorSetAndBindingMappingEXT)                                                    \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT, VkImageDescriptorInfoEXT)                  \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT,                         \
+               VkPhysicalDeviceDescriptorHeapFeaturesEXT)                                              \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT,                       \
+               VkPhysicalDeviceDescriptorHeapPropertiesEXT)                                            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT, VkResourceDescriptorInfoEXT)            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT,                   \
+               VkShaderDescriptorSetAndBindingMappingInfoEXT)                                          \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_TEXEL_BUFFER_DESCRIPTOR_INFO_EXT, VkTexelBufferDescriptorInfoEXT)     \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_INDEX_CREATE_INFO_EXT,                    \
+               VkSamplerCustomBorderColorCreateInfoEXT)                                                \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SUBSAMPLED_IMAGE_FORMAT_PROPERTIES_EXT,                               \
+               VkSubsampledImageFormatPropertiesEXT)                                                   \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT, VkBindHeapInfoEXT)                                \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT, VkPushDataInfoEXT)                                \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT,                                  \
+               VkOpaqueCaptureDataCreateInfoEXT)                                                       \
+                                                                                                       \
   /* VK_EXT_descriptor_indexing */                                                                     \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,                      \
                VkDescriptorSetLayoutBindingFlagsCreateInfo)                                            \
@@ -1893,20 +1916,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_CONTROL_FEATURES_EXT)                \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_DEPTH_CLAMP_CONTROL_CREATE_INFO_EXT)           \
                                                                                                        \
-  /* VK_EXT_descriptor_heap */                                                                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_DESCRIPTOR_HEAP_INFO_EXT)             \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT)                          \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT)                                       \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT)                    \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT)                  \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT)                                    \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT)              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_TEXEL_BUFFER_DESCRIPTOR_INFO_EXT)                                \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_INDEX_CREATE_INFO_EXT)               \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SUBSAMPLED_IMAGE_FORMAT_PROPERTIES_EXT)                          \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT)                                              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT)                                              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT)                             \
   /* interactions with VK_NV_device_generated_commands */                                              \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_PUSH_DATA_TOKEN_NV)                     \
   /* interactions with VK_ARM_tensors */                                                               \
@@ -15137,6 +15146,437 @@ void Deserialise(const VkCustomResolveCreateInfoEXT &el)
   delete[] el.pColorAttachmentFormats;
 }
 
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkCommandBufferInheritanceDescriptorHeapInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_DESCRIPTOR_HEAP_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_OPT(pSamplerHeapBindInfo);
+  SERIALISE_MEMBER_OPT(pResourceHeapBindInfo);
+}
+
+template <>
+void Deserialise(const VkCommandBufferInheritanceDescriptorHeapInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorSetAndBindingMappingEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(descriptorSet);
+  SERIALISE_MEMBER(firstBinding);
+  SERIALISE_MEMBER(bindingCount);
+  SERIALISE_MEMBER(resourceMask);
+  SERIALISE_MEMBER(source);
+
+  switch(el.source)
+  {
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT:
+      SERIALISE_MEMBER(sourceData.constantOffset);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT:
+      SERIALISE_MEMBER(sourceData.pushIndex);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+      SERIALISE_MEMBER(sourceData.indirectIndex);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+      SERIALISE_MEMBER(sourceData.indirectIndexArray);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_RESOURCE_HEAP_DATA_EXT:
+      SERIALISE_MEMBER(sourceData.heapData);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_DATA_EXT:
+      SERIALISE_MEMBER(sourceData.pushDataOffset);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_ADDRESS_EXT:
+      SERIALISE_MEMBER(sourceData.pushAddressOffset);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_INDIRECT_ADDRESS_EXT:
+      SERIALISE_MEMBER(sourceData.indirectAddress);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_SHADER_RECORD_INDEX_EXT:
+      SERIALISE_MEMBER(sourceData.shaderRecordIndex);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_DATA_EXT:
+      SERIALISE_MEMBER(sourceData.shaderRecordDataOffset);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_ADDRESS_EXT:
+      SERIALISE_MEMBER(sourceData.shaderRecordAddressOffset);
+      break;
+    case VK_DESCRIPTOR_MAPPING_SOURCE_MAX_ENUM_EXT:
+      RDCERR("Invalid descriptor mapping in VkDescriptorSetAndBindingMappingEXT");
+      break;
+  }
+}
+
+template <>
+void Deserialise(const VkDescriptorSetAndBindingMappingEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkImageDescriptorInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_OPT(pView);
+  SERIALISE_MEMBER(layout);
+}
+
+template <>
+void Deserialise(const VkImageDescriptorInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDescriptorHeapFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(descriptorHeap);
+  SERIALISE_MEMBER(descriptorHeapCaptureReplay);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceDescriptorHeapFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDescriptorHeapPropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(samplerHeapAlignment);
+  SERIALISE_MEMBER(resourceHeapAlignment);
+  SERIALISE_MEMBER(maxSamplerHeapSize);
+  SERIALISE_MEMBER(maxResourceHeapSize);
+  SERIALISE_MEMBER(minSamplerHeapReservedRange);
+  SERIALISE_MEMBER(minSamplerHeapReservedRangeWithEmbedded);
+  SERIALISE_MEMBER(minResourceHeapReservedRange);
+  SERIALISE_MEMBER(samplerDescriptorSize);
+  SERIALISE_MEMBER(imageDescriptorSize);
+  SERIALISE_MEMBER(bufferDescriptorSize);
+  SERIALISE_MEMBER(samplerDescriptorAlignment);
+  SERIALISE_MEMBER(imageDescriptorAlignment);
+  SERIALISE_MEMBER(bufferDescriptorAlignment);
+  SERIALISE_MEMBER(maxPushDataSize);
+  SERIALISE_MEMBER(imageCaptureReplayOpaqueDataSize);
+  SERIALISE_MEMBER(maxDescriptorHeapEmbeddedSamplers);
+  SERIALISE_MEMBER(samplerYcbcrConversionCount);
+  SERIALISE_MEMBER(sparseDescriptorHeaps);
+  SERIALISE_MEMBER(protectedDescriptorHeaps);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceDescriptorHeapPropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkResourceDescriptorInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(type);
+  switch(el.type)
+  {
+    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+    case VK_DESCRIPTOR_TYPE_SAMPLE_WEIGHT_IMAGE_QCOM:
+    case VK_DESCRIPTOR_TYPE_BLOCK_MATCH_IMAGE_QCOM:
+    {
+      ser.SetStructArg(uint64_t(VkDescriptorImageInfoValidity::ImageView));
+      SERIALISE_MEMBER_OPT(data.pImage).Named("pImage");
+      break;
+    }
+    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+    {
+      SERIALISE_MEMBER_OPT(data.pTexelBuffer).Named("pTexelBuffer");
+      break;
+    }
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV:
+    case VK_DESCRIPTOR_TYPE_PARTITIONED_ACCELERATION_STRUCTURE_NV:
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+    {
+      SERIALISE_MEMBER_OPT(data.pAddressRange).Named("pAddressRange");
+      break;
+    }
+    case VK_DESCRIPTOR_TYPE_TENSOR_ARM:
+    {
+      RDCERR("VK_ARM_tensors unsupported");
+      break;
+    }
+    case VK_DESCRIPTOR_TYPE_SAMPLER:
+    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK:
+    case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
+    case VK_DESCRIPTOR_TYPE_MAX_ENUM:
+      RDCERR("Invalid descriptor type in VkResourceDescriptorInfoEXT");
+      break;
+  }
+}
+
+template <>
+void Deserialise(const VkResourceDescriptorInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkShaderDescriptorSetAndBindingMappingInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(mappingCount);
+  SERIALISE_MEMBER_ARRAY(pMappings, mappingCount);
+}
+
+template <>
+void Deserialise(const VkShaderDescriptorSetAndBindingMappingInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+  FreeAlignedBuffer((byte *)el.pMappings);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkTexelBufferDescriptorInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_TEXEL_BUFFER_DESCRIPTOR_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(format);
+  SERIALISE_MEMBER(addressRange);
+}
+
+template <>
+void Deserialise(const VkTexelBufferDescriptorInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkSamplerCustomBorderColorIndexCreateInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_INDEX_CREATE_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(index);
+}
+
+template <>
+void Deserialise(const VkSamplerCustomBorderColorIndexCreateInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkSubsampledImageFormatPropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_SUBSAMPLED_IMAGE_FORMAT_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(subsampledImageDescriptorCount);
+}
+
+template <>
+void Deserialise(const VkSubsampledImageFormatPropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkBindHeapInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(heapRange);
+  SERIALISE_MEMBER(reservedRangeOffset);
+  SERIALISE_MEMBER(reservedRangeSize);
+}
+
+template <>
+void Deserialise(const VkBindHeapInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPushDataInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(offset);
+  SERIALISE_MEMBER(data);
+}
+
+template <>
+void Deserialise(const VkPushDataInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkOpaqueCaptureDataCreateInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_OPT(pData);
+}
+
+template <>
+void Deserialise(const VkOpaqueCaptureDataCreateInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkHostAddressRangeConstEXT &el)
+{
+  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
+  {
+    uint64_t size = el.size;
+    ser.Serialise("size"_lit, size);
+    if(ser.IsReading())
+      el.size = (size_t)size;
+  }
+
+  SERIALISE_MEMBER_ARRAY(address, size);
+}
+
+template <>
+void Deserialise(const VkHostAddressRangeConstEXT &el)
+{
+  FreeAlignedBuffer((byte *)el.address);
+}
+
+/* No serialization for vkHostAddressRangeEXT -- the data is handled manually
+ * for vkWriteResource/SamplerDescriptor and GetOpaqueDatas from
+ * EXT_descriptor_heap.
+ */
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDeviceAddressRangeEXT &el)
+{
+  SERIALISE_MEMBER(address);
+  SERIALISE_MEMBER(size);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceConstantOffsetEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(heapArrayStride);
+  SERIALISE_MEMBER_OPT(pEmbeddedSampler);
+  SERIALISE_MEMBER(samplerHeapOffset);
+  SERIALISE_MEMBER(samplerHeapArrayStride);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceIndirectIndexEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(pushOffset);
+  SERIALISE_MEMBER(addressOffset);
+  SERIALISE_MEMBER(heapIndexStride);
+  SERIALISE_MEMBER(heapArrayStride);
+  SERIALISE_MEMBER_OPT(pEmbeddedSampler);
+  SERIALISE_MEMBER(useCombinedImageSamplerIndex);
+  SERIALISE_MEMBER(samplerHeapOffset);
+  SERIALISE_MEMBER(samplerPushOffset);
+  SERIALISE_MEMBER(samplerAddressOffset);
+  SERIALISE_MEMBER(samplerHeapIndexStride);
+  SERIALISE_MEMBER(samplerHeapArrayStride);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourcePushIndexEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(pushOffset);
+  SERIALISE_MEMBER(heapIndexStride);
+  SERIALISE_MEMBER(heapArrayStride);
+  SERIALISE_MEMBER_OPT(pEmbeddedSampler);
+  SERIALISE_MEMBER(useCombinedImageSamplerIndex);
+  SERIALISE_MEMBER(samplerHeapOffset);
+  SERIALISE_MEMBER(samplerPushOffset);
+  SERIALISE_MEMBER(samplerHeapIndexStride);
+  SERIALISE_MEMBER(samplerHeapArrayStride);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceHeapDataEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(pushOffset);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceIndirectAddressEXT &el)
+{
+  SERIALISE_MEMBER(pushOffset);
+  SERIALISE_MEMBER(addressOffset);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceShaderRecordIndexEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(shaderRecordOffset);
+  SERIALISE_MEMBER(heapIndexStride);
+  SERIALISE_MEMBER(heapArrayStride);
+  SERIALISE_MEMBER_OPT(pEmbeddedSampler);
+  SERIALISE_MEMBER(useCombinedImageSamplerIndex);
+  SERIALISE_MEMBER(samplerHeapOffset);
+  SERIALISE_MEMBER(samplerShaderRecordOffset);
+  SERIALISE_MEMBER(samplerHeapIndexStride);
+  SERIALISE_MEMBER(samplerHeapArrayStride);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDescriptorMappingSourceIndirectIndexArrayEXT &el)
+{
+  SERIALISE_MEMBER(heapOffset);
+  SERIALISE_MEMBER(pushOffset);
+  SERIALISE_MEMBER(addressOffset);
+  SERIALISE_MEMBER(heapIndexStride);
+  SERIALISE_MEMBER_OPT(pEmbeddedSampler);
+  SERIALISE_MEMBER(useCombinedImageSamplerIndex);
+  SERIALISE_MEMBER(samplerHeapOffset);
+  SERIALISE_MEMBER(samplerPushOffset);
+  SERIALISE_MEMBER(samplerAddressOffset);
+  SERIALISE_MEMBER(samplerHeapIndexStride);
+}
+
 // pNext structs - always have deserialise for the next chain
 INSTANTIATE_SERIALISE_TYPE(VkAccelerationStructureBuildGeometryInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkAccelerationStructureBuildSizesInfoKHR);
@@ -15162,6 +15602,7 @@ INSTANTIATE_SERIALISE_TYPE(VkBindBufferMemoryDeviceGroupInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBindBufferMemoryInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBindDescriptorBufferEmbeddedSamplersInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkBindDescriptorSetsInfo);
+INSTANTIATE_SERIALISE_TYPE(VkBindHeapInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkBindImageMemoryDeviceGroupInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBindImageMemoryInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBindImageMemorySwapchainInfoKHR);
@@ -15223,6 +15664,8 @@ INSTANTIATE_SERIALISE_TYPE(VkDescriptorBufferBindingPushDescriptorBufferHandleEX
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorGetInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorPoolCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetAllocateInfo);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetAndBindingMappingEXT);
+INSTANTIATE_SERIALISE_TYPE(VkShaderDescriptorSetAndBindingMappingInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetLayoutBindingFlagsCreateInfo)
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetLayoutCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetLayoutSupport);
@@ -15294,6 +15737,7 @@ INSTANTIATE_SERIALISE_TYPE(VkImageCompressionControlEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageCompressionPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageCopy2);
 INSTANTIATE_SERIALISE_TYPE(VkImageCreateInfo);
+INSTANTIATE_SERIALISE_TYPE(VkImageDescriptorInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierExplicitCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierListCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierPropertiesEXT);
@@ -15339,6 +15783,7 @@ INSTANTIATE_SERIALISE_TYPE(VkMultisampledRenderToSingleSampledInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkMultisamplePropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkMutableDescriptorTypeCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkOpaqueCaptureDescriptorDataCreateInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkOpaqueCaptureDataCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPastPresentationTimingGOOGLE);
 INSTANTIATE_SERIALISE_TYPE(VkPerformanceCounterDescriptionKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPerformanceCounterKHR);
@@ -15370,6 +15815,8 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDepthStencilResolveProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorBufferDensityMapPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorBufferFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorBufferPropertiesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorHeapFeaturesEXT)
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorHeapPropertiesEXT)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorIndexingFeatures)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorIndexingProperties)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDiagnosticsConfigFeaturesNV);
@@ -15594,6 +16041,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPresentWait2InfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPrivateDataSlotCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkProtectedSubmitInfo);
 INSTANTIATE_SERIALISE_TYPE(VkPushConstantsInfo);
+INSTANTIATE_SERIALISE_TYPE(VkPushDataInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetInfo);
 INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetWithTemplateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkQueryPoolCreateInfo);
@@ -15626,6 +16074,7 @@ INSTANTIATE_SERIALISE_TYPE(VkRenderPassInputAttachmentAspectCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkRenderPassMultiviewCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkRenderPassSampleLocationsBeginInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkResolveImageInfo2);
+INSTANTIATE_SERIALISE_TYPE(VkResourceDescriptorInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkSampleLocationsInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkSamplerBorderColorComponentMappingCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkSamplerCaptureDescriptorDataInfoEXT);
@@ -15675,6 +16124,7 @@ INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentFenceInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentModeInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentModesCreateInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentScalingCreateInfoKHR);
+INSTANTIATE_SERIALISE_TYPE(VkTexelBufferDescriptorInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkTextureLODGatherFormatPropertiesAMD);
 INSTANTIATE_SERIALISE_TYPE(VkTimelineSemaphoreSubmitInfo);
 INSTANTIATE_SERIALISE_TYPE(VkValidationCacheCreateInfoEXT);
@@ -15704,9 +16154,17 @@ INSTANTIATE_SERIALISE_TYPE(VkComponentMapping);
 INSTANTIATE_SERIALISE_TYPE(VkConformanceVersion);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorBufferInfo);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorImageInfo);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceConstantOffsetEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceIndirectIndexEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourcePushIndexEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceHeapDataEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceIndirectAddressEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceShaderRecordIndexEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDescriptorMappingSourceIndirectIndexArrayEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorPoolSize);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetLayoutBinding);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorUpdateTemplateEntry);
+INSTANTIATE_SERIALISE_TYPE(VkDeviceAddressRangeEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceOrHostAddressConstKHR);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceOrHostAddressKHR);
 INSTANTIATE_SERIALISE_TYPE(VkDispatchIndirectCommand);
@@ -15722,6 +16180,7 @@ INSTANTIATE_SERIALISE_TYPE(VkExtent2D);
 INSTANTIATE_SERIALISE_TYPE(VkExtent3D);
 INSTANTIATE_SERIALISE_TYPE(VkExternalMemoryProperties);
 INSTANTIATE_SERIALISE_TYPE(VkFormatProperties);
+INSTANTIATE_SERIALISE_TYPE(VkHostAddressRangeConstEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageBlit);
 INSTANTIATE_SERIALISE_TYPE(VkImageCopy);
 INSTANTIATE_SERIALISE_TYPE(VkImageFormatProperties);

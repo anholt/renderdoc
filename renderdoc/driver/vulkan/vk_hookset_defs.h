@@ -561,7 +561,8 @@
   DeclExt(EXT_fragment_density_map_offset);            \
   DeclExt(EXT_image_drm_format_modifier);              \
   DeclExt(EXT_custom_resolve);                         \
-  DeclExt(NV_device_diagnostic_checkpoints);
+  DeclExt(NV_device_diagnostic_checkpoints);           \
+  DeclExt(EXT_descriptor_heap);
 
 // for simplicity and since the check itself is platform agnostic,
 // these aren't protected in platform defines
@@ -596,7 +597,8 @@
   CheckExt(KHR_performance_query, VKXX);               \
   CheckExt(KHR_fragment_shading_rate, VKXX);           \
   CheckExt(EXT_acquire_drm_display, VKXX);             \
-  CheckExt(KHR_calibrated_timestamps, VKXX);
+  CheckExt(KHR_calibrated_timestamps, VKXX);           \
+  CheckExt(EXT_descriptor_heap, VKXX);
 
 #define CheckDeviceExts()                                     \
   CheckExt(EXT_debug_marker, VKXX);                           \
@@ -709,7 +711,8 @@
   CheckExt(EXT_fragment_density_map_offset, VKXX);            \
   CheckExt(EXT_image_drm_format_modifier, VKXX);              \
   CheckExt(EXT_custom_resolve, VKXX);                         \
-  CheckExt(NV_device_diagnostic_checkpoints, VKXX);
+  CheckExt(NV_device_diagnostic_checkpoints, VKXX);           \
+  CheckExt(EXT_descriptor_heap, VKXX);
 
 #define HookInitVulkanInstanceExts_PhysDev()                                                         \
   HookInitExtension(KHR_surface, GetPhysicalDeviceSurfaceSupportKHR);                                \
