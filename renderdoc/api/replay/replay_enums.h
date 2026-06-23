@@ -2829,7 +2829,7 @@ Note that a resource may be used for more than one thing in one event, see :clas
 
 .. data:: Unused
 
-  The resource is not being used.
+  The resource is not being tracked for usage at any event.
 
 .. data:: VertexBuffer
 
