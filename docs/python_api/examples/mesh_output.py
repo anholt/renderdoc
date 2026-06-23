@@ -42,7 +42,10 @@ if meshdata.indexResourceId != renderdoc.ResourceId():
 else:
     print("         (non-indexed)")
 if meshdata.unproject:
-    print(f"         Rasterized data: {meshdata.nearPlane:.2f}-{meshdata.farPlane:.2f}")
+    far = f"{meshdata.farPlane:.2f}"
+    if meshdata.farPlane > 3.0e+38:
+        far = "inf"
+    print(f"         Rasterized data: {meshdata.nearPlane:.2f}-{far}")
 
 # default to just indices, but if this does use an index buffer then fetch that data
 idxs = [i for i in range(meshdata.numIndices)]
@@ -57,7 +60,7 @@ if meshdata.indexResourceId != renderdoc.ResourceId():
 
     # use struct.unpack to interpret the bytes as a series of integers
     idxs = cast(
-        List[int], struct.unpack(f"{struct_type}{meshdata.numIndices}", bufdata)
+        List[int], struct.unpack_from(f"={meshdata.numIndices}{struct_type}", bufdata)
     )
 
 
