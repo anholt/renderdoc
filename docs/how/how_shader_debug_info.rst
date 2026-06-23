@@ -1,3 +1,5 @@
+.. _how_shader_debug_info:
+
 How do I use shader debug information?
 ======================================
 
