@@ -38,6 +38,9 @@ available on all APIs.
 
 For more detailed or precise information without abstraction, access the specific pipeline state
 for the capture that's open.
+
+Available from :meth:`~qrenderdoc.CaptureContext.CurPipelineState` in the UI or
+:meth:`~renderdoc.ReplayController.GetPipelineState` from the replay API directly.
 )");
 struct PipeState
 {

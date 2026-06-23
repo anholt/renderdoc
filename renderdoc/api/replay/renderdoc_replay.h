@@ -383,6 +383,10 @@ protected:
 DOCUMENT(R"(The primary interface to access the information in a capture and the current state, as
 well as control the replay and analysis functionality available.
 
+Available as a blocking interface in UI scripts via
+:meth:`~qrenderdoc.CaptureContext.GetBlockingController` or directly on the replay thread using
+:meth:`~qrenderdoc.ReplayManager.AsyncInvoke`.
+
 .. function:: KillCallback()
 
   Not an actual member function - the signature for any ``KillCallback`` callbacks.

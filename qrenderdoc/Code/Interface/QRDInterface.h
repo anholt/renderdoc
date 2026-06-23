@@ -2272,7 +2272,11 @@ protected:
 
 DECLARE_REFLECTION_STRUCT(IRGPInterop);
 
-DOCUMENT("The capture context that the python script is running in.")
+DOCUMENT(R"(
+The capture context that the python script is running in.
+
+Available as a ``pyrenderdoc`` global variable in any python scripts run from RenderDoc's UI.
+)")
 struct ICaptureContext
 {
   DOCUMENT(R"(Retrieve the absolute path where a given temporary capture should be stored.
