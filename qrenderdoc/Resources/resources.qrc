@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/py">
+        <file alias="tutorial/first_steps.py">../../docs/python_api/first_steps.py</file>
+        <file alias="tutorial/ui_extensions.py">../../docs/python_api/ui_extensions.py</file>
         <file alias="examples/show_buffer.py">../../docs/python_api/examples/show_buffer.py</file>
         <file alias="examples/show_texture.py">../../docs/python_api/examples/show_texture.py</file>
         <file alias="examples/iter_actions.py">../../docs/python_api/examples/iter_actions.py</file>
