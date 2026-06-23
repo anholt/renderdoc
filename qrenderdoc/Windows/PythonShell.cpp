@@ -325,7 +325,20 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_Examples->setIcon(0, Icons::help());
 
   const QPair<QString, QString> examples[] = {
-      {tr("Show a Buffer"), lit("Example will go here")},
+      {tr("Tutorial: First Steps with Python"), lit(":/py/tutorial/first_steps.py")},
+      {tr("Tutorial: UI extensions"), lit(":/py/tutorial/ui_extensions.py")},
+      {tr("Show buffer with format"), lit(":/py/examples/show_buffer.py")},
+      {tr("Show and save a texture"), lit(":/py/examples/show_texture.py")},
+      {tr("Iterating over Actions"), lit(":/py/examples/iter_actions.py")},
+      {tr("Pipeline State"), lit(":/py/examples/pipe_state.py")},
+      {tr("Shader Reflection"), lit(":/py/examples/shader_refl.py")},
+      {tr("Resource Usage"), lit(":/py/examples/resource_usage.py")},
+      {tr("Memory bindings"), lit(":/py/examples/mem_binds.py")},
+      {tr("Pixel History & Shader Debug"), lit(":/py/examples/history_debug.py")},
+      {tr("Mesh Output"), lit(":/py/examples/mesh_output.py")},
+      {tr("Launching an application"), lit(":/py/examples/exe_launching.py")},
+      {tr("Custom event filter"), lit(":/py/examples/event_filter.py")},
+      {tr("Mini-Qt UI"), lit(":/py/examples/miniqt_ui.py")},
   };
 
   for(const QPair<QString, QString> &example : examples)
