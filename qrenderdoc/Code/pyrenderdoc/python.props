@@ -31,10 +31,6 @@
      As a result we use the existance of the .lib, .h and .zip as a key to
      ensure we only use a valid install -->
 
-<!-- We want to keep supporting the old environment variable path for compatibility
-     but encourage users to use the new property page method. So we check for that first
-     to determine PythonOverride, and only fall back to env vars if it's not set. -->
-
 <!-- MSBuild doesn't implement a simple loop so just do this by hand by
      taking advantage of MSBuild evaluating these in-order.
      First we set the number we're testing, then see if we find the files. If
@@ -46,8 +42,6 @@
 <!-- first define the override prefix we're searching against -->
 <PropertyGroup>
 	<PythonOverride>$(VSPythonOverridePath)</PythonOverride>
-	<PythonOverride Condition="'$(VSPythonOverridePath)'=='' AND '$(Platform)'=='Win32'">$(RENDERDOC_PYTHON_PREFIX32)</PythonOverride>
-	<PythonOverride Condition="'$(VSPythonOverridePath)'=='' AND '$(Platform)'=='x64'">$(RENDERDOC_PYTHON_PREFIX64)</PythonOverride>
 </PropertyGroup>
 
 <PropertyGroup><PythonMajorMinorTest>318</PythonMajorMinorTest></PropertyGroup>
@@ -126,6 +120,10 @@
 
 <Target Name="PythonOverriddenNoPySide" AfterTargets="Build" Condition="'$(CustomPythonUsed)'!='0' AND '$(PySide2Available)'!='0'">
 	<Message Importance="high" Text="PySide2 found and used from $(PythonOverride)" />
+</Target>
+
+<Target Name="PythonNotOverridden" AfterTargets="Build" Condition="'$(CustomPythonUsed)'=='0' AND $(PythonOverride)==''">
+	<Message Importance="high" Text="Built against default bundled python" />
 </Target>
 
 <Target Name="PythonFailedOverridden" AfterTargets="Build" Condition="'$(CustomPythonUsed)'=='0' AND $(PythonOverride)!=''">

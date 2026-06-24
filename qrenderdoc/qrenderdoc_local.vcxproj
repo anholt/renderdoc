@@ -78,21 +78,6 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)\util\WindowsSDKFix.props" />
-  <PropertyGroup>
-    <!-- QtBaseDir would be used for everything, except in our local repository copy of Qt
-         we only have one include and split the bin/lib by platform. Since include doesn't
-         vary by platform and can be deduplicated on disk. -->
-    <QtBaseDir>$(ProjectDir)3rdparty\qt\$(Platform)</QtBaseDir>
-    <QtIncludeDir>$(ProjectDir)3rdparty\qt\include</QtIncludeDir>
-    <QtBaseDir Condition="Exists('$(RENDERDOC_QT_PREFIX64)\bin\moc.exe') AND '$(Platform)'=='x64'">$(RENDERDOC_QT_PREFIX64)</QtBaseDir>
-    <QtIncludeDir Condition="Exists('$(RENDERDOC_QT_PREFIX64)\bin\moc.exe') AND '$(Platform)'=='x64'">$(RENDERDOC_QT_PREFIX64)\include</QtIncludeDir>
-    <QtBaseDir Condition="Exists('$(RENDERDOC_QT_PREFIX32)\bin\moc.exe') AND '$(Platform)'=='Win32'">$(RENDERDOC_QT_PREFIX32)</QtBaseDir>
-    <QtIncludeDir Condition="Exists('$(RENDERDOC_QT_PREFIX32)\bin\moc.exe') AND '$(Platform)'=='Win32'">$(RENDERDOC_QT_PREFIX32)\include</QtIncludeDir>
-    <!-- bin and lib are relative to the base dir, wherever it is -->
-    <QtBinDir>$(QtBaseDir)\bin</QtBinDir>
-    <QtLibDir>$(QtBaseDir)\lib</QtLibDir>
-    <QtPluginsDir>$(QtBaseDir)\plugins</QtPluginsDir>
-  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -2192,4 +2177,11 @@
     </PropertyPageSchema>
   </ItemGroup>
   <Import Project="$(SolutionDir)\qrenderdoc\Code\pyrenderdoc\python.props" />
+  <ItemGroup>
+    <ProjectTools Include="custom_qt_sheet" />
+    <PropertyPageSchema Include="custom_qt_sheet.xml">
+      <Context>Project</Context>
+    </PropertyPageSchema>
+  </ItemGroup>
+  <Import Project="custom_qt.props" />
 </Project>
