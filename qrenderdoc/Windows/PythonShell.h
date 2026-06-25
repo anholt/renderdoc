@@ -159,6 +159,7 @@ private:
   int m_InteractiveCompletionPrefix = 0;
 
   static const int CURRENT_MARKER = 0;
+  static const int STYLE_ERROR = 100;
 
   bool m_CurLineDirty = false;
   int m_CurLine = 0;

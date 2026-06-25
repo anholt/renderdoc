@@ -181,9 +181,11 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     m_FindResults = new ScintillaEdit(this);
 
     m_FindResults->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
-    m_FindResults->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
-    m_FindResults->styleSetBack(
-        100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
+    m_FindResults->styleSetSize(STYLE_DEFAULT, Formatter::FixedFont().pointSize());
+    m_FindResults->styleSetFont(STYLE_ERROR, Formatter::FixedFont().family().toUtf8().data());
+    m_FindResults->styleSetSize(STYLE_ERROR, Formatter::FixedFont().pointSize());
+    m_FindResults->styleSetBack(STYLE_ERROR, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70)
+                                                           : SCINTILLA_COLOUR(255, 150, 150));
 
     ConfigureSyntax(m_FindResults, SCLEX_NULL);
     m_FindResults->usePopUp(SC_POPUP_NEVER);
@@ -494,7 +496,7 @@ void PythonShell::doSyntaxCheck()
 
     editor->annotationSetText(parseError.lineno - 1, parseError.errStr.c_str());
     editor->annotationSetVisible(ANNOTATION_BOXED);
-    editor->annotationSetStyle(parseError.lineno - 1, 100);
+    editor->annotationSetStyle(parseError.lineno - 1, STYLE_ERROR);
   }
 }
 
@@ -667,9 +669,11 @@ ScintillaEdit *PythonShell::makeEditor(rdcstr filename)
   m_FindReplace->configureFindIndicator(editor);
 
   editor->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
-  editor->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
+  editor->styleSetSize(STYLE_DEFAULT, Formatter::FixedFont().pointSize());
+  editor->styleSetFont(STYLE_ERROR, Formatter::FixedFont().family().toUtf8().data());
+  editor->styleSetSize(STYLE_ERROR, Formatter::FixedFont().pointSize());
   editor->styleSetBack(
-      100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
+      STYLE_ERROR, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
 
   editor->setMarginLeft(4.0);
   editor->setMarginWidthN(0, 32.0);
