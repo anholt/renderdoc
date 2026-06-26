@@ -638,6 +638,10 @@ VkResult WrappedVulkan::vkCreatePipelineCache(VkDevice device,
 {
   VkPipelineCacheCreateInfo createInfo = *pCreateInfo;
 
+  // ignore pipeline caches that are too large and overflow 32-bit chunk size
+  if(createInfo.initialDataSize > 0xffff0000)
+    createInfo.initialDataSize = 0;
+
   VkResult ret;
   SERIALISE_TIME_CALL(ret = ObjDisp(device)->CreatePipelineCache(Unwrap(device), &createInfo, NULL,
                                                                  pPipelineCache));
