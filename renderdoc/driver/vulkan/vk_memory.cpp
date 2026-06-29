@@ -432,9 +432,9 @@ MemoryAllocation WrappedVulkan::AllocateMemoryForResource(bool buffer, VkMemoryR
         memoryTypeIndex,
     };
 
-    // buffers will be created with capture/replay so we need to make the memory capture/replay
-    // unconditionally too
-    if(DescriptorBuffers())
+    // buffers will be created with capture/replay so we need to make the memory
+    // capture/replay unconditionally too.
+    if(DescriptorBuffers() || DescriptorHeap())
       flagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
 
     if(ret.size > info.allocationSize)
