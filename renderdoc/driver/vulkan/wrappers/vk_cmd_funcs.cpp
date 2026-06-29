@@ -10530,6 +10530,47 @@ void WrappedVulkan::vkCmdSetCheckpointNV(VkCommandBuffer commandBuffer, const vo
   }
 }
 
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkCmdBindResourceHeapEXT(SerialiserType &ser,
+                                                       VkCommandBuffer commandBuffer,
+                                                       const VkBindHeapInfoEXT *pBindInfo)
+{
+  return true;
+}
+
+void WrappedVulkan::vkCmdBindResourceHeapEXT(VkCommandBuffer commandBuffer,
+                                             const VkBindHeapInfoEXT *pBindInfo)
+{
+  ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+}
+
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkCmdBindSamplerHeapEXT(SerialiserType &ser,
+                                                      VkCommandBuffer commandBuffer,
+                                                      const VkBindHeapInfoEXT *pBindInfo)
+{
+  return true;
+}
+
+void WrappedVulkan::vkCmdBindSamplerHeapEXT(VkCommandBuffer commandBuffer,
+                                            const VkBindHeapInfoEXT *pBindInfo)
+{
+  ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo);
+}
+
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkCmdPushDataEXT(SerialiserType &ser, VkCommandBuffer commandBuffer,
+                                               const VkPushDataInfoEXT *pPushDataInfo)
+{
+  return true;
+}
+
+void WrappedVulkan::vkCmdPushDataEXT(VkCommandBuffer commandBuffer,
+                                     const VkPushDataInfoEXT *pPushDataInfo)
+{
+  ObjDisp(commandBuffer)->CmdPushDataEXT(Unwrap(commandBuffer), pPushDataInfo);
+}
+
 INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkCreateCommandPool, VkDevice device,
                                 const VkCommandPoolCreateInfo *pCreateInfo,
                                 const VkAllocationCallbacks *, VkCommandPool *pCommandPool);
@@ -10763,3 +10804,10 @@ INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdBeginCustomResolveEXT, VkCommandBuffe
 
 INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdSetCheckpointNV, VkCommandBuffer commandBuffer,
                                 const void *pCheckpointMarker);
+
+INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdBindSamplerHeapEXT, VkCommandBuffer commandBuffer,
+                                const VkBindHeapInfoEXT *pBindInfo);
+INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdBindResourceHeapEXT, VkCommandBuffer commandBuffer,
+                                const VkBindHeapInfoEXT *pBindInfo);
+INSTANTIATE_FUNCTION_SERIALISED(void, vkCmdPushDataEXT, VkCommandBuffer commandBuffer,
+                                const VkPushDataInfoEXT *pPushDataInfo);

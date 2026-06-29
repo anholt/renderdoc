@@ -3329,6 +3329,29 @@ public:
                                 VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
                                 VkPipelineLayout layout, uint32_t set);
 
+  // VK_EXT_descriptor_heap
+  IMPLEMENT_FUNCTION_SERIALISED(VkResult, vkWriteSamplerDescriptorsEXT, VkDevice device,
+                                uint32_t samplerCount, const VkSamplerCreateInfo *pSamplers,
+                                const VkHostAddressRangeEXT *pDescriptors);
+  IMPLEMENT_FUNCTION_SERIALISED(VkResult, vkWriteResourceDescriptorsEXT, VkDevice device,
+                                uint32_t resourceCount, const VkResourceDescriptorInfoEXT *pResources,
+                                const VkHostAddressRangeEXT *pDescriptors);
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdBindSamplerHeapEXT, VkCommandBuffer commandBuffer,
+                                const VkBindHeapInfoEXT *pBindInfo);
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdBindResourceHeapEXT, VkCommandBuffer commandBuffer,
+                                const VkBindHeapInfoEXT *pBindInfo);
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdPushDataEXT, VkCommandBuffer commandBuffer,
+                                const VkPushDataInfoEXT *pPushDataInfo);
+  VkResult vkGetImageOpaqueCaptureDataEXT(VkDevice device, uint32_t imageCount,
+                                          const VkImage *pImages, VkHostAddressRangeEXT *pDatas);
+  VkDeviceSize vkGetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice,
+                                                    VkDescriptorType descriptorType);
+  IMPLEMENT_FUNCTION_SERIALISED(VkResult, vkRegisterCustomBorderColorEXT, VkDevice device,
+                                const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
+                                VkBool32 requestIndex, uint32_t *pIndex);
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkUnregisterCustomBorderColorEXT, VkDevice device,
+                                uint32_t index);
+
   // VK_KHR_map_memory2
   IMPLEMENT_FUNCTION_SERIALISED(VkResult, vkMapMemory2, VkDevice device,
                                 const VkMemoryMapInfo *pMemoryMapInfo, void **ppData);

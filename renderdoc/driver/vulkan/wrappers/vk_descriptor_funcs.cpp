@@ -3665,6 +3665,61 @@ void WrappedVulkan::vkGetDescriptorEXT(VkDevice device, const VkDescriptorGetInf
   }
 }
 
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkWriteResourceDescriptorsEXT(
+    SerialiserType &ser, VkDevice device, uint32_t resourceCount,
+    const VkResourceDescriptorInfoEXT *pResources, const VkHostAddressRangeEXT *pDescriptors)
+{
+  return true;
+}
+
+VkResult WrappedVulkan::vkWriteResourceDescriptorsEXT(VkDevice device, uint32_t resourceCount,
+                                                      const VkResourceDescriptorInfoEXT *pResources,
+                                                      const VkHostAddressRangeEXT *pDescriptors)
+{
+  size_t addressesSize = sizeof(VkHostAddressRangeEXT) * resourceCount;
+  size_t infoSize = sizeof(VkResourceDescriptorInfoEXT) * resourceCount;
+  for(uint32_t i = 0; i < resourceCount; i++) {
+    infoSize += GetNextPatchSize(pResources + i);
+  }
+  size_t tempmemSize = addressesSize + infoSize * resourceCount;
+  byte *tempMem = GetTempMemory(tempmemSize);
+  VkResourceDescriptorInfoEXT *tempResources = (VkResourceDescriptorInfoEXT *)(tempMem);
+  byte *unwrapMemory = (byte *)(tempResources + resourceCount);
+
+  for(uint32_t i = 0; i < resourceCount; i++)
+  {
+    tempResources[i] = *UnwrapStructAndChain(m_State, unwrapMemory, &pResources[i]);
+  }
+
+  return ObjDisp(device)->WriteResourceDescriptorsEXT(Unwrap(device), resourceCount, tempResources,
+                                                      pDescriptors);
+}
+
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkWriteSamplerDescriptorsEXT(SerialiserType &ser, VkDevice device,
+                                                           uint32_t samplerCount,
+                                                           const VkSamplerCreateInfo *pSamplers,
+                                                           const VkHostAddressRangeEXT *pDescriptors)
+{
+  return true;
+}
+
+VkResult WrappedVulkan::vkWriteSamplerDescriptorsEXT(VkDevice device, uint32_t samplerCount,
+                                                     const VkSamplerCreateInfo *pSamplers,
+                                                     const VkHostAddressRangeEXT *pDescriptors)
+{
+  return ObjDisp(device)->WriteSamplerDescriptorsEXT(Unwrap(device), samplerCount, pSamplers,
+                                                     pDescriptors);
+}
+
+VkDeviceSize WrappedVulkan::vkGetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice,
+                                                                 VkDescriptorType descriptorType)
+{
+  return ObjDisp(physicalDevice)
+      ->GetPhysicalDeviceDescriptorSizeEXT(Unwrap(physicalDevice), descriptorType);
+}
+
 INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkCreateDescriptorSetLayout, VkDevice device,
                                 const VkDescriptorSetLayoutCreateInfo *pCreateInfo,
                                 const VkAllocationCallbacks *, VkDescriptorSetLayout *pSetLayout);
@@ -3696,3 +3751,11 @@ INSTANTIATE_FUNCTION_SERIALISED(void, vkUpdateDescriptorSetWithTemplate, VkDevic
 INSTANTIATE_FUNCTION_SERIALISED(void, vkGetDescriptorEXT, VkDevice device,
                                 const VkDescriptorGetInfoEXT *pDescriptorInfo, size_t dataSize,
                                 void *pDescriptor);
+
+INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkWriteResourceDescriptorsEXT, VkDevice device,
+                                uint32_t resourceCount, const VkResourceDescriptorInfoEXT *pResources,
+                                const VkHostAddressRangeEXT *pDescriptors);
+
+INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkWriteSamplerDescriptorsEXT, VkDevice device,
+                                uint32_t samplerCount, const VkSamplerCreateInfo *pSamplers,
+                                const VkHostAddressRangeEXT *pDescriptors);

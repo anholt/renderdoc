@@ -762,6 +762,7 @@
   HookInitExtension(EXT_acquire_drm_display, AcquireDrmDisplayEXT);                                  \
   HookInitExtension(EXT_acquire_drm_display, GetDrmDisplayEXT);                                      \
   HookInitExtension(KHR_calibrated_timestamps, GetPhysicalDeviceCalibrateableTimeDomainsKHR);        \
+  HookInitExtension(EXT_descriptor_heap, GetPhysicalDeviceDescriptorSizeEXT);                        \
   HookInitExtension_PhysDev_Win32();                                                                 \
   HookInitExtension_PhysDev_Linux();                                                                 \
   HookInitExtension_PhysDev_Android();                                                               \
@@ -830,6 +831,7 @@
   HookInitExtension(EXT_acquire_drm_display, AcquireDrmDisplayEXT);                                  \
   HookInitExtension(EXT_acquire_drm_display, GetDrmDisplayEXT);                                      \
   HookInitExtension(KHR_calibrated_timestamps, GetPhysicalDeviceCalibrateableTimeDomainsKHR);        \
+  HookInitExtension(EXT_descriptor_heap, GetPhysicalDeviceDescriptorSizeEXT);                        \
   HookInitExtension_Instance_Win32();                                                                \
   HookInitExtension_Instance_Linux();                                                                \
   HookInitExtension_Instance_Android();                                                              \
@@ -990,6 +992,14 @@
   HookInitPromotedExtension(KHR_dynamic_rendering, CmdBeginRendering, KHR);                          \
   HookInitPromotedExtension(KHR_dynamic_rendering, CmdEndRendering, KHR);                            \
   HookInitExtension(EXT_fragment_density_map_offset, CmdEndRendering2EXT);                           \
+  HookInitExtension(EXT_descriptor_heap, WriteSamplerDescriptorsEXT);                                \
+  HookInitExtension(EXT_descriptor_heap, WriteResourceDescriptorsEXT);                               \
+  HookInitExtension(EXT_descriptor_heap, CmdBindSamplerHeapEXT);                                     \
+  HookInitExtension(EXT_descriptor_heap, CmdBindResourceHeapEXT);                                    \
+  HookInitExtension(EXT_descriptor_heap, CmdPushDataEXT);                                            \
+  HookInitExtension(EXT_descriptor_heap, GetImageOpaqueCaptureDataEXT);                              \
+  HookInitExtension(EXT_descriptor_heap, RegisterCustomBorderColorEXT);                              \
+  HookInitExtension(EXT_descriptor_heap, UnregisterCustomBorderColorEXT);                            \
   HookInitPromotedExtension(KHR_dynamic_rendering_local_read, CmdSetRenderingAttachmentLocations,    \
                             KHR);                                                                    \
   HookInitPromotedExtension(KHR_dynamic_rendering_local_read,                                        \
@@ -2101,6 +2111,26 @@
               VkCheckpointDataNV *, pCheckpointData);                                                \
   HookDefine3(void, vkGetQueueCheckpointData2NV, VkQueue, queue, uint32_t *, pCheckpointDataCount,   \
               VkCheckpointData2NV *, pCheckpointData);                                               \
+  HookDefine4(VkResult, vkWriteSamplerDescriptorsEXT, VkDevice, device, uint32_t, samplerCount,      \
+              const VkSamplerCreateInfo *, pSamplers, const VkHostAddressRangeEXT *,                 \
+              pDescriptors);                                                                         \
+  HookDefine4(VkResult, vkWriteResourceDescriptorsEXT, VkDevice, device, uint32_t,                   \
+              resourceCount, const VkResourceDescriptorInfoEXT *, pResources,                        \
+              const VkHostAddressRangeEXT *, pDescriptors);                                          \
+  HookDefine2(void, vkCmdBindSamplerHeapEXT, VkCommandBuffer, commandBuffer,                         \
+              const VkBindHeapInfoEXT *, pBindInfo);                                                 \
+  HookDefine2(void, vkCmdBindResourceHeapEXT, VkCommandBuffer, commandBuffer,                        \
+              const VkBindHeapInfoEXT *, pBindInfo);                                                 \
+  HookDefine2(void, vkCmdPushDataEXT, VkCommandBuffer, commandBuffer, const VkPushDataInfoEXT *,     \
+              pPushDataInfo);                                                                        \
+  HookDefine4(VkResult, vkGetImageOpaqueCaptureDataEXT, VkDevice, device, uint32_t, imageCount,      \
+              const VkImage *, pImages, VkHostAddressRangeEXT *, pDatas);                            \
+  HookDefine2(VkDeviceSize, vkGetPhysicalDeviceDescriptorSizeEXT, VkPhysicalDevice,                  \
+              physicalDevice, VkDescriptorType, descriptorType);                                     \
+  HookDefine4(VkResult, vkRegisterCustomBorderColorEXT, VkDevice, device,                            \
+              const VkSamplerCustomBorderColorCreateInfoEXT *, pBorderColor, VkBool32,               \
+              requestIndex, uint32_t *, pIndex);                                                     \
+  HookDefine2(void, vkUnregisterCustomBorderColorEXT, VkDevice, device, uint32_t, index);            \
   HookDefine_Win32();                                                                                \
   HookDefine_Linux();                                                                                \
   HookDefine_Android();                                                                              \

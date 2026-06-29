@@ -1411,6 +1411,13 @@ enum class VulkanChunk : uint32_t
   SetCommandAnnotation,
   vkCmdBeginCustomResolveEXT,
   vkCmdSetCheckpointNV,
+  vkWriteSamplerDescriptorsEXT,
+  vkWriteResourceDescriptorsEXT,
+  vkCmdBindSamplerHeapEXT,
+  vkCmdBindResourceHeapEXT,
+  vkCmdPushDataEXT,
+  vkRegisterCustomBorderColorEXT,
+  vkUnregisterCustomBorderColorEXT,
   Max,
 };
 
