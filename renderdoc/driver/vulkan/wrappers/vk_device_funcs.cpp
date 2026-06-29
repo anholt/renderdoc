@@ -4559,6 +4559,15 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
     if(m_EnabledExtensions.ext_EXT_descriptor_heap && descHeapFeats && descHeapFeats->descriptorHeap)
     {
       m_DescriptorHeap = true;
+
+      m_DescriptorHeapProperties = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT,
+      };
+      VkPhysicalDeviceProperties2 physBase = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+      physBase.pNext = &m_DescriptorHeapProperties;
+
+      ObjDisp(physicalDevice)
+          ->GetPhysicalDeviceProperties2(Unwrap(physicalDevice), &physBase);
     }
 
     // MoltenVK reports 0x3fffffff for this limit so just ignore that value if it comes up
@@ -5315,6 +5324,25 @@ VkResult WrappedVulkan::vkCreateDevice(VkPhysicalDevice physicalDevice,
       }
 
       m_NULLDescriptorPatternSaved = true;
+    }
+
+    if(m_EnabledExtensions.ext_EXT_descriptor_heap && descHeapFeatures &&
+       descHeapFeatures->descriptorHeap)
+    {
+      m_DescriptorHeapProperties = {
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT,
+      };
+
+      VkPhysicalDeviceProperties2 availBase = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+      availBase.pNext = &m_DescriptorHeapProperties;
+      ObjDisp(physicalDevice)->GetPhysicalDeviceProperties2(Unwrap(physicalDevice), &availBase);
+
+      /* XXX: descriptor buffer checks some robustness stuff in this and the
+       * other m_DBP setup, do we need to do any?
+       */
+
+      /* XXX: set up heap reservation size here (EXT_db does 2 descriptors.) */
+      /* XXX: m_IgnoreLayoutForDescriptors */
     }
 
     m_PhysicalDeviceData.driverInfo =
