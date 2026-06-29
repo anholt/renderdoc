@@ -940,8 +940,7 @@ void ShaderViewer::debugShader(const ShaderReflection *shader, ResourceId pipeli
       QAction *act;
 
       act = MakeExecuteAction(tr("&Run forwards"), Icons::control_end_blue(),
-                              tr("Run forwards to the start of the shader"),
-                              QKeySequence(Qt::Key_F5));
+                              tr("Run forwards to the end of the shader"), QKeySequence(Qt::Key_F5));
 
       QObject::connect(act, &QAction::triggered, [this]() { runTo(~0U, true); });
       forwardsMenu->addAction(act);
