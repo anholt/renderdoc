@@ -335,7 +335,7 @@ VulkanTextRenderer::VulkanTextRenderer(WrappedVulkan *driver)
       };
 
       VkMemoryAllocateFlagsInfo memFlags = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO};
-      if(driver->DescriptorBuffers())
+      if(driver->DescriptorBuffers() || driver->DescriptorHeap())
       {
         allocInfo.pNext = &memFlags;
         memFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT |
