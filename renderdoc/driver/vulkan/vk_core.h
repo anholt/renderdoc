@@ -591,6 +591,7 @@ private:
   bool m_Maintenance6 = false;
   bool m_Maintenance9 = false;
   bool m_DescriptorBuffers = false;
+  bool m_DescriptorHeap = false;
   bool m_MultiviewPerViewViewports = false;
 
   uint32_t m_RTCaptureReplayHandleSize = 0;
@@ -1577,6 +1578,7 @@ public:
   bool Maintenance6() const { return m_Maintenance6; }
   bool Maintenance9() const { return m_Maintenance9; }
   bool DescriptorBuffers() const { return m_DescriptorBuffers; }
+  bool DescriptorHeap() const { return m_DescriptorHeap; }
   bool MultiViewGeometryShaders() const { return m_MultiViewGeometryShaders; }
   bool MultiviewPerViewViewports() const { return m_MultiviewPerViewViewports; }
   VulkanRenderState &GetRenderState() { return m_RenderState; }
