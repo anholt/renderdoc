@@ -2322,7 +2322,7 @@ VkResult WrappedVulkan::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo
 
       record->resInfo = NULL;
 
-      if(isSparse || isExternal || m_DescriptorBuffers)
+      if(isSparse || isExternal || m_DescriptorBuffers || m_DescriptorHeap)
       {
         record->resInfo = new ResourceInfo();
 
@@ -2831,6 +2831,35 @@ bool WrappedVulkan::Serialise_vkCreateImage(SerialiserType &ser, VkDevice device
 
       if(isSparse)
         state->isMemoryBound = true;
+
+      if(DescriptorHeap() && IsYUVFormat(patched.format))
+      {
+        // Save the ycbcr descriptor count now, since later on we won't have the
+        // creation/usage flags to query it.
+        VkPhysicalDeviceImageFormatInfo2 formatInfo = {
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2};
+        formatInfo.format = patched.format;
+        formatInfo.type = patched.imageType;
+        formatInfo.tiling = patched.tiling;
+        formatInfo.flags = patched.flags;
+        formatInfo.usage = patched.usage;
+        VkSamplerYcbcrConversionImageFormatProperties ycbcrProps = {
+            VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES};
+        VkImageFormatProperties2 props = {VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2};
+        props.pNext = &ycbcrProps;
+        VkResult vkr =
+            vkGetPhysicalDeviceImageFormatProperties2(m_PhysicalDevice, &formatInfo, &props);
+
+        if(vkr == VK_SUCCESS)
+        {
+          m_CreationInfo.m_Image[live].ycbcrCombinedImageSamplerDescriptorCount =
+              ycbcrProps.combinedImageSamplerDescriptorCount;
+        }
+        else
+        {
+          RDCWARN("Failed to query combinedImageSamplerDescriptorCount");
+        }
+      }
     }
 
     rdcstr prefix = "Image";
@@ -3066,6 +3095,35 @@ VkResult WrappedVulkan::vkCreateImage(VkDevice device, const VkImageCreateInfo *
       resInfo.imageInfo = ImageInfo(*pCreateInfo);
 
       record->storable = (GetImageUsageFlags(pCreateInfo) & VK_IMAGE_USAGE_STORAGE_BIT) != 0;
+
+      if(DescriptorHeap() && IsYUVFormat(createInfo_adjusted.format))
+      {
+        // Save the ycbcr descriptor count now, since later on we won't have the
+        // creation/usage flags to query it.
+        VkPhysicalDeviceImageFormatInfo2 formatInfo = {
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2};
+        formatInfo.format = createInfo_adjusted.format;
+        formatInfo.type = createInfo_adjusted.imageType;
+        formatInfo.tiling = createInfo_adjusted.tiling;
+        formatInfo.flags = createInfo_adjusted.flags;
+        formatInfo.usage = createInfo_adjusted.usage;
+        VkSamplerYcbcrConversionImageFormatProperties ycbcrProps = {
+            VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES};
+        VkImageFormatProperties2 props = {VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2};
+        props.pNext = &ycbcrProps;
+        VkResult vkr =
+            vkGetPhysicalDeviceImageFormatProperties2(m_PhysicalDevice, &formatInfo, &props);
+
+        if(vkr == VK_SUCCESS)
+        {
+          resInfo.ycbcrCombinedImageSamplerDescriptorCount =
+              ycbcrProps.combinedImageSamplerDescriptorCount;
+        }
+        else
+        {
+          RDCWARN("Failed to query combinedImageSamplerDescriptorCount");
+        }
+      }
 
       bool isLinear = (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR);
 
