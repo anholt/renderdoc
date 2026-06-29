@@ -499,6 +499,7 @@ private:
                                 VkDeviceAddress &outAddress, VkDeviceSize &outSize);
 
   bool m_NULLDescriptorPatternSaved = false;
+  bool m_NULLHeapDescriptorPatternSaved = false;
   bool m_IgnoreLayoutForDescriptors = false;
   uint32_t m_ResourceDescriptorBufferReserveSize = 0;
   rdcarray<ResourceId> m_ResourceDescBuffers;
@@ -1555,6 +1556,8 @@ public:
                                                          VkExtensionProperties *pProperties);
 
   uint32_t DescriptorDataSize(VkDescriptorType type);
+  uint32_t HeapDescriptorDataSize(VkDescriptorType type);
+  uint32_t HeapDescriptorDataSizeForDescriptorInfo(const VkResourceDescriptorInfoEXT *info);
 
   VkBufferCreateFlags DefaultBufferCreateFlags()
   {
