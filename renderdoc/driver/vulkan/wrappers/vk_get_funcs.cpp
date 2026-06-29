@@ -1568,3 +1568,15 @@ void WrappedVulkan::vkGetQueueCheckpointData2NV(VkQueue queue, uint32_t *pCheckp
   return ObjDisp(queue)->GetQueueCheckpointData2NV(Unwrap(queue), pCheckpointDataCount,
                                                    pCheckpointData);
 }
+
+VkResult WrappedVulkan::vkGetImageOpaqueCaptureDataEXT(VkDevice device, uint32_t imageCount,
+                                                       const VkImage *pImages,
+                                                       VkHostAddressRangeEXT *pDatas)
+{
+  VkImage *unwrappedImages = GetTempArray<VkImage>(imageCount);
+  for(uint32_t i = 0; i < imageCount; i++)
+    unwrappedImages[i] = Unwrap(pImages[i]);
+
+  return ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), imageCount, unwrappedImages,
+                                                       pDatas);
+}
