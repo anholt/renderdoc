@@ -696,6 +696,8 @@ struct VulkanCreationInfo
 
     rdcarray<rdcpair<bytebuf, ResourceId>> viewDescriptors;
 
+    uint32_t ycbcrCombinedImageSamplerDescriptorCount = 1;
+
     ResourceId getViewFromDescriptor(const byte *descriptorBytes, size_t descriptorSize)
     {
       for(auto it = viewDescriptors.begin(); it != viewDescriptors.end(); ++it)

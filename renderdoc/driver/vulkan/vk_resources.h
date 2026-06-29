@@ -1139,6 +1139,8 @@ struct ResourceInfo
 
   ImageInfo imageInfo;
 
+  uint32_t ycbcrCombinedImageSamplerDescriptorCount = 1;
+
   bool IsSparse() const { return sparseTable.getPageByteSize() > 0; }
   void Update(uint32_t numBindings, const VkSparseMemoryBind *pBindings,
               std::set<ResourceId> &memories);
