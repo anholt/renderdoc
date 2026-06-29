@@ -42,6 +42,18 @@ uint32_t WrappedVulkan::DescriptorDataSize(VkDescriptorType type)
   return ::DescriptorDataSize(m_DescriptorBufferProperties, type);
 }
 
+uint32_t WrappedVulkan::HeapDescriptorDataSize(VkDescriptorType type)
+{
+  // Note: vkWriteResourceDescriptorsEXT can take any size >= the physical
+  // device descriptor size, which may be lower than the general
+  // VkPhysicalDeviceDescriptorHeapPropertiesEXT answer for groups of descriptor
+  // types.  Similarly, we should use this for the actual size of descriptors
+  // we're looking up in the descriptor hash table (we don't want to look at
+  // bytes that would be ignored)
+  return (uint32_t)ObjDisp(m_PhysicalDevice)
+      ->GetPhysicalDeviceDescriptorSizeEXT(Unwrap(m_PhysicalDevice), type);
+}
+
 void WrappedVulkan::EstimateDescriptorFormats()
 {
   // we want to differentiate the descriptor in as few tests as possible. We don't necessarily care
@@ -3670,6 +3682,87 @@ bool WrappedVulkan::Serialise_vkWriteResourceDescriptorsEXT(
     SerialiserType &ser, VkDevice device, uint32_t resourceCount,
     const VkResourceDescriptorInfoEXT *pResources, const VkHostAddressRangeEXT *pDescriptors)
 {
+  SERIALISE_ELEMENT(device);
+  SERIALISE_ELEMENT(resourceCount);
+  SERIALISE_ELEMENT_ARRAY(pResources, resourceCount);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  for(uint32_t i = 0; i < resourceCount; i++)
+  {
+    SERIALISE_ELEMENT_LOCAL(descriptorSize, uint64_t(pDescriptors[i].size));
+    byte *descriptor = NULL;
+    if(!IsReplayingAndReading())
+      descriptor = (byte *)pDescriptors[i].address;
+    SERIALISE_ELEMENT_ARRAY(descriptor, descriptorSize);
+
+    SERIALISE_CHECK_READ_ERRORS();
+
+    if(IsReplayingAndReading())
+    {
+      /* Replay each descriptor write into temp memory, and check that it
+       * matched what we saw at record time.
+       */
+      size_t infoSize = GetNextPatchSize(&pResources[i]);
+      byte *tempMem = GetTempMemory(infoSize + (uint32_t)descriptorSize);
+      VkHostAddressRangeEXT addressRange = {tempMem + infoSize, (size_t)descriptorSize};
+      VkResourceDescriptorInfoEXT *unwrappedInfo =
+          UnwrapStructAndChain(m_State, tempMem, &pResources[i]);
+
+      // Note: vkWriteResourceDescriptorsEXT can take any size >= the physical
+      // device descriptor size, which may be lower than the general
+      // VkPhysicalDeviceDescriptorHeapPropertiesEXT answer for groups of
+      // descriptor types.
+      uint32_t curDescriptorSize = HeapDescriptorDataSize(pResources[i].type);
+      if(descriptorSize < curDescriptorSize)
+      {
+        SET_ERROR_RESULT(
+            m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
+            "Heap descriptor of type %s changed size, it was %llu bytes during capture but "
+            "is %llu bytes during replay.\n"
+            "\n%s",
+            ToStr(pResources[i].type).c_str(), descriptorSize, curDescriptorSize,
+            GetPhysDeviceCompatString(false, false).c_str());
+        return false;
+      }
+
+      ObjDisp(device)->WriteResourceDescriptorsEXT(Unwrap(device), 1, unwrappedInfo, &addressRange);
+
+      if(memcmp(addressRange.address, descriptor, curDescriptorSize) != 0)
+      {
+        rdcstr bitDifferences;
+
+        uint32_t *capU32 = (uint32_t *)descriptor;
+        uint32_t *replayU32 = (uint32_t *)addressRange.address;
+
+        bitDifferences = "Capture:\n";
+        for(uint32_t d = 0; d * 4 < descriptorSize; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", capU32[d]);
+        bitDifferences += "\n\n";
+        bitDifferences += "Replay:\n";
+        for(uint32_t d = 0; d * 4 < curDescriptorSize; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", replayU32[d]);
+        bitDifferences += "\n";
+
+        SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
+                         "Descriptor of type %s changed bit pattern.\n"
+                         "\n%s"
+                         "\n%s",
+                         ToStr(pResources[i].type).c_str(), bitDifferences.c_str(),
+                         GetPhysDeviceCompatString(false, false).c_str());
+        return false;
+      }
+
+#if 0
+      /* XXX: register this descriptor data for the usage tracking */
+      DescriptorSetSlot descriptorData = {};
+      descriptorData.SetDescriptor(this, DescriptorInfo);
+
+      RegisterDescriptor(replayDescriptor, descriptorData);
+#endif
+    }
+  }
+
   return true;
 }
 
@@ -3677,24 +3770,76 @@ VkResult WrappedVulkan::vkWriteResourceDescriptorsEXT(VkDevice device, uint32_t 
                                                       const VkResourceDescriptorInfoEXT *pResources,
                                                       const VkHostAddressRangeEXT *pDescriptors)
 {
+  // the user *could* be writing straight into GPU memory which would be very
+  // bad to read back from. To avoid that, we write into our temporary memory
+  // then memcpy to user memory but only if we're actually going to process
+  // this.
+
+  size_t max_size = (size_t)RDCMAX(m_DescriptorHeapProperties.imageDescriptorSize,
+                                   m_DescriptorHeapProperties.bufferDescriptorSize);
+
   size_t addressesSize = sizeof(VkHostAddressRangeEXT) * resourceCount;
   size_t infoSize = sizeof(VkResourceDescriptorInfoEXT) * resourceCount;
   for(uint32_t i = 0; i < resourceCount; i++)
   {
     infoSize += GetNextPatchSize(pResources + i);
   }
-  size_t tempmemSize = addressesSize + infoSize * resourceCount;
+  size_t tempmemSize = addressesSize + infoSize + max_size * resourceCount;
   byte *tempMem = GetTempMemory(tempmemSize);
-  VkResourceDescriptorInfoEXT *tempResources = (VkResourceDescriptorInfoEXT *)(tempMem);
-  byte *unwrapMemory = (byte *)(tempResources + resourceCount);
+  VkHostAddressRangeEXT *tempAddresses = (VkHostAddressRangeEXT *)tempMem;
+  VkResourceDescriptorInfoEXT *tempInfos = (VkResourceDescriptorInfoEXT *)(tempMem + addressesSize);
+  byte *unwrapMemory = (byte *)(tempInfos + resourceCount);
+  byte *descriptors = (tempMem + addressesSize + infoSize);
 
   for(uint32_t i = 0; i < resourceCount; i++)
   {
-    tempResources[i] = *UnwrapStructAndChain(m_State, unwrapMemory, &pResources[i]);
+    // XXX: ycbcr
+    uint32_t size = HeapDescriptorDataSize(pResources[i].type);
+
+    tempAddresses[i].address = (descriptors + i * max_size);
+    tempAddresses[i].size = size;
+
+    tempInfos[i] = *UnwrapStructAndChain(m_State, unwrapMemory, &pResources[i]);
   }
 
-  return ObjDisp(device)->WriteResourceDescriptorsEXT(Unwrap(device), resourceCount, tempResources,
-                                                      pDescriptors);
+  SERIALISE_TIME_CALL(ObjDisp(device)->WriteResourceDescriptorsEXT(Unwrap(device), resourceCount,
+                                                                   tempInfos, tempAddresses));
+
+  for(uint32_t i = 0; i < resourceCount; i++)
+  {
+    RDCASSERT(pDescriptors[i].size >= tempAddresses[i].size);
+    memcpy(pDescriptors[i].address, tempAddresses[i].address, tempAddresses[i].size);
+  }
+
+  if(IsCaptureMode(m_State))
+  {
+    for(uint32_t i = 0; i < resourceCount; i++)
+    {
+      VkResourceRecord *dstRecord = GetRecord(m_Device);
+      CACHE_THREAD_SERIALISER();
+
+      switch(pResources[i].type)
+      {
+        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        case VK_DESCRIPTOR_TYPE_BLOCK_MATCH_IMAGE_QCOM:
+        case VK_DESCRIPTOR_TYPE_SAMPLE_WEIGHT_IMAGE_QCOM:
+        case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+          if(pResources[i].data.pImage)
+            dstRecord = GetRecord(pResources[i].data.pImage->pView->image);
+          break;
+        default: break;
+      }
+
+      SCOPED_SERIALISE_CHUNK(VulkanChunk::vkWriteResourceDescriptorsEXT);
+      Serialise_vkWriteResourceDescriptorsEXT(ser, device, 1, &pResources[i], &tempAddresses[i]);
+
+      Chunk *chunk = scope.Get();
+      dstRecord->AddChunk(chunk);
+    }
+  }
+
+  return VK_SUCCESS;
 }
 
 template <typename SerialiserType>
@@ -3703,6 +3848,80 @@ bool WrappedVulkan::Serialise_vkWriteSamplerDescriptorsEXT(SerialiserType &ser, 
                                                            const VkSamplerCreateInfo *pSamplers,
                                                            const VkHostAddressRangeEXT *pDescriptors)
 {
+  SERIALISE_ELEMENT(device);
+  SERIALISE_ELEMENT(samplerCount);
+  SERIALISE_ELEMENT_ARRAY(pSamplers, samplerCount);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  for(uint32_t i = 0; i < samplerCount; i++)
+  {
+    SERIALISE_ELEMENT_LOCAL(descriptorSize, uint64_t(pDescriptors[i].size));
+    byte *descriptor = NULL;
+    if(!IsReplayingAndReading())
+      descriptor = (byte *)pDescriptors[i].address;
+    SERIALISE_ELEMENT_ARRAY(descriptor, descriptorSize);
+
+    SERIALISE_CHECK_READ_ERRORS();
+
+    if(IsReplayingAndReading())
+    {
+      /* Replay each descriptor write into temp memory, and check that it
+       * matched what we saw at record time.
+       */
+      size_t infoSize = GetNextPatchSize(&pSamplers[i]);
+      byte *tempMem = GetTempMemory(infoSize + (uint32_t)descriptorSize);
+      VkHostAddressRangeEXT addressRange = {tempMem + infoSize, (size_t)descriptorSize};
+      VkSamplerCreateInfo *unwrappedInfo = UnwrapStructAndChain(m_State, tempMem, &pSamplers[i]);
+
+      uint32_t curDescriptorSize = HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_SAMPLER);
+      if(descriptorSize < (uint64_t)curDescriptorSize)
+      {
+        SET_ERROR_RESULT(
+            m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
+            "Heap sampler descriptor changed size, it was %llu bytes during capture but "
+            "is %llu bytes during replay.\n"
+            "\n%s",
+            descriptorSize, curDescriptorSize, GetPhysDeviceCompatString(false, false).c_str());
+        return false;
+      }
+
+      ObjDisp(device)->WriteSamplerDescriptorsEXT(Unwrap(device), 1, unwrappedInfo, &addressRange);
+
+      if(memcmp(addressRange.address, descriptor, curDescriptorSize) != 0)
+      {
+        rdcstr bitDifferences;
+
+        uint32_t *capU32 = (uint32_t *)descriptor;
+        uint32_t *replayU32 = (uint32_t *)addressRange.address;
+
+        bitDifferences = "Capture:\n";
+        for(uint32_t d = 0; d * 4 < descriptorSize; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", capU32[d]);
+        bitDifferences += "\n\n";
+        bitDifferences += "Replay:\n";
+        for(uint32_t d = 0; d * 4 < curDescriptorSize; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", replayU32[d]);
+        bitDifferences += "\n";
+
+        SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
+                         "Sampler Descriptor changed bit pattern.\n"
+                         "\n%s"
+                         "\n%s",
+                         bitDifferences.c_str(), GetPhysDeviceCompatString(false, false).c_str());
+        return false;
+      }
+
+#if 0
+      /* XXX: register this descriptor data for the usage tracking */
+      DescriptorSetSlot descriptorData = {};
+      descriptorData.SetDescriptor(this, DescriptorInfo);
+
+      RegisterDescriptor(replayDescriptor, descriptorData);
+#endif
+    }
+  }
+
   return true;
 }
 
@@ -3710,8 +3929,58 @@ VkResult WrappedVulkan::vkWriteSamplerDescriptorsEXT(VkDevice device, uint32_t s
                                                      const VkSamplerCreateInfo *pSamplers,
                                                      const VkHostAddressRangeEXT *pDescriptors)
 {
-  return ObjDisp(device)->WriteSamplerDescriptorsEXT(Unwrap(device), samplerCount, pSamplers,
-                                                     pDescriptors);
+  // the user *could* be writing straight into GPU memory which would be very
+  // bad to read back from. To avoid that, we write into our temporary memory
+  // then memcpy to user memory but only if we're actually going to process
+  // this.
+
+  size_t size = (size_t)m_DescriptorHeapProperties.samplerDescriptorSize;
+  size_t addressesSize = sizeof(VkHostAddressRangeEXT) * samplerCount;
+  size_t tempmemSize = addressesSize + size * samplerCount;
+  void *tempMem = GetTempMemory(tempmemSize);
+  VkHostAddressRangeEXT *tempAddresses = (VkHostAddressRangeEXT *)tempMem;
+  char *descriptors = ((char *)tempMem + addressesSize);
+
+  for(uint32_t i = 0; i < samplerCount; i++)
+  {
+    tempAddresses[i].address = (descriptors + i * size);
+    tempAddresses[i].size = size;
+  }
+  SERIALISE_TIME_CALL(ObjDisp(device)->WriteSamplerDescriptorsEXT(Unwrap(device), samplerCount,
+                                                                  pSamplers, tempAddresses));
+
+  for(uint32_t i = 0; i < samplerCount; i++)
+  {
+    RDCASSERT(pDescriptors[i].size >= tempAddresses[i].size);
+    memcpy(pDescriptors[i].address, tempAddresses[i].address, tempAddresses[i].size);
+  }
+
+  if(IsCaptureMode(m_State))
+  {
+    /* It would be nice to hang these writedescriptors off of the resources so
+     * they only serialized if the resource was captured.  But, since all
+     * VkImages get serialized anyway, it wouldn't gain us anything.  Also,
+     * unlike vkGetDescriptor(), we don't deduplicate our serialized
+     * vkWriteResourceDescriptor()s since that would take hashing the whole
+     * pNext chain of any descriptor type.
+     */
+    VkResourceRecord *dstRecord = GetRecord(m_Device);
+
+    Chunk *chunk = NULL;
+
+    {
+      CACHE_THREAD_SERIALISER();
+
+      SCOPED_SERIALISE_CHUNK(VulkanChunk::vkWriteSamplerDescriptorsEXT);
+      Serialise_vkWriteSamplerDescriptorsEXT(ser, device, samplerCount, pSamplers, tempAddresses);
+
+      chunk = scope.Get();
+    }
+
+    dstRecord->AddChunk(chunk);
+  }
+
+  return VK_SUCCESS;
 }
 
 VkDeviceSize WrappedVulkan::vkGetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice,

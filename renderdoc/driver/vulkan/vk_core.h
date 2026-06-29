@@ -1555,6 +1555,7 @@ public:
                                                          VkExtensionProperties *pProperties);
 
   uint32_t DescriptorDataSize(VkDescriptorType type);
+  uint32_t HeapDescriptorDataSize(VkDescriptorType type);
 
   VkBufferCreateFlags DefaultBufferCreateFlags()
   {
