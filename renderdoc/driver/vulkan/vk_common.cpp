@@ -1793,6 +1793,28 @@ uint32_t DescriptorDataSize(const VkPhysicalDeviceDescriptorBufferPropertiesEXT 
   return (uint32_t)ret;
 }
 
+uint32_t DescriptorDataSize(const VkPhysicalDeviceDescriptorHeapPropertiesEXT &descSizes,
+                            VkDescriptorType type)
+{
+  size_t ret = 0;
+
+  switch(type)
+  {
+    case VK_DESCRIPTOR_TYPE_SAMPLER: ret = descSizes.samplerDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: ret = descSizes.imageDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: ret = descSizes.imageDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: ret = descSizes.imageDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER: ret = descSizes.imageDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER: ret = descSizes.imageDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: ret = descSizes.bufferDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: ret = descSizes.bufferDescriptorSize; break;
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: ret = descSizes.bufferDescriptorSize; break;
+    default: break;
+  }
+
+  return (uint32_t)ret;
+}
+
 void DynamicRenderingLocalRead::Init(const VkBaseInStructure *infoStruct)
 {
   const VkRenderingAttachmentLocationInfo *attachmentLocationInfo =

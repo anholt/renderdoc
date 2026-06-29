@@ -929,6 +929,8 @@ constexpr uint32_t ExpectedMaxNumDescriptorBuffers = 100;
 
 uint32_t DescriptorDataSize(const VkPhysicalDeviceDescriptorBufferPropertiesEXT &descSizes,
                             VkDescriptorType type);
+uint32_t DescriptorDataSize(const VkPhysicalDeviceDescriptorHeapPropertiesEXT &descSizes,
+                            VkDescriptorType type);
 
 struct OpaqueDataForSerialising : VkOpaqueCaptureDescriptorDataCreateInfoEXT
 {
