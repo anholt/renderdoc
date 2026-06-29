@@ -1182,6 +1182,34 @@ void OpaqueDataForSerialising::fill(VkDevice wrappedDevice, VkAccelerationStruct
     RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
 }
 
+void OpaqueHeapDataForSerialising::fillUnwrapped(VkDevice wrappedDevice, VkImage unwrappedImage,
+                                                 VkPhysicalDeviceDescriptorHeapPropertiesEXT &props)
+{
+  VkHostAddressRangeEXT rangeData = {data, props.imageCaptureReplayOpaqueDataSize};
+  hostData.size = props.imageCaptureReplayOpaqueDataSize;
+
+  VkResult opaqueQuery =
+      ObjDisp(wrappedDevice)
+          ->GetImageOpaqueCaptureDataEXT(Unwrap(wrappedDevice), 1, &unwrappedImage, &rangeData);
+  if(opaqueQuery != VK_SUCCESS)
+    RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
+}
+
+void OpaqueHeapDataForSerialising::fill(VkDevice wrappedDevice, VkImage wrappedImage,
+                                        VkPhysicalDeviceDescriptorHeapPropertiesEXT &props)
+{
+  VkImage unwrappedImage = Unwrap(wrappedImage);
+  hostData.size = props.imageCaptureReplayOpaqueDataSize;
+
+  VkHostAddressRangeEXT rangeData = {data, props.imageCaptureReplayOpaqueDataSize};
+
+  VkResult opaqueQuery =
+      ObjDisp(wrappedDevice)
+          ->GetImageOpaqueCaptureDataEXT(Unwrap(wrappedDevice), 1, &unwrappedImage, &rangeData);
+  if(opaqueQuery != VK_SUCCESS)
+    RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
+}
+
 void OpaqueDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCreateInfo)
 {
   VkOpaqueCaptureDescriptorDataCreateInfoEXT *existing =
@@ -1191,6 +1219,22 @@ void OpaqueDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCr
   if(existing)
   {
     RDCASSERT(memcmp(data, existing->opaqueCaptureDescriptorData, sz) == 0);
+  }
+  else
+  {
+    pNext = serialisedCreateInfo->pNext;
+    serialisedCreateInfo->pNext = (VkBaseInStructure *)this;
+  }
+}
+
+void OpaqueHeapDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCreateInfo)
+{
+  VkOpaqueCaptureDataCreateInfoEXT *existing =
+      (VkOpaqueCaptureDataCreateInfoEXT *)FindNextStruct(serialisedCreateInfo, sType);
+
+  if(existing)
+  {
+    RDCASSERT(memcmp(data, existing->pData->address, hostData.size) == 0);
   }
   else
   {
