@@ -430,6 +430,7 @@ private:
   };
 
   VkPhysicalDeviceDescriptorBufferPropertiesEXT m_DescriptorBufferProperties;
+  VkPhysicalDeviceDescriptorHeapPropertiesEXT m_DescriptorHeapProperties;
 
   Threading::CriticalSection m_ASLookupByAddrLock;
   rdcflatmap<VkDeviceAddress, ResourceId> m_ASLookupByAddr;
@@ -1561,7 +1562,8 @@ public:
   }
   VkImageCreateFlags DefaultImageCreateFlags()
   {
-    return DescriptorBuffers() ? VK_IMAGE_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT : 0;
+    return (DescriptorBuffers() ? VK_IMAGE_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT : 0) |
+           (DescriptorHeap() ? VK_IMAGE_CREATE_DESCRIPTOR_HEAP_CAPTURE_REPLAY_BIT_EXT : 0);
   }
   VkImageViewCreateFlags DefaultImageViewCreateFlags()
   {

@@ -3027,6 +3027,14 @@ VkResult WrappedVulkan::vkCreateImage(VkDevice device, const VkImageCreateInfo *
         opaqueData.addForSerialising((VkBaseInStructure *)&serialisedCreateInfo);
       }
 
+      OpaqueHeapDataForSerialising opaqueHeapData;
+
+      if(DescriptorHeap())
+      {
+        opaqueHeapData.fill(device, *pImage, m_DescriptorHeapProperties);
+        opaqueHeapData.addForSerialising((VkBaseInStructure *)&serialisedCreateInfo);
+      }
+
       {
         CACHE_THREAD_SERIALISER();
 
