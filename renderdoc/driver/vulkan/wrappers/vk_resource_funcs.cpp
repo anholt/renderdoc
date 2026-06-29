@@ -4104,6 +4104,34 @@ VkResult WrappedVulkan::vkCreateAccelerationStructureKHR(
   return ret;
 }
 
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkRegisterCustomBorderColorEXT(
+    SerialiserType &ser, VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
+    VkBool32 requestIndex, uint32_t *pIndex)
+{
+  return true;
+}
+
+VkResult WrappedVulkan::vkRegisterCustomBorderColorEXT(
+    VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
+    VkBool32 requestIndex, uint32_t *pIndex)
+{
+  return ObjDisp(device)->RegisterCustomBorderColorEXT(Unwrap(device), pBorderColor, requestIndex,
+                                                       pIndex);
+}
+
+template <typename SerialiserType>
+bool WrappedVulkan::Serialise_vkUnregisterCustomBorderColorEXT(SerialiserType &ser, VkDevice device,
+                                                               uint32_t index)
+{
+  return true;
+}
+
+void WrappedVulkan::vkUnregisterCustomBorderColorEXT(VkDevice device, uint32_t index)
+{
+  return ObjDisp(device)->UnregisterCustomBorderColorEXT(Unwrap(device), index);
+}
+
 INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkAllocateMemory, VkDevice device,
                                 const VkMemoryAllocateInfo *pAllocateInfo,
                                 const VkAllocationCallbacks *, VkDeviceMemory *pMemory);
@@ -4151,3 +4179,10 @@ INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkCreateAccelerationStructureKHR, VkDe
 
 INSTANTIATE_FUNCTION_SERIALISED(void, vkUnmapMemory2, VkDevice device,
                                 const VkMemoryUnmapInfo *pMemoryUnmapInfo);
+
+INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkRegisterCustomBorderColorEXT, VkDevice device,
+                                const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
+                                VkBool32 requestIndex, uint32_t *pIndex);
+
+INSTANTIATE_FUNCTION_SERIALISED(void, vkUnregisterCustomBorderColorEXT, VkDevice device,
+                                uint32_t index);

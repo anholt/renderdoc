@@ -2029,7 +2029,7 @@ size_t GetNextPatchSize(const void *pNext)
           case VK_DESCRIPTOR_TYPE_TENSOR_ARM:
             if(info->data.pTensorARM)
             {
-            memSize += sizeof(*info->data.pTensorARM);
+              memSize += sizeof(*info->data.pTensorARM);
               memSize += GetNextPatchSize(info->data.pTensorARM);
             }
             break;

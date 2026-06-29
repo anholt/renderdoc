@@ -4962,6 +4962,22 @@ bool WrappedVulkan::ProcessChunk(ReadSerialiser &ser, VulkanChunk chunk)
     case VulkanChunk::vkCmdSetCheckpointNV:
       return Serialise_vkCmdSetCheckpointNV(ser, VK_NULL_HANDLE, NULL);
 
+    case VulkanChunk::vkWriteSamplerDescriptorsEXT:
+      return Serialise_vkWriteSamplerDescriptorsEXT(ser, VK_NULL_HANDLE, 0, NULL, NULL);
+    case VulkanChunk::vkWriteResourceDescriptorsEXT:
+      return Serialise_vkWriteResourceDescriptorsEXT(ser, VK_NULL_HANDLE, 0, NULL, NULL);
+    case VulkanChunk::vkCmdBindSamplerHeapEXT:
+      return Serialise_vkCmdBindSamplerHeapEXT(ser, VK_NULL_HANDLE, NULL);
+    case VulkanChunk::vkCmdBindResourceHeapEXT:
+      return Serialise_vkCmdBindResourceHeapEXT(ser, VK_NULL_HANDLE, NULL);
+    case VulkanChunk::vkCmdPushDataEXT:
+      return Serialise_vkCmdPushDataEXT(ser, VK_NULL_HANDLE, NULL);
+
+    case VulkanChunk::vkRegisterCustomBorderColorEXT:
+      return Serialise_vkRegisterCustomBorderColorEXT(ser, VK_NULL_HANDLE, NULL, 0, NULL);
+    case VulkanChunk::vkUnregisterCustomBorderColorEXT:
+      return Serialise_vkUnregisterCustomBorderColorEXT(ser, VK_NULL_HANDLE, 0);
+
     // chunks that are reserved but not yet serialised
     case VulkanChunk::vkResetCommandPool:
     case VulkanChunk::vkCreateDepthTargetView:
