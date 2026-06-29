@@ -318,15 +318,15 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
         {
           RDCDEBUG("Patching dedicated allocation for incompatible size");
 
-          // if acceleration structures or descriptor buffers are used, we promote all non-dedicated
-          // memory to be BDA as we can't know if it will be used for an AS or not during capture.
-          // That means that during self-capture if we just remove the dedicated allocation
-          // structure here without any other changes the self-capture layer will promote it to BDA
-          // and potentially cause clashes with reserved addresses elsewhere.
+          // if acceleration structures or descriptor buffers or heaps are used, we promote all
+          // non-dedicated memory to be BDA as we can't know if it will be used for an AS or not
+          // during capture. That means that during self-capture if we just remove the dedicated
+          // allocation structure here without any other changes the self-capture layer will promote
+          // it to BDA and potentially cause clashes with reserved addresses elsewhere.
           //
           // instead we do the more dangerous thing of adjusting the allocation size to match the
           // image's memory requirements and keep the dedicated allocation.
-          if(AccelerationStructures() || DescriptorBuffers())
+          if(AccelerationStructures() || DescriptorBuffers() || DescriptorHeap())
             patched.allocationSize = mrq.size;
           else
             RemoveNextStruct(&patched, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
@@ -446,7 +446,7 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        if(DescriptorBuffers())
+        if(DescriptorBuffers() | DescriptorHeap())
         {
           bufInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         }
@@ -530,7 +530,7 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
     };
 
-    if(DescriptorBuffers())
+    if(DescriptorBuffers() || DescriptorHeap())
     {
       bufInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
       bufInfo.flags |= VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
@@ -576,8 +576,17 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
   // will be bound against since there's no requirement for the buffer to be marked as BDA. This
   // means that when RT is enabled ALL MEMORY IN THE ENTIRE PROGRAM must be marked as BDA just in
   // case.
+  //
+  // For descriptor heaps, while the heap's memory itself will have
+  // VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT (causing capture/replay to be flagged
+  // below), images don't require their memory to have that flag set.  When we
+  // promote the a heap image to have
+  // VK_IMAGE_CREATE_DESCRIPTOR_HEAP_CAPTURE_REPLAY_BIT_EXT, that means the
+  // memory it'll be bound to needs to have
+  // VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT, so we have to force the flag on here
+  // to be ready just in case.
   bool forceBDA = false;
-  if(IsCaptureMode(m_State) && (AccelerationStructures() || DescriptorBuffers()))
+  if(IsCaptureMode(m_State) && (AccelerationStructures() || DescriptorBuffers() || DescriptorHeap()))
   {
     // force BDA flag when creating, by adding the struct if needed
     forceBDA = true;
@@ -2145,6 +2154,11 @@ VkResult WrappedVulkan::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo
     // We ensured the physical device can support this feature before whitelisting the extension.
     if(adjusted_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
       adjusted_info.flags |= VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
+
+    // If we're using this buffer for descriptor heaps, we need to
+    // capture/replay its device address.
+    if(adjusted_usage & VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT)
+      adjusted_usage |= VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
   }
 
   if(IsCaptureMode(m_State))
@@ -2197,10 +2211,11 @@ VkResult WrappedVulkan::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo
 
       OpaqueDataForSerialising opaqueData;
 
-      // if we're using VK_[KHR|EXT]_buffer_device_address, we fetch the device address that's been
-      // allocated and insert it into the next chain and patch the flags so that it replays
-      // naturally.
-      if((serialisedUsage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0)
+      // if we're using VK_[KHR|EXT]_buffer_device_address or VK_EXT_descriptor_heap, we fetch the
+      // device address that's been allocated and insert it into the next chain and patch the flags
+      // so that it replays naturally.
+      if((serialisedUsage & (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                             VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT)) != 0)
       {
         VkBufferDeviceAddressInfo getInfo = {
             VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
