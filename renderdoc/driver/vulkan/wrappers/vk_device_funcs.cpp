@@ -3733,6 +3733,19 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
       {
         CHECK_PHYS_EXT_FEATURE(descriptorHeap);
         CHECK_PHYS_EXT_FEATURE(descriptorHeapCaptureReplay);
+
+        if(ext->descriptorHeap && !avail.descriptorHeapCaptureReplay)
+        {
+          SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
+                           "Capture requires descriptorHeap support, which is available, but "
+                           "descriptorHeapCaptureReplay support is not "
+                           "available which is required to replay\n"
+                           "\n%s",
+                           GetPhysDeviceCompatString(false, false).c_str());
+          return false;
+        }
+        if(ext->descriptorHeap)
+          ext->descriptorHeapCaptureReplay = VK_TRUE;
       }
       END_PHYS_EXT_CHECK();
 
@@ -4667,6 +4680,15 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
       m_IgnoreLayoutForDescriptors = descBufFeats->descriptorBufferImageLayoutIgnored != VK_FALSE;
     }
 
+    const VkPhysicalDeviceDescriptorHeapFeaturesEXT *descHeapFeats =
+        (const VkPhysicalDeviceDescriptorHeapFeaturesEXT *)FindNextStruct(
+            &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT);
+
+    if(m_EnabledExtensions.ext_EXT_descriptor_heap && descHeapFeats && descHeapFeats->descriptorHeap)
+    {
+      m_DescriptorHeap = true;
+    }
+
     // MoltenVK reports 0x3fffffff for this limit so just ignore that value if it comes up
     RDCASSERT(m_PhysicalDeviceData.props.limits.maxBoundDescriptorSets <
                       ARRAY_COUNT(BakedCmdBufferInfo::pushDescriptorID[0]) ||
@@ -5093,6 +5115,15 @@ VkResult WrappedVulkan::vkCreateDevice(VkPhysicalDevice physicalDevice,
       descBufFeatures->descriptorBufferImageLayoutIgnored = VK_TRUE;
 
     RDCLOG("descriptor buffers enabled, ALL MEMORY WILL BE MARKED AS BDA");
+  }
+
+  VkPhysicalDeviceDescriptorHeapFeaturesEXT *descHeapFeatures =
+      (VkPhysicalDeviceDescriptorHeapFeaturesEXT *)FindNextStruct(
+          &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT);
+  if(descHeapFeatures && descHeapFeatures->descriptorHeap)
+  {
+    descHeapFeatures->descriptorHeapCaptureReplay = VK_TRUE;
+    m_DescriptorHeap = true;
   }
 
   VkResult ret;
