@@ -487,7 +487,8 @@ void WrappedVulkan::vkGetDeviceBufferMemoryRequirements(VkDevice device,
   usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
   SetBufferUsageFlags(info, usage);
 
-  if(IsCaptureMode(m_State) && (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
+  if(IsCaptureMode(m_State) &&
+     (usage & (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT)))
     info->flags |= VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
 
   ObjDisp(device)->GetDeviceBufferMemoryRequirements(Unwrap(device), unwrappedInfo,
