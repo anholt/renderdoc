@@ -1490,6 +1490,13 @@ enum class VulkanChunk : uint32_t
   vkCmdBeginCustomResolveEXT,
   vkCmdSetCheckpointNV,
   vkCmdSetDepthBias2EXT,
+  vkWriteSamplerDescriptorsEXT,
+  vkWriteResourceDescriptorsEXT,
+  vkCmdBindSamplerHeapEXT,
+  vkCmdBindResourceHeapEXT,
+  vkCmdPushDataEXT,
+  vkRegisterCustomBorderColorEXT,
+  vkUnregisterCustomBorderColorEXT,
   Max,
 };
 
