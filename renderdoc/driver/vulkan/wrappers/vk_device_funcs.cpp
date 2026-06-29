@@ -5467,6 +5467,47 @@ VkResult WrappedVulkan::vkCreateDevice(VkPhysicalDevice physicalDevice,
       /* XXX: descriptor buffer checks some robustness stuff in this and the
        * other m_DBP setup, do we need to do any?
        */
+
+      VkPhysicalDeviceRobustness2FeaturesKHR *robustness2 =
+          (VkPhysicalDeviceRobustness2FeaturesKHR *)FindNextStruct(
+              &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_KHR);
+
+      // record all the NULL descriptors
+      if(IsCaptureMode(m_State) && robustness2 && robustness2->nullDescriptor)
+      {
+        VkResourceRecord *record = GetRecord(*pDevice);
+        RDCASSERT(record);
+
+        VkResourceDescriptorInfoEXT descInfo = {
+            VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT,
+        };
+
+        rdcarray<VkDescriptorType> descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        };
+
+        if(m_AccelerationStructures)
+        {
+          descriptorTypes.push_back(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+        }
+
+        byte dummy[256];
+        VkHostAddressRangeEXT range = {dummy, 0};
+        for(VkDescriptorType type : descriptorTypes)
+        {
+          descInfo.type = type;
+          range.size =
+              ObjDisp(physicalDevice)
+                  ->GetPhysicalDeviceDescriptorSizeEXT(Unwrap(physicalDevice), descInfo.type);
+
+          vkWriteResourceDescriptorsEXT(*pDevice, 1, &descInfo, &range);
+        }
+      }
+
+      m_NULLHeapDescriptorPatternSaved = true;
     }
 
     m_PhysicalDeviceData.driverInfo =
