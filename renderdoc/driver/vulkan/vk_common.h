@@ -1037,6 +1037,28 @@ struct OpaqueDataForSerialising : VkOpaqueCaptureDescriptorDataCreateInfoEXT
   size_t sz = 0;
 };
 
+struct OpaqueHeapDataForSerialising : VkOpaqueCaptureDataCreateInfoEXT
+{
+  OpaqueHeapDataForSerialising()
+  {
+    sType = VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT;
+    pNext = NULL;
+    pData = NULL;
+  }
+
+  void fill(VkDevice wrappedDevice, VkImage wrappedImage,
+            VkPhysicalDeviceDescriptorHeapPropertiesEXT &props);
+
+  void fillUnwrapped(VkDevice wrappedDevice, VkImage unwrappedImage,
+                     VkPhysicalDeviceDescriptorHeapPropertiesEXT &props);
+
+  void addForSerialising(VkBaseInStructure *serialisedCreateInfo);
+
+  byte data[FixedOpaqueDescriptorCaptureSize] = {};
+  size_t sz = 0;
+  VkHostAddressRangeConstEXT hostData;
+};
+
 // pointers are considered to be 48-bit only, as some descriptors only store those and no-one
 // uses the upper bits relevantly
 //
