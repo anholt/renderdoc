@@ -1182,11 +1182,53 @@ void OpaqueDataForSerialising::fill(VkDevice wrappedDevice, VkAccelerationStruct
     RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
 }
 
+void OpaqueHeapDataForSerialising::fillUnwrapped(VkDevice wrappedDevice, VkImage unwrappedImage,
+                                                 VkPhysicalDeviceDescriptorHeapPropertiesEXT &props)
+{
+  VkHostAddressRangeEXT rangeData = {data, props.imageCaptureReplayOpaqueDataSize};
+
+  VkResult opaqueQuery =
+      ObjDisp(wrappedDevice)
+          ->GetImageOpaqueCaptureDataEXT(Unwrap(wrappedDevice), 1, &unwrappedImage, &rangeData);
+  if(opaqueQuery != VK_SUCCESS)
+    RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
+}
+
+void OpaqueHeapDataForSerialising::fill(VkDevice wrappedDevice, VkImage wrappedImage,
+                                        VkPhysicalDeviceDescriptorHeapPropertiesEXT &props)
+{
+  VkImage unwrappedImage = Unwrap(wrappedImage);
+
+  VkHostAddressRangeEXT rangeData = {data, props.imageCaptureReplayOpaqueDataSize};
+
+  VkResult opaqueQuery =
+      ObjDisp(wrappedDevice)
+          ->GetImageOpaqueCaptureDataEXT(Unwrap(wrappedDevice), 1, &unwrappedImage, &rangeData);
+  if(opaqueQuery != VK_SUCCESS)
+    RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
+}
+
 void OpaqueDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCreateInfo)
 {
   VkOpaqueCaptureDescriptorDataCreateInfoEXT *existing =
       (VkOpaqueCaptureDescriptorDataCreateInfoEXT *)FindNextStruct(
           serialisedCreateInfo, VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT);
+
+  if(existing)
+  {
+    RDCASSERT(memcmp(data, existing->opaqueCaptureDescriptorData, sz) == 0);
+  }
+  else
+  {
+    pNext = serialisedCreateInfo->pNext;
+    serialisedCreateInfo->pNext = (VkBaseInStructure *)this;
+  }
+}
+
+void OpaqueHeapDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCreateInfo)
+{
+  VkOpaqueCaptureDescriptorDataCreateInfoEXT *existing =
+      (VkOpaqueCaptureDescriptorDataCreateInfoEXT *)FindNextStruct(serialisedCreateInfo, sType);
 
   if(existing)
   {
