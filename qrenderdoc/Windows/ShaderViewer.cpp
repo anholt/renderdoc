@@ -3499,6 +3499,7 @@ const RDTreeWidgetItem *ShaderViewer::evaluateVar(const RDTreeWidgetItem *item, 
           }
           else
           {
+            // out of bounds swizzle
             return NULL;
           }
         }
@@ -3625,7 +3626,12 @@ const RDTreeWidgetItem *ShaderViewer::evaluateVar(const RDTreeWidgetItem *item, 
 
     if(ret.type == VarType::Sampler || ret.type == VarType::ReadOnlyResource ||
        ret.type == VarType::ReadWriteResource)
+    {
       dataSize = 16;
+      // ignore swizzle for resources - some representations like DXBC will generate these for
+      // instructions but it's not a 'real' swizzle to evaluate
+      swizzle = ~0U;
+    }
 
     // only support swizzling on vectors
     if(swizzle != ~0U && (ret.rows > 1 || mapping.variables.size() > 4))
@@ -3649,6 +3655,11 @@ const RDTreeWidgetItem *ShaderViewer::evaluateVar(const RDTreeWidgetItem *item, 
         else if(swiz_i < mapping.variables.size())
         {
           ret.columns = i + 1;
+        }
+        else
+        {
+          // out of bounds swizzle
+          return NULL;
         }
       }
 
