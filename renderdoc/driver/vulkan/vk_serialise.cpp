@@ -142,6 +142,7 @@ DECL_VKFLAG_EXT(VkDisplayPlaneAlpha, KHR);
 DECL_VKFLAG_EMPTY_EXT(VkDisplaySurfaceCreate, KHR);
 DECL_VKFLAG_EXT(VkExternalMemoryHandleType, NV);
 DECL_VKFLAG_EXT(VkExternalMemoryFeature, NV);
+DECL_VKFLAG_EXT(VkDeviceDiagnosticsConfig, NV);
 DECL_VKFLAG_EXT(VkIndirectCommandsLayoutUsage, NV);
 DECL_VKFLAG_EXT(VkPerformanceCounterDescription, KHR);
 DECL_VKFLAG_EMPTY_EXT(VkPipelineCoverageModulationStateCreate, NV);
@@ -1666,6 +1667,21 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV,                           \
                VkDedicatedAllocationBufferCreateInfoNV)                                                \
                                                                                                        \
+  /* VK_NV_device_diagnostic_checkpoints */                                                            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV, VkCheckpointDataNV)                               \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_NV,                                \
+               VkQueueFamilyCheckpointPropertiesNV)                                                    \
+  /* interactions with VK_KHR_synchronization2 */                                                      \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_2_NV,                              \
+               VkQueueFamilyCheckpointProperties2NV)                                                   \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_CHECKPOINT_DATA_2_NV, VkCheckpointData2NV)                            \
+                                                                                                       \
+  /* VK_NV_device_diagnostics_config */                                                                \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DIAGNOSTICS_CONFIG_FEATURES_NV,                       \
+               VkPhysicalDeviceDiagnosticsConfigFeaturesNV)                                            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV,                             \
+               VkDeviceDiagnosticsConfigCreateInfoNV)                                                  \
+                                                                                                       \
   /* VK_NV_external_memory */                                                                          \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_NV, VkExportMemoryAllocateInfoNV)         \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_NV,                                 \
@@ -2419,17 +2435,6 @@ SERIALISE_VK_HANDLES();
                                                                                                        \
   /* VK_NV_descriptor_pool_overallocation */                                                           \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_POOL_OVERALLOCATION_FEATURES_NV)      \
-                                                                                                       \
-  /* VK_NV_device_diagnostic_checkpoints */                                                            \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV)                                              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_NV)                           \
-  /* interactrions with VK_KHR_synchronization2 */                                                     \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_2_NV)                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_CHECKPOINT_DATA_2_NV)                                            \
-                                                                                                       \
-  /* VK_NV_device_diagnostics_config */                                                                \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DIAGNOSTICS_CONFIG_FEATURES_NV)                  \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV)                        \
                                                                                                        \
   /* VK_NV_device_generated_commands */                                                                \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_PROPERTIES_NV)         \
@@ -9818,6 +9823,116 @@ void Deserialise(const VkPhysicalDeviceShaderImageFootprintFeaturesNV &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkCheckpointDataNV &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPipelineStageFlags, stage);
+
+  // don't serialise pointer, treat it entirely as opaque
+  {
+    uint64_t ptr = (uint64_t)(uintptr_t)el.pCheckpointMarker;
+    ser.Serialise("pCheckpointMarker"_lit, ptr);
+    ser.TypedAs("void *"_lit);
+    if(ser.IsReading())
+      el.pCheckpointMarker = (void *)(uintptr_t)ptr;
+  }
+}
+
+template <>
+void Deserialise(const VkCheckpointDataNV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkCheckpointData2NV &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_CHECKPOINT_DATA_2_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPipelineStageFlags2, stage);
+
+  // don't serialise pointer, treat it entirely as opaque
+  {
+    uint64_t ptr = (uint64_t)(uintptr_t)el.pCheckpointMarker;
+    ser.Serialise("pCheckpointMarker"_lit, ptr);
+    ser.TypedAs("void *"_lit);
+    if(ser.IsReading())
+      el.pCheckpointMarker = (void *)(uintptr_t)ptr;
+  }
+}
+
+template <>
+void Deserialise(const VkCheckpointData2NV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkQueueFamilyCheckpointPropertiesNV &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPipelineStageFlags, checkpointExecutionStageMask);
+}
+
+template <>
+void Deserialise(const VkQueueFamilyCheckpointPropertiesNV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkQueueFamilyCheckpointProperties2NV &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_2_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPipelineStageFlags2, checkpointExecutionStageMask);
+}
+
+template <>
+void Deserialise(const VkQueueFamilyCheckpointProperties2NV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDiagnosticsConfigFeaturesNV &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DIAGNOSTICS_CONFIG_FEATURES_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(diagnosticsConfig);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceDiagnosticsConfigFeaturesNV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDeviceDiagnosticsConfigCreateInfoNV &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkDeviceDiagnosticsConfigFlagsNV, flags);
+}
+
+template <>
+void Deserialise(const VkDeviceDiagnosticsConfigCreateInfoNV &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15067,6 +15182,8 @@ INSTANTIATE_SERIALISE_TYPE(VkBufferOpaqueCaptureAddressCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBufferUsageFlags2CreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBufferViewCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCalibratedTimestampInfoKHR);
+INSTANTIATE_SERIALISE_TYPE(VkCheckpointDataNV);
+INSTANTIATE_SERIALISE_TYPE(VkCheckpointData2NV);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferAllocateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferBeginInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferInheritanceConditionalRenderingInfoEXT);
@@ -15114,6 +15231,7 @@ INSTANTIATE_SERIALISE_TYPE(VkDescriptorSetVariableDescriptorCountLayoutSupport)
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorUpdateTemplateCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceBufferMemoryRequirements);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceCreateInfo);
+INSTANTIATE_SERIALISE_TYPE(VkDeviceDiagnosticsConfigCreateInfoNV);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceEventInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceGroupBindSparseInfo);
 INSTANTIATE_SERIALISE_TYPE(VkDeviceGroupCommandBufferBeginInfo);
@@ -15140,10 +15258,10 @@ INSTANTIATE_SERIALISE_TYPE(VkDisplayPlaneProperties2KHR);
 INSTANTIATE_SERIALISE_TYPE(VkDisplayPowerInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDisplayPresentInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkDisplayProperties2KHR);
-INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierProperties2EXT);
-INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierPropertiesListEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierPropertiesList2EXT);
+INSTANTIATE_SERIALISE_TYPE(VkDrmFormatModifierPropertiesListEXT);
 INSTANTIATE_SERIALISE_TYPE(VkEventCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkExportFenceCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkExportMemoryAllocateInfo);
@@ -15176,10 +15294,10 @@ INSTANTIATE_SERIALISE_TYPE(VkImageCompressionControlEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageCompressionPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageCopy2);
 INSTANTIATE_SERIALISE_TYPE(VkImageCreateInfo);
-INSTANTIATE_SERIALISE_TYPE(VkImageFormatListCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierExplicitCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierListCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkImageDrmFormatModifierPropertiesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkImageFormatListCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkImageFormatProperties2);
 INSTANTIATE_SERIALISE_TYPE(VkImageMemoryBarrier);
 INSTANTIATE_SERIALISE_TYPE(VkImageMemoryBarrier2);
@@ -15254,6 +15372,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorBufferFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorBufferPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorIndexingFeatures)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorIndexingProperties)
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDiagnosticsConfigFeaturesNV);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDiscardRectanglePropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDriverProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDynamicRenderingFeatures);
@@ -15272,11 +15391,11 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFloatControlsProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMap2FeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMap2PropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapFeaturesEXT);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapPropertiesEXT);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapOffsetFeaturesEXT);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapOffsetPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapLayeredFeaturesVALVE);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapLayeredPropertiesVALVE);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapOffsetFeaturesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapOffsetPropertiesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentDensityMapPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT);
@@ -15302,9 +15421,9 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageViewImageFormatInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceIndexTypeUint8Features);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceInlineUniformBlockFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceInlineUniformBlockProperties);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLayeredApiVulkanPropertiesKHR);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLayeredApiPropertiesListKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLayeredApiPropertiesKHR);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLayeredApiPropertiesListKHR);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLayeredApiVulkanPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLineRasterizationFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceLineRasterizationProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceMaintenance3Properties);
@@ -15479,6 +15598,8 @@ INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetInfo);
 INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetWithTemplateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkQueryPoolCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkQueryPoolPerformanceCreateInfoKHR);
+INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyCheckpointPropertiesNV);
+INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyCheckpointProperties2NV);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyGlobalPriorityProperties);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyOwnershipTransferPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyProperties2);

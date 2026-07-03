@@ -258,6 +258,8 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_MVK_macos_surface`
 * `VK_NV_compute_shader_derivatives`
 * `VK_NV_dedicated_allocation`
+* `VK_NV_device_diagnostic_checkpoints`
+* `VK_NV_device_diagnostics_config`
 * `VK_NV_external_memory_capabilities`
 * `VK_NV_external_memory_win32`
 * `VK_NV_external_memory`
@@ -427,8 +429,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_NV_cuda_kernel_launch`
 * `VK_NV_dedicated_allocation_image_aliasing`
 * `VK_NV_descriptor_pool_overallocation`
-* `VK_NV_device_diagnostic_checkpoints`
-* `VK_NV_device_diagnostics_config`
 * `VK_NV_device_generated_commands_compute`
 * `VK_NV_device_generated_commands`
 * `VK_NV_displacement_micromap`
