@@ -25,7 +25,6 @@
     <ProjectName>demos</ProjectName>
   </PropertyGroup>
   <Import Project="$(SolutionDir)\..\WindowsSDKTarget.props" />
-  <Import Project="$(SolutionDir)\..\WindowsSDKFix.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -40,6 +39,11 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <!-- WindowsSDKFix is relative to parent solution, replicate it here -->
+  <!-- <Import Project="$(SolutionDir)\..\WindowsSDKFix.props" /> -->
+  <PropertyGroup>
+    <IncludePath>$(SolutionDir)\..\sdkfix;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <PropertyGroup>
     <OutDir>$(SolutionDir)</OutDir>
     <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
