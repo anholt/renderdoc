@@ -985,7 +985,6 @@
   HookInitPromotedExtension(KHR_dynamic_rendering, CmdBeginRendering, KHR);                          \
   HookInitPromotedExtension(KHR_dynamic_rendering, CmdEndRendering, KHR);                            \
   HookInitExtension(EXT_fragment_density_map_offset, CmdEndRendering2EXT);                           \
-  HookInitExtension(EXT_custom_resolve, CmdBeginCustomResolveEXT);                                   \
   HookInitPromotedExtension(KHR_dynamic_rendering_local_read, CmdSetRenderingAttachmentLocations,    \
                             KHR);                                                                    \
   HookInitPromotedExtension(KHR_dynamic_rendering_local_read,                                        \
