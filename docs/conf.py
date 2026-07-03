@@ -58,7 +58,7 @@ sys.path.insert(0, os.path.abspath('sphinx_exts'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx_paramlinks', 'sphinxcontrib_jquery']
+extensions = ['sphinx.ext.autodoc', 'sphinx_paramlinks', 'sphinxcontrib_jquery', 'sphinx_copybutton']
 
 if tags.has('spelling'): # type: ignore
     extensions.append('sphinxcontrib.spelling')
