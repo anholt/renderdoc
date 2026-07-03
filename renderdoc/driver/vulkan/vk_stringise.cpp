@@ -266,9 +266,9 @@ rdcstr DoStringise(const VulkanChunk &el)
     STRINGISE_ENUM_CLASS(vkCmdSetDescriptorBufferOffsets2EXT)
     STRINGISE_ENUM_CLASS(vkCmdPushDescriptorSet2)
     STRINGISE_ENUM_CLASS(vkCmdPushDescriptorSetWithTemplate2)
-    STRINGISE_ENUM_CLASS(vkCmdBeginCustomResolveEXT)
     STRINGISE_ENUM_CLASS_NAMED(SetCommandAnnotation, "Internal::SetCommandAnnotation");
     STRINGISE_ENUM_CLASS_NAMED(SetQueueAnnotation, "Internal::SetQueueAnnotation");
+    STRINGISE_ENUM_CLASS(vkCmdBeginCustomResolveEXT)
     STRINGISE_ENUM_CLASS_NAMED(Max, "Max Chunk");
   }
   END_ENUM_STRINGISE()
