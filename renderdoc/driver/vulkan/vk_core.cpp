@@ -1158,6 +1158,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_EXT_DESCRIPTOR_BUFFER_SPEC_VERSION,
     },
     {
+        VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_HEAP_SPEC_VERSION,
+    },
+    {
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
         VK_EXT_DESCRIPTOR_INDEXING_SPEC_VERSION,
     },
