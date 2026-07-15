@@ -1728,9 +1728,12 @@ bool WrappedVulkan::Serialise_vkBindBufferMemory(SerialiserType &ser, VkDevice d
     AddResourceCurChunk(memId);
     AddResourceCurChunk(resId);
 
-    // for buffers created with device addresses, fetch it now as that's possible for both EXT and
-    // KHR variants now.
-    if(bufInfo.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+    // for buffers that can be referenced with with device addresses
+    // (KHR_buffer_device_address or EXT_descriptor_heap), fetch it and put it
+    // in the address tracker for being able to go from a device address back
+    // to this resource.
+    if(bufInfo.usage &
+       (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT))
       TrackReplayBufferAddress(device, buffer, memory, memoryOffset);
 
     m_CreationInfo.m_Memory[GetResID(memory)].BindMemory(memoryOffset, mrq.size,
@@ -3529,9 +3532,11 @@ bool WrappedVulkan::Serialise_vkBindBufferMemory2(SerialiserType &ser, VkDevice 
       AddResourceCurChunk(memId);
       AddResourceCurChunk(resId);
 
-      // for buffers created with device addresses, fetch it now as that's possible for both EXT and
-      // KHR variants now.
-      if(bufInfo.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+      // for buffers that can be referenced with with device addresses
+      // (KHR_buffer_device_address or EXT_descriptor_heap), fetch it and put it
+      // in the address tracker for being able to go from a device address back
+      // to this resource.
+      if(bufInfo.usage & (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT))
         TrackReplayBufferAddress(device, bindInfo.buffer, bindInfo.memory, bindInfo.memoryOffset);
 
       // the memory is immediately dirty because we don't use dirty tracking, it's too expensive to
