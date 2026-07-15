@@ -1754,6 +1754,40 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
 
               ret += ")";
             }
+            else if(dbg.inst == ShaderDbg::Scope)
+            {
+              ret += indent;
+              ret += "// DebugScope(";
+
+              OpShaderDbg scope(GetID(dbg.arg<Id>(0)));
+
+              rdcstr line;
+
+              if(scope.inst == ShaderDbg::Function)
+                line = idName(scope.arg<Id>(3));
+              else if(scope.inst == ShaderDbg::LexicalBlock)
+                line = idName(scope.arg<Id>(1));
+
+              while(scope.inst != ShaderDbg::Function && scope.arg<Id>(3) != Id())
+                scope = OpShaderDbg(GetID(scope.arg<Id>(3)));
+
+              if(scope.inst == ShaderDbg::Function)
+              {
+                ret += idName(scope.arg<Id>(0));
+                ret += ":";
+                ret += line;
+              }
+              else
+              {
+                ret += "<unknown_function>";
+                ret += ":";
+                ret += line;
+              }
+
+              if(dbg.params.size() >= 2)
+                ret += " (in-lined)";
+              ret += ")";
+            }
             else if(dbg.inst == ShaderDbg::Value)
             {
               OpShaderDbg localVar(GetID(dbg.arg<Id>(0)));
