@@ -1077,9 +1077,9 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
           if(decodedlabelId == decoded.targetLabel)
           {
             // however if we're in a switch we might want to print a clarifying fallthrough comment
-            // or end-of-case break
+            // or end-of-case break, and in a loop we could need a break
 
-            if(!cfgStack.empty() && cfgStack.back().type == StructuredCFG::Switch)
+            if(!cfgStack.empty() && cfgStack.back().type != StructuredCFG::If)
             {
               // add a break even for the final branch to the merge block
               if(cfgStack.back().mergeTarget == decoded.targetLabel)
@@ -1088,7 +1088,10 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
                 lineNum++;
                 continue;
               }
+            }
 
+            if(!cfgStack.empty() && cfgStack.back().type == StructuredCFG::Switch)
+            {
               // if we're falling through to the next case, print a comment
               for(const SwitchPairU64LiteralId &caseTarget : cfgStack.back().caseTargets)
               {
