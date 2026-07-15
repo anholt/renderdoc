@@ -699,7 +699,9 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
         {
           ret += "}\n\n";
           lineNum += 2;
-          indent.resize(indent.size() - 2);
+          // completely reset indent, just in case something went wrong in a previous function and
+          // it didn't reset itself
+          indent.clear();
           continue;
         }
         // indent around control flow
