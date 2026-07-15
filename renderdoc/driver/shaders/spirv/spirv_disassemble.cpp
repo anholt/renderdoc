@@ -789,6 +789,20 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
             RDCASSERTEQUAL(nextit.opcode(), Op::Label);
             OpLabel decodedlabel(nextit);
 
+            // if the next label was the merge target that implies that we will eventually go from
+            // that flow into the other case, not a strict if/else but an if() ...
+            // For our purposes use the other label as merge target since that's when we will clean up the if()
+            if(decodedbranch.trueLabel == decodedlabel.result &&
+               decodedbranch.trueLabel == cfg.mergeTarget)
+            {
+              cfg.mergeTarget = decodedbranch.falseLabel;
+            }
+            else if(decodedbranch.falseLabel == decodedlabel.result &&
+                    decodedbranch.falseLabel == cfg.mergeTarget)
+            {
+              cfg.mergeTarget = decodedbranch.trueLabel;
+            }
+
             if(decodedbranch.trueLabel == decodedlabel.result ||
                decodedbranch.falseLabel == decodedlabel.result)
             {
