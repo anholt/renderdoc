@@ -3839,12 +3839,13 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorSets(
           VulkanStatePipeline &pipeline = renderstate.GetPipeline(pipelineBindPoint);
           rdcarray<VulkanStatePipeline::DescriptorAndOffsets> &descsets = pipeline.descSets;
 
-          // descriptor buffers and descriptor sets can't co-exist, each invalidates the other
+          // descriptor buffers, sets, and heaps can't co-exist, each invalidates the other
           if(pipeline.UsingDescBufs())
           {
             renderstate.descBufs.clear();
             descsets.clear();
           }
+          renderstate.InvalidateHeapDescriptors();
 
           // expand as necessary
           if(descsets.size() < firstSet + setCount)
@@ -3881,16 +3882,19 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorSets(
     }
     else
     {
+      VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
       // track while reading, as we need to track resource usage
       rdcarray<VulkanStatePipeline::DescriptorAndOffsets> &descsets =
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].state.GetPipeline(pipelineBindPoint).descSets;
+          renderstate.GetPipeline(pipelineBindPoint).descSets;
 
-      // descriptor buffers and descriptor sets can't co-exist, each invalidates the other
-      if(m_BakedCmdBufferInfo[m_LastCmdBufferID].state.GetPipeline(pipelineBindPoint).UsingDescBufs())
+      // descriptor buffers, sets, and heaps can't co-exist, each invalidates the other
+      if(renderstate.GetPipeline(pipelineBindPoint).UsingDescBufs())
       {
-        m_BakedCmdBufferInfo[m_LastCmdBufferID].state.descBufs.clear();
+        renderstate.descBufs.clear();
         descsets.clear();
       }
+      renderstate.InvalidateHeapDescriptors();
 
       // expand as necessary
       if(descsets.size() < firstSet + setCount)
@@ -3988,11 +3992,12 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorSets2(
             VulkanStatePipeline &pipeline = renderstate.GetPipeline(bindPoint);
             rdcarray<VulkanStatePipeline::DescriptorAndOffsets> &descsets = pipeline.descSets;
 
-            // descriptor buffers and descriptor sets can't co-exist, each invalidates the other
+            // descriptor buffers, sets, and heaps can't co-exist, each invalidates the other
             if(pipeline.UsingDescBufs())
             {
               renderstate.descBufs.clear();
               descsets.clear();
+              renderstate.InvalidateHeapDescriptors();
             }
 
             uint32_t firstSet = BindDescriptorSetsInfo.firstSet;
@@ -4032,16 +4037,19 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorSets2(
     }
     else
     {
+      VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+      renderstate.InvalidateHeapDescriptors();
+
       for(VkPipelineBindPoint bindPoint : pipelinesAffected)
       {
         // track while reading, as we need to track resource usage
         rdcarray<VulkanStatePipeline::DescriptorAndOffsets> &descsets =
-            m_BakedCmdBufferInfo[m_LastCmdBufferID].state.GetPipeline(bindPoint).descSets;
+            renderstate.GetPipeline(bindPoint).descSets;
 
-        // descriptor buffers and descriptor sets can't co-exist, each invalidates the other
-        if(m_BakedCmdBufferInfo[m_LastCmdBufferID].state.GetPipeline(bindPoint).UsingDescBufs())
+        // descriptor buffers, sets, and heaps can't co-exist, each invalidates the other
+        if(renderstate.GetPipeline(bindPoint).UsingDescBufs())
         {
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].state.descBufs.clear();
+          renderstate.descBufs.clear();
           descsets.clear();
         }
 
@@ -9353,6 +9361,8 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorBuffersEXT(
         {
           VulkanRenderState &renderstate = GetCmdRenderState();
 
+          renderstate.InvalidateHeapDescriptors();
+
           // all descriptor buffers above bufferCount are unbound
           renderstate.descBufs.resize(bufferCount);
           for(uint32_t i = 0; i < bufferCount; i++)
@@ -9403,6 +9413,8 @@ bool WrappedVulkan::Serialise_vkCmdBindDescriptorBuffersEXT(
       // track while reading, for resource usage
       {
         VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
+        renderstate.InvalidateHeapDescriptors();
 
         // all descriptor buffers above bufferCount are unbound
         renderstate.descBufs.resize(bufferCount);
@@ -10470,13 +10482,82 @@ bool WrappedVulkan::Serialise_vkCmdBindResourceHeapEXT(SerialiserType &ser,
                                                        VkCommandBuffer commandBuffer,
                                                        const VkBindHeapInfoEXT *pBindInfo)
 {
+  SERIALISE_ELEMENT(commandBuffer);
+  SERIALISE_ELEMENT_OPT(pBindInfo);
+
+  Serialise_DebugMessages(ser);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  if(pBindInfo->pNext != NULL)
+    RDCERR("unexpected pNext");
+
+  if(IsReplayingAndReading())
+  {
+    m_LastCmdBufferID = GetResID(commandBuffer);
+
+    if(IsActiveReplaying(m_State))
+    {
+      if(InRerecordRange(m_LastCmdBufferID))
+      {
+        commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+        ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+
+        {
+          VulkanRenderState &renderstate = GetCmdRenderState();
+
+          renderstate.resourceHeap.heapRange = pBindInfo->heapRange;
+          renderstate.resourceHeap.reservedRangeOffset = pBindInfo->reservedRangeOffset;
+          renderstate.resourceHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
+
+          renderstate.InvalidateNonHeapDescriptors();
+        }
+      }
+    }
+    else
+    {
+      // track while reading, for resource usage
+      {
+        VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
+        renderstate.resourceHeap.heapRange = pBindInfo->heapRange;
+        renderstate.resourceHeap.reservedRangeOffset = pBindInfo->reservedRangeOffset;
+        renderstate.resourceHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
+
+        renderstate.InvalidateNonHeapDescriptors();
+      }
+
+      ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+    }
+  }
+
   return true;
 }
 
 void WrappedVulkan::vkCmdBindResourceHeapEXT(VkCommandBuffer commandBuffer,
                                              const VkBindHeapInfoEXT *pBindInfo)
 {
-  ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+  SCOPED_DBG_SINK();
+
+  if(pBindInfo->pNext != NULL)
+    RDCERR("unexpected pNext");
+
+  SERIALISE_TIME_CALL(
+      ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo));
+
+  if(IsCaptureMode(m_State))
+  {
+    VkResourceRecord *record = GetRecord(commandBuffer);
+
+    CACHE_THREAD_SERIALISER();
+
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCmdBindResourceHeapEXT);
+    Serialise_vkCmdBindResourceHeapEXT(ser, commandBuffer, pBindInfo);
+
+    record->AddChunk(scope.Get(&record->cmdInfo->alloc));
+    // heaps are bound with addresses, they will be forced referenced at buffer
+    // create time due to the BDA allocation flag.
+  }
 }
 
 template <typename SerialiserType>
@@ -10484,13 +10565,81 @@ bool WrappedVulkan::Serialise_vkCmdBindSamplerHeapEXT(SerialiserType &ser,
                                                       VkCommandBuffer commandBuffer,
                                                       const VkBindHeapInfoEXT *pBindInfo)
 {
+  SERIALISE_ELEMENT(commandBuffer);
+  SERIALISE_ELEMENT_OPT(pBindInfo);
+
+  Serialise_DebugMessages(ser);
+
+  SERIALISE_CHECK_READ_ERRORS();
+
+  if(pBindInfo->pNext != NULL)
+    RDCERR("unexpected pNext");
+
+  if(IsReplayingAndReading())
+  {
+    m_LastCmdBufferID = GetResID(commandBuffer);
+
+    if(IsActiveReplaying(m_State))
+    {
+      if(InRerecordRange(m_LastCmdBufferID))
+      {
+        commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+        ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo);
+
+        {
+          VulkanRenderState &renderstate = GetCmdRenderState();
+
+          renderstate.samplerHeap.heapRange = pBindInfo->heapRange;
+          renderstate.samplerHeap.reservedRangeOffset = pBindInfo->reservedRangeOffset;
+          renderstate.samplerHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
+
+          renderstate.InvalidateNonHeapDescriptors();
+        }
+      }
+    }
+    else
+    {
+      // track while reading, for resource usage
+      {
+        VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
+        renderstate.samplerHeap.heapRange = pBindInfo->heapRange;
+        renderstate.samplerHeap.reservedRangeOffset = pBindInfo->reservedRangeOffset;
+        renderstate.samplerHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
+
+        renderstate.InvalidateNonHeapDescriptors();
+      }
+
+      ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo);
+    }
+  }
+
   return true;
 }
 
 void WrappedVulkan::vkCmdBindSamplerHeapEXT(VkCommandBuffer commandBuffer,
                                             const VkBindHeapInfoEXT *pBindInfo)
 {
-  ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo);
+  SCOPED_DBG_SINK();
+
+  if(pBindInfo->pNext != NULL)
+    RDCERR("unexpected pNext");
+
+  SERIALISE_TIME_CALL(ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo));
+
+  if(IsCaptureMode(m_State))
+  {
+    VkResourceRecord *record = GetRecord(commandBuffer);
+
+    CACHE_THREAD_SERIALISER();
+
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCmdBindSamplerHeapEXT);
+    Serialise_vkCmdBindSamplerHeapEXT(ser, commandBuffer, pBindInfo);
+
+    record->AddChunk(scope.Get(&record->cmdInfo->alloc));
+    // heaps are bound with addresses, they will be forced referenced at buffer
+    // create time due to the BDA allocation flag.
+  }
 }
 
 template <typename SerialiserType>
