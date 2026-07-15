@@ -286,6 +286,8 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
   // stack of structured CFG constructs
   rdcarray<StructuredCFG> cfgStack;
 
+  std::map<Id, size_t> escapeHatches;
+
   // set of labels that must be printed because we have gotos for them
   std::set<Id> printLabels;
 
@@ -741,6 +743,22 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
             Id selector = switch32.selector;
             cfg.defaultTarget = switch32.def;
 
+            // a heuristic - ignore slang's dummy switch(0) as they are often not needed
+            if(constants.find(selector) != constants.end() &&
+               specConstants.find(selector) == specConstants.end())
+            {
+              int32_t val = EvaluateConstant(selector, {}).value.s32v[0];
+
+              if(val == 0 && switch32.targets.empty())
+              {
+                // we might see a goto to this, if this is an inlined function with a return that
+                // needs to jump over several ifs (effectively). If we print this label, then need
+                // to truncate the cfgs to close the ifs
+                escapeHatches[cfg.mergeTarget] = cfgStack.size();
+                continue;
+              }
+            }
+
             const DataType &type = dataTypes[idTypes[selector]];
             RDCASSERT(type.type == DataType::ScalarType);
             const uint32_t selectorWidth = type.scalar().width;
@@ -1002,6 +1020,24 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
           // print the label if we decided it was needed
           if(printLabels.find(decoded.result) != printLabels.end())
           {
+            auto escapeIt = escapeHatches.find(decoded.result);
+            if(escapeIt != escapeHatches.end())
+            {
+              while(cfgStack.size() > escapeIt->second)
+              {
+                indent.resize(indent.size() - 2);
+
+                if(cfgStack.back().type == StructuredCFG::Switch)
+                  indent.resize(indent.size() - 2);
+
+                ret += indent;
+                ret += "} // escape hatch\n";
+                lineNum++;
+
+                cfgStack.pop_back();
+              }
+            }
+
             ret += idName(decoded.result) + ":\n";
             lineNum++;
           }
