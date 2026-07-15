@@ -289,6 +289,8 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
   // set of labels that must be printed because we have gotos for them
   std::set<Id> printLabels;
 
+  uint32_t loop_continue = 0;
+
   Id currentBlock;
 
   ret = StringFormat::Fmt(
@@ -1137,13 +1139,22 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint,
             continue;
           }
 
-          // if we're in a loop, branches to the continue target are printed as 'continue'
+          // if we're in a loop, branches to the header target are printed as 'continue' - notably
+          // branches to the continue block are _not_ because they may contain the increment code
           if(lastLoopSwitch && lastLoopSwitch->type == StructuredCFG::Loop &&
-             lastLoopSwitch->continueTarget == decoded.targetLabel)
+             lastLoopSwitch->headerBlock == decoded.targetLabel)
           {
             ret += indent + "continue;\n";
             lineNum++;
             continue;
+          }
+
+          if(lastLoopSwitch && lastLoopSwitch->type == StructuredCFG::Loop &&
+             lastLoopSwitch->continueTarget == decoded.targetLabel)
+          {
+            if(dynamicNames.find(decoded.targetLabel) == dynamicNames.end())
+              dynamicNames[decoded.targetLabel] =
+                  StringFormat::Fmt("loop_continue%u", ++loop_continue);
           }
 
           // if we're in a switch and we're about to print a goto, see if it's a case label and
