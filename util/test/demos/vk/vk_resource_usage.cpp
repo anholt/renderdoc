@@ -830,7 +830,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
           {vkh::BufferMemoryBarrier(VK_ACCESS_NONE, VK_ACCESS_NONE, barrier2Buffer.buffer)});
       vkEndCommandBuffer(barrierSecCmd);
 
-      VkCommandBuffer secCmdBuffers[2];
+      VkCommandBuffer secCmdBuffers[3];
       for(size_t i = 0; i < 2; i++)
       {
         VkCommandBuffer secCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
@@ -861,6 +861,15 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
 
         vkEndCommandBuffer(secCmd);
         secCmdBuffers[i] = secCmd;
+      }
+      {
+        VkCommandBuffer emptySecCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+        vkBeginCommandBuffer(emptySecCmd, vkh::CommandBufferBeginInfo(
+                                              VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
+                                                  VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+                                              vkh::CommandBufferInheritanceInfo(renderPass, 0)));
+        vkEndCommandBuffer(emptySecCmd);
+        secCmdBuffers[2] = emptySecCmd;
       }
 
       VkCommandBuffer nestedCmd = GetCommandBuffer(VK_COMMAND_BUFFER_LEVEL_SECONDARY);
@@ -1043,7 +1052,7 @@ RD_TEST(VK_Resource_Usage, VulkanGraphicsTest)
           vkCmdBeginRenderPass(
               cmd, vkh::RenderPassBeginInfo(mainWindow->rp, mainWindow->GetFB(), mainWindow->scissor),
               VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-          vkCmdExecuteCommands(cmd, 2, secCmdBuffers);
+          vkCmdExecuteCommands(cmd, 3, secCmdBuffers);
           vkCmdEndRenderPass(cmd);
         }
         popMarker(cmd);
