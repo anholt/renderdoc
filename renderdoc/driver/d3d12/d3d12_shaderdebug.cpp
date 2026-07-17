@@ -684,8 +684,13 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
       {
         if(isDXIL)
         {
-          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
-              result.value.u32v[3] = (uint32_t)uavDesc.Buffer.NumElements;
+          // For a Raw Buffer SRV or UAV, the return value is the number of bytes in the view.
+          if(uavDesc.Buffer.Flags & D3D12_BUFFER_UAV_FLAG_RAW)
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = (uint32_t)uavDesc.Buffer.NumElements * 4;
+          else
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = (uint32_t)uavDesc.Buffer.NumElements;
           break;
         }
         // DXBC does not allow resinfo on buffers:
@@ -697,8 +702,12 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
       {
         if(isDXIL)
         {
-          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
-              result.value.u32v[3] = GetBufferByteOffsetNumElements(uavDesc);
+          if(uavDesc.BufferByteOffset.Flags & D3D12_BUFFER_UAV_FLAG_RAW)
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = uint32_t(uavDesc.BufferByteOffset.Size & 0xffffffff);
+          else
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = GetBufferByteOffsetNumElements(uavDesc);
           break;
         }
         // DXBC does not allow resinfo on buffers:
@@ -810,8 +819,12 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
       {
         if(isDXIL)
         {
-          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
-              result.value.u32v[3] = (uint32_t)srvDesc.Buffer.NumElements;
+          if(srvDesc.Buffer.Flags & D3D12_BUFFER_SRV_FLAG_RAW)
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = (uint32_t)srvDesc.Buffer.NumElements * 4;
+          else
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = (uint32_t)srvDesc.Buffer.NumElements;
           break;
         }
         // DXBC does not allow resinfo on buffers:
@@ -823,8 +836,12 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
       {
         if(isDXIL)
         {
-          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
-              result.value.u32v[3] = GetBufferByteOffsetNumElements(srvDesc);
+          if(srvDesc.BufferByteOffset.Flags & D3D12_BUFFER_SRV_FLAG_RAW)
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = uint32_t(srvDesc.BufferByteOffset.Size & 0xffffffff);
+          else
+            result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+                result.value.u32v[3] = GetBufferByteOffsetNumElements(srvDesc);
           break;
         }
         // DXBC does not allow resinfo on buffers:
@@ -1582,13 +1599,22 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
 
     if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_BUFFER)
     {
-      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
-          (uint32_t)srvDesc.Buffer.NumElements;
+      if(srvDesc.Buffer.Flags & D3D12_BUFFER_SRV_FLAG_RAW)
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            (uint32_t)srvDesc.Buffer.NumElements * 4;
+      else
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            (uint32_t)srvDesc.Buffer.NumElements;
     }
     else if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET)
     {
-      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
-          D3D12ShaderDebug::GetBufferByteOffsetNumElements(srvDesc);
+      if(srvDesc.BufferByteOffset.Flags & D3D12_BUFFER_SRV_FLAG_RAW)
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            uint32_t(srvDesc.BufferByteOffset.Size & 0xffffffff);
+      else
+
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            D3D12ShaderDebug::GetBufferByteOffsetNumElements(srvDesc);
     }
   }
 
@@ -1607,13 +1633,22 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
 
     if(uavDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER)
     {
-      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
-          (uint32_t)uavDesc.Buffer.NumElements;
+      // For a Raw Buffer SRV or UAV, the return value is the number of bytes in the view.
+      if(uavDesc.Buffer.Flags & D3D12_BUFFER_UAV_FLAG_RAW)
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            (uint32_t)uavDesc.Buffer.NumElements * 4;
+      else
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            (uint32_t)uavDesc.Buffer.NumElements;
     }
     else if(uavDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET)
     {
-      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
-          D3D12ShaderDebug::GetBufferByteOffsetNumElements(uavDesc);
+      if(uavDesc.BufferByteOffset.Flags & D3D12_BUFFER_UAV_FLAG_RAW)
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            uint32_t(uavDesc.BufferByteOffset.Size & 0xffffffff);
+      else
+        result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+            D3D12ShaderDebug::GetBufferByteOffsetNumElements(uavDesc);
     }
   }
 
