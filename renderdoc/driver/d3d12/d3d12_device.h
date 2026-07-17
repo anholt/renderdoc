@@ -2011,6 +2011,14 @@ public:
                                                    ID3D12Resource *pFeedbackResource,
                                                    D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
 
+  IMPLEMENT_FUNCTION_THREAD_SERIALISED(virtual HRESULT, CreateQueryHeap1,
+                                       const D3D12_QUERY_HEAP_DESC *pDesc,
+                                       D3D12_QUERY_HEAP_FLAGS Flags, REFIID riid, void **ppvHeap);
+
+  virtual HRESULT STDMETHODCALLTYPE ResolveQueryData(ID3D12QueryHeap *pQueryHeap,
+                                                     D3D12_QUERY_TYPE Type, UINT StartIndex,
+                                                     UINT NumQueries, void *pResolvedQueryData);
+
   //////////////////////////////
   // implement ID3D12DeviceTools
   virtual void STDMETHODCALLTYPE SetNextAllocationAddress(UINT64 pVirtualAddress)

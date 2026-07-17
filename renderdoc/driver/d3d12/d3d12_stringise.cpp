@@ -28,7 +28,7 @@
 template <>
 rdcstr DoStringise(const D3D12Chunk &el)
 {
-  RDCCOMPILE_ASSERT((uint32_t)D3D12Chunk::Max == 1145, "Chunks changed without updating names");
+  RDCCOMPILE_ASSERT((uint32_t)D3D12Chunk::Max == 1146, "Chunks changed without updating names");
 
   BEGIN_ENUM_STRINGISE(D3D12Chunk)
   {
@@ -255,6 +255,7 @@ rdcstr DoStringise(const D3D12Chunk &el)
                                "ID3D12Device15::TryCreateRenderTargetView");
     STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateDepthStencilView,
                                "ID3D12Device15::TryCreateDepthStencilView");
+    STRINGISE_ENUM_CLASS_NAMED(Device_CreateQueryHeap1, "ID3D12Device15::CreateQueryHeap1");
     STRINGISE_ENUM_CLASS_NAMED(Max, "Max Chunk");
   }
   END_ENUM_STRINGISE()
@@ -1862,4 +1863,15 @@ rdcstr DoStringise(const D3D12_FEATURE &el)
     STRINGISE_ENUM(D3D12_FEATURE_SHADER_CACHE_ABI_SUPPORT);
   }
   END_ENUM_STRINGISE();
+}
+
+template <>
+rdcstr DoStringise(const D3D12_QUERY_HEAP_FLAGS &el)
+{
+  BEGIN_BITFIELD_STRINGISE(D3D12_QUERY_HEAP_FLAGS);
+  {
+    STRINGISE_BITFIELD_VALUE(D3D12_QUERY_HEAP_FLAG_NONE);
+    STRINGISE_BITFIELD_VALUE(D3D12_QUERY_HEAP_FLAG_CPU_RESOLVE);
+  }
+  END_BITFIELD_STRINGISE();
 }

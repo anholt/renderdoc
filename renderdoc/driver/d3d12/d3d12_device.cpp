@@ -5220,6 +5220,8 @@ bool WrappedID3D12Device::ProcessChunk(ReadSerialiser &ser, D3D12Chunk context)
       return Serialise_SetPipelineStackSize(ser, NULL, 0);
     case D3D12Chunk::Device_CreateRootSignatureFromSubobjectInLibrary:
       return Serialise_CreateRootSignatureFromSubobjectInLibrary(ser, 0, NULL, 0, NULL, IID(), NULL);
+    case D3D12Chunk::Device_CreateQueryHeap1:
+      return Serialise_CreateQueryHeap1(ser, NULL, D3D12_QUERY_HEAP_FLAG_NONE, IID(), NULL);
 
     // in order to get a warning if we miss a case, we explicitly handle the list/queue chunks here.
     // If we actually encounter one it's an error (we should hit CaptureBegin first and switch to
