@@ -2019,7 +2019,7 @@ public:
                                                    ID3D12Resource *pFeedbackResource,
                                                    D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
 
-  IMPLEMENT_FUNCTION_THREAD_SERIALISED(virtual HRESULT, CreateQueryHeap1,
+  IMPLEMENT_FUNCTION_THREAD_SERIALISED(virtual HRESULT STDMETHODCALLTYPE, CreateQueryHeap1,
                                        const D3D12_QUERY_HEAP_DESC *pDesc,
                                        D3D12_QUERY_HEAP_FLAGS Flags, REFIID riid, void **ppvHeap);
 
