@@ -1324,5 +1324,11 @@ enum class D3D12Chunk : uint32_t
   List_DispatchGraph,
   SetQueueAnnotation,
   SetCommandAnnotation,
+  Device_TryCreateShaderResourceView,
+  Device_TryCreateUnorderedAccessView,
+  Device_TryCreateConstantBufferView,
+  Device_TryCreateSampler2,
+  Device_TryCreateRenderTargetView,
+  Device_TryCreateDepthStencilView,
   Max,
 };

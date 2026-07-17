@@ -1948,6 +1948,70 @@ public:
                                        REFIID riid, _COM_Outptr_ void **ppvRootSignature);
 
   //////////////////////////////
+  // implement ID3D12Device15
+
+  virtual HRESULT STDMETHODCALLTYPE
+  RegisterTrimNotificationCallback(D3D12_REGISTER_TRIM_NOTIFICATION *pData);
+
+  virtual HRESULT STDMETHODCALLTYPE UnregisterTrimNotificationCallback(DWORD CallbackCookie);
+
+  // the TryCreate* variants forward into a common implementation with an extra bool flag
+
+  virtual HRESULT STDMETHODCALLTYPE TryCreateShaderResourceView(
+      ID3D12Resource *pResource, const D3D12_SHADER_RESOURCE_VIEW_DESC *pDesc,
+      D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE TryCreateUnorderedAccessView(
+      ID3D12Resource *pResource, ID3D12Resource *pCounterResource,
+      const D3D12_UNORDERED_ACCESS_VIEW_DESC *pDesc, D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE TryCreateConstantBufferView(
+      const D3D12_CONSTANT_BUFFER_VIEW_DESC *pDesc, D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE TryCreateSampler2(const D3D12_SAMPLER_DESC2 *pDesc,
+                                                      D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE
+  TryCreateRenderTargetView(ID3D12Resource *pResource, const D3D12_RENDER_TARGET_VIEW_DESC *pDesc,
+                            D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE
+  TryCreateDepthStencilView(ID3D12Resource *pResource, const D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,
+                            D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  virtual HRESULT STDMETHODCALLTYPE TryCreateSamplerFeedbackUnorderedAccessView(
+      ID3D12Resource *pTargetedResource, ID3D12Resource *pFeedbackResource,
+      D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  // internal functions
+  HRESULT CreateShaderResourceView(bool tryCall, ID3D12Resource *pResource,
+                                   const D3D12_SHADER_RESOURCE_VIEW_DESC *pDesc,
+                                   D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateUnorderedAccessView(bool tryCall, ID3D12Resource *pResource,
+                                    ID3D12Resource *pCounterResource,
+                                    const D3D12_UNORDERED_ACCESS_VIEW_DESC *pDesc,
+                                    D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateConstantBufferView(bool tryCall, const D3D12_CONSTANT_BUFFER_VIEW_DESC *pDesc,
+                                   D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateSampler2(bool tryCall, const D3D12_SAMPLER_DESC2 *pDesc,
+                         D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateRenderTargetView(bool tryCall, ID3D12Resource *pResource,
+                                 const D3D12_RENDER_TARGET_VIEW_DESC *pDesc,
+                                 D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateDepthStencilView(bool tryCall, ID3D12Resource *pResource,
+                                 const D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,
+                                 D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  HRESULT CreateSamplerFeedbackUnorderedAccessView(bool tryCall, ID3D12Resource *pTargetedResource,
+                                                   ID3D12Resource *pFeedbackResource,
+                                                   D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+
+  //////////////////////////////
   // implement ID3D12DeviceTools
   virtual void STDMETHODCALLTYPE SetNextAllocationAddress(UINT64 pVirtualAddress)
   {

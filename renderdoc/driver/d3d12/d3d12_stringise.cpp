@@ -28,7 +28,7 @@
 template <>
 rdcstr DoStringise(const D3D12Chunk &el)
 {
-  RDCCOMPILE_ASSERT((uint32_t)D3D12Chunk::Max == 1139, "Chunks changed without updating names");
+  RDCCOMPILE_ASSERT((uint32_t)D3D12Chunk::Max == 1145, "Chunks changed without updating names");
 
   BEGIN_ENUM_STRINGISE(D3D12Chunk)
   {
@@ -244,6 +244,17 @@ rdcstr DoStringise(const D3D12Chunk &el)
     STRINGISE_ENUM_CLASS_NAMED(List_DispatchGraph, "ID3D12GraphicsCommandList10::DispatchGraph");
     STRINGISE_ENUM_CLASS_NAMED(SetCommandAnnotation, "Internal::SetCommandAnnotation");
     STRINGISE_ENUM_CLASS_NAMED(SetQueueAnnotation, "Internal::SetQueueAnnotation");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateShaderResourceView,
+                               "ID3D12Device15::TryCreateShaderResourceView");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateUnorderedAccessView,
+                               "ID3D12Device15::TryCreateUnorderedAccessView");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateConstantBufferView,
+                               "ID3D12Device15::TryCreateConstantBufferView");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateSampler2, "ID3D12Device15::TryCreateSampler2");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateRenderTargetView,
+                               "ID3D12Device15::TryCreateRenderTargetView");
+    STRINGISE_ENUM_CLASS_NAMED(Device_TryCreateDepthStencilView,
+                               "ID3D12Device15::TryCreateDepthStencilView");
     STRINGISE_ENUM_CLASS_NAMED(Max, "Max Chunk");
   }
   END_ENUM_STRINGISE()
