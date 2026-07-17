@@ -625,6 +625,7 @@ private:
   ID3D12Device12 *m_pDevice12;
   ID3D12Device13 *m_pDevice13;
   ID3D12Device14 *m_pDevice14;
+  ID3D12Device15 *m_pDevice15;
   ID3D12DeviceTools *m_pDeviceTools = NULL;
   ID3D12DeviceTools1 *m_pDeviceTools1 = NULL;
   ID3D12DeviceDownlevel *m_pDownlevel;

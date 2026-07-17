@@ -625,6 +625,7 @@ WrappedID3D12Device::WrappedID3D12Device(ID3D12Device *realDevice, D3D12InitPara
   m_pDevice12 = NULL;
   m_pDevice13 = NULL;
   m_pDevice14 = NULL;
+  m_pDevice15 = NULL;
   m_pDownlevel = NULL;
   if(m_pDevice)
   {
@@ -642,6 +643,7 @@ WrappedID3D12Device::WrappedID3D12Device(ID3D12Device *realDevice, D3D12InitPara
     m_pDevice->QueryInterface(__uuidof(ID3D12Device12), (void **)&m_pDevice12);
     m_pDevice->QueryInterface(__uuidof(ID3D12Device13), (void **)&m_pDevice13);
     m_pDevice->QueryInterface(__uuidof(ID3D12Device14), (void **)&m_pDevice14);
+    m_pDevice->QueryInterface(__uuidof(ID3D12Device15), (void **)&m_pDevice15);
     m_pDevice->QueryInterface(__uuidof(ID3D12DeviceRemovedExtendedData), (void **)&m_DRED.m_pReal);
     m_pDevice->QueryInterface(__uuidof(ID3D12DeviceRemovedExtendedData1), (void **)&m_DRED.m_pReal1);
     m_pDevice->QueryInterface(__uuidof(ID3D12DeviceRemovedExtendedDataSettings),
@@ -1013,6 +1015,7 @@ WrappedID3D12Device::~WrappedID3D12Device()
   SAFE_RELEASE(m_pDownlevel);
   SAFE_RELEASE(m_pDeviceTools);
   SAFE_RELEASE(m_pDeviceTools1);
+  SAFE_RELEASE(m_pDevice15);
   SAFE_RELEASE(m_pDevice14);
   SAFE_RELEASE(m_pDevice13);
   SAFE_RELEASE(m_pDevice12);
