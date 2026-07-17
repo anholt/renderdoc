@@ -118,7 +118,8 @@ HRESULT STDMETHODCALLTYPE DummyID3D12DebugDevice::QueryInterface(REFIID riid, vo
      riid == __uuidof(ID3D12Device7) || riid == __uuidof(ID3D12Device8) ||
      riid == __uuidof(ID3D12Device9) || riid == __uuidof(ID3D12Device10) ||
      riid == __uuidof(ID3D12Device11) || riid == __uuidof(ID3D12Device12) ||
-     riid == __uuidof(ID3D12Device13) || riid == __uuidof(ID3D12Device14))
+     riid == __uuidof(ID3D12Device13) || riid == __uuidof(ID3D12Device14) ||
+     riid == __uuidof(ID3D12Device15))
     return m_pDevice->QueryInterface(riid, ppvObject);
 
   if(riid == __uuidof(IUnknown))
@@ -155,7 +156,8 @@ HRESULT STDMETHODCALLTYPE WrappedID3D12DebugDevice::QueryInterface(REFIID riid, 
      riid == __uuidof(ID3D12Device7) || riid == __uuidof(ID3D12Device8) ||
      riid == __uuidof(ID3D12Device9) || riid == __uuidof(ID3D12Device10) ||
      riid == __uuidof(ID3D12Device11) || riid == __uuidof(ID3D12Device12) ||
-     riid == __uuidof(ID3D12Device13) || riid == __uuidof(ID3D12Device14))
+     riid == __uuidof(ID3D12Device13) || riid == __uuidof(ID3D12Device14) ||
+     riid == __uuidof(ID3D12Device15))
     return m_pDevice->QueryInterface(riid, ppvObject);
 
   if(riid == __uuidof(IUnknown))
@@ -1357,6 +1359,19 @@ HRESULT WrappedID3D12Device::QueryInterface(REFIID riid, void **ppvObject)
     {
       AddRef();
       *ppvObject = (ID3D12Device14 *)this;
+      return S_OK;
+    }
+    else
+    {
+      return E_NOINTERFACE;
+    }
+  }
+  else if(riid == __uuidof(ID3D12Device15))
+  {
+    if(m_pDevice15)
+    {
+      AddRef();
+      *ppvObject = (ID3D12Device15 *)this;
       return S_OK;
     }
     else
