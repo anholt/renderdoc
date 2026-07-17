@@ -10600,7 +10600,7 @@ DeviceOpResult Debugger::GetResourceInfo(DXIL::ResourceClass resClass,
                                          const DXDebug::BindingSlot &slot, uint32_t mipLevel,
                                          ShaderVariable &result) const
 {
-  if(!IsDeviceThread() && !m_ApiWrapper->IsResourceInfoCached(slot, mipLevel))
+  if(!IsDeviceThread() && !m_ApiWrapper->IsResourceInfoCached(resClass, slot, mipLevel))
     return DeviceOpResult::NeedsDevice;
 
   result = m_ApiWrapper->GetResourceInfo(resClass, slot, mipLevel);

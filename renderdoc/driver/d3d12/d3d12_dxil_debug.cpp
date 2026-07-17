@@ -1947,10 +1947,11 @@ bool D3D12APIWrapper::QueuedOpsHasSpace() const
 }
 
 // Called from any thread
-bool D3D12APIWrapper::IsResourceInfoCached(const DXDebug::BindingSlot &slot, uint32_t mipLevel)
+bool D3D12APIWrapper::IsResourceInfoCached(DXIL::ResourceClass resClass,
+                                           const DXDebug::BindingSlot &slot, uint32_t mipLevel)
 {
   SCOPED_READLOCK(m_ResourceInfosLock);
-  ResourceInfoMiplevel resInfoMip = {slot, mipLevel};
+  ResourceInfoMiplevel resInfoMip = {resClass, slot, mipLevel};
   return m_ResourceInfos.find(resInfoMip) != m_ResourceInfos.end();
 }
 
@@ -1959,7 +1960,7 @@ bool D3D12APIWrapper::IsResourceInfoCached(const DXDebug::BindingSlot &slot, uin
 ShaderVariable D3D12APIWrapper::GetResourceInfo(DXIL::ResourceClass resClass,
                                                 const DXDebug::BindingSlot &slot, uint32_t mipLevel)
 {
-  ResourceInfoMiplevel resInfoMip = {slot, mipLevel};
+  ResourceInfoMiplevel resInfoMip = {resClass, slot, mipLevel};
   {
     SCOPED_READLOCK(m_ResourceInfosLock);
     auto it = m_ResourceInfos.find(resInfoMip);
