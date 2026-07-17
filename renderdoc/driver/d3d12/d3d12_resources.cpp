@@ -1604,9 +1604,9 @@ D3D12_SHADER_RESOURCE_VIEW_DESC MakeSRVDesc(const D3D12_RESOURCE_DESC &desc)
 
     ret.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
     ret.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-    ret.Buffer.StructureByteStride = 0;
+    ret.Buffer.StructureByteStride = 16;
     ret.Buffer.FirstElement = 0;
-    ret.Buffer.NumElements = (UINT)desc.Width;
+    ret.Buffer.NumElements = (UINT)desc.Width / 16;
   }
   else if(desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE1D)
   {

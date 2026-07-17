@@ -688,8 +688,24 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
               result.value.u32v[3] = (uint32_t)uavDesc.Buffer.NumElements;
           break;
         }
+        // DXBC does not allow resinfo on buffers:
+        // srcResource must be a t# or u# register that is not a Buffer (but it is a Texture*).
+
+        DELIBERATE_FALLTHROUGH();
       }
       case D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET:
+      {
+        if(isDXIL)
+        {
+          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+              result.value.u32v[3] = GetBufferByteOffsetNumElements(uavDesc);
+          break;
+        }
+        // DXBC does not allow resinfo on buffers:
+        // srcResource must be a t# or u# register that is not a Buffer (but it is a Texture*).
+
+        DELIBERATE_FALLTHROUGH();
+      }
       case D3D12_UAV_DIMENSION_UNKNOWN:
       {
         RDCWARN("Invalid view dimension for GetResourceInfo");
@@ -798,8 +814,24 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
               result.value.u32v[3] = (uint32_t)srvDesc.Buffer.NumElements;
           break;
         }
+        // DXBC does not allow resinfo on buffers:
+        // srcResource must be a t# or u# register that is not a Buffer (but it is a Texture*).
+
+        DELIBERATE_FALLTHROUGH();
       }
       case D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET:
+      {
+        if(isDXIL)
+        {
+          result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] =
+              result.value.u32v[3] = GetBufferByteOffsetNumElements(srvDesc);
+          break;
+        }
+        // DXBC does not allow resinfo on buffers:
+        // srcResource must be a t# or u# register that is not a Buffer (but it is a Texture*).
+
+        DELIBERATE_FALLTHROUGH();
+      }
       case D3D12_SRV_DIMENSION_UNKNOWN:
       {
         RDCWARN("Invalid view dimension for GetResourceInfo");
@@ -1235,6 +1267,16 @@ void D3D12DebugAPIWrapper::FetchSRV(const DXBCDebug::BindingSlot &slot)
 
                     m_pDevice->GetDebugManager()->GetBufferData(pResource, 0, 0, srvData.data);
                   }
+                  else if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET)
+                  {
+                    // apply the offset/size immediately by fetching only that data rather than it
+                    // being in addressing calculations. Then all we need to do is set numElements
+                    srvData.numElements = D3D12ShaderDebug::GetBufferByteOffsetNumElements(srvDesc);
+
+                    m_pDevice->GetDebugManager()->GetBufferData(
+                        pResource, srvDesc.BufferByteOffset.Offset, srvDesc.BufferByteOffset.Size,
+                        srvData.data);
+                  }
 
                   // Textures are sampled via a pixel shader, so there's no need to copy their data
                 }
@@ -1406,6 +1448,17 @@ void D3D12DebugAPIWrapper::FetchUAV(const DXBCDebug::BindingSlot &slot)
 
                     m_pDevice->GetDebugManager()->GetBufferData(pResource, 0, 0, uavData.data);
                   }
+                  else if(uavDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET)
+                  {
+                    // apply the offset/size immediately by fetching only that data rather than it
+                    // being in addressing calculations. Then all we need to do is fake numElements
+                    // so it doesn't cause clamps
+                    uavData.numElements = D3D12ShaderDebug::GetBufferByteOffsetNumElements(uavDesc);
+
+                    m_pDevice->GetDebugManager()->GetBufferData(
+                        pResource, uavDesc.BufferByteOffset.Offset, uavDesc.BufferByteOffset.Size,
+                        uavData.data);
+                  }
                   else
                   {
                     uavData.tex = true;
@@ -1532,6 +1585,11 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
       result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
           (uint32_t)srvDesc.Buffer.NumElements;
     }
+    else if(srvDesc.ViewDimension == D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET)
+    {
+      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+          D3D12ShaderDebug::GetBufferByteOffsetNumElements(srvDesc);
+    }
   }
 
   if(descriptor.GetType() == D3D12DescriptorType::UAV &&
@@ -1551,6 +1609,11 @@ ShaderVariable D3D12DebugAPIWrapper::GetBufferInfo(DXBCBytecode::OperandType typ
     {
       result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
           (uint32_t)uavDesc.Buffer.NumElements;
+    }
+    else if(uavDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET)
+    {
+      result.value.u32v[0] = result.value.u32v[1] = result.value.u32v[2] = result.value.u32v[3] =
+          D3D12ShaderDebug::GetBufferByteOffsetNumElements(uavDesc);
     }
   }
 

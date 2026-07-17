@@ -789,7 +789,8 @@ void D3D12Replay::FillDescriptor(Descriptor &dst, const D3D12Descriptor *src)
       if(srv.ViewDimension == D3D12_SRV_DIMENSION_UNKNOWN)
         srv = MakeSRVDesc(res);
 
-      if(srv.ViewDimension == D3D12_SRV_DIMENSION_BUFFER)
+      if(srv.ViewDimension == D3D12_SRV_DIMENSION_BUFFER ||
+         srv.ViewDimension == D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET)
         dst.type = DescriptorType::TypedBuffer;
       else
         dst.type = DescriptorType::Image;
@@ -816,6 +817,17 @@ void D3D12Replay::FillDescriptor(Descriptor &dst, const D3D12Descriptor *src)
         if(srv.Buffer.StructureByteStride > 0)
         {
           dst.elementByteSize = srv.Buffer.StructureByteStride;
+          dst.type = DescriptorType::Buffer;
+        }
+      }
+      else if(srv.ViewDimension == D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET)
+      {
+        dst.byteOffset = srv.BufferByteOffset.Offset;
+        dst.byteSize = srv.BufferByteOffset.Size;
+        dst.flags = MakeDescriptorFlags(srv.BufferByteOffset.Flags);
+        if(srv.BufferByteOffset.StructureByteStride > 0)
+        {
+          dst.elementByteSize = srv.BufferByteOffset.StructureByteStride;
           dst.type = DescriptorType::Buffer;
         }
       }
@@ -914,7 +926,8 @@ void D3D12Replay::FillDescriptor(Descriptor &dst, const D3D12Descriptor *src)
       if(uav.ViewDimension == D3D12_UAV_DIMENSION_UNKNOWN)
         uav = MakeUAVDesc(res);
 
-      if(uav.ViewDimension == D3D12_UAV_DIMENSION_BUFFER)
+      if(uav.ViewDimension == D3D12_UAV_DIMENSION_BUFFER ||
+         uav.ViewDimension == D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET)
         dst.type = uav.Format != DXGI_FORMAT_UNKNOWN ? DescriptorType::ReadWriteTypedBuffer
                                                      : DescriptorType::ReadWriteBuffer;
       else
@@ -943,6 +956,26 @@ void D3D12Replay::FillDescriptor(Descriptor &dst, const D3D12Descriptor *src)
           bytebuf counterVal;
           GetDebugManager()->GetBufferData(rm->GetResAs<ID3D12Resource>(src->GetCounterResourceId()),
                                            uav.Buffer.CounterOffsetInBytes, 4, counterVal);
+          uint32_t *val = (uint32_t *)&counterVal[0];
+          dst.bufferStructCount = *val;
+        }
+      }
+      else if(uav.ViewDimension == D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET)
+      {
+        dst.byteOffset = uav.BufferByteOffset.Offset;
+        dst.byteSize = uav.BufferByteOffset.Size;
+        dst.flags = MakeDescriptorFlags(uav.BufferByteOffset.Flags);
+        if(uav.BufferByteOffset.StructureByteStride > 0)
+          dst.elementByteSize = uav.BufferByteOffset.StructureByteStride;
+
+        dst.counterByteOffset = uav.BufferByteOffset.CounterOffsetInBytes & 0xffffffff;
+        RDCASSERT(uav.BufferByteOffset.CounterOffsetInBytes < 0xffffffff);
+
+        if(dst.secondary != ResourceId())
+        {
+          bytebuf counterVal;
+          GetDebugManager()->GetBufferData(rm->GetResAs<ID3D12Resource>(src->GetCounterResourceId()),
+                                           uav.BufferByteOffset.CounterOffsetInBytes, 4, counterVal);
           uint32_t *val = (uint32_t *)&counterVal[0];
           dst.bufferStructCount = *val;
         }
