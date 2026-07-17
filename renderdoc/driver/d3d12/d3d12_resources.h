@@ -1732,7 +1732,8 @@ public:
   }
 };
 
-class WrappedID3D12RootSignature : public WrappedDeviceChild12<ID3D12RootSignature>
+class WrappedID3D12RootSignature
+    : public WrappedDeviceChild12<ID3D12RootSignature, ID3D12RootSignature1>
 {
 public:
   ALLOCATE_WITH_WRAPPED_POOL(WrappedID3D12RootSignature);
@@ -1750,6 +1751,31 @@ public:
   {
   }
   virtual ~WrappedID3D12RootSignature() { Shutdown(); }
+
+  //////////////////////////////
+  // implement ID3D12RootSignature1
+
+  virtual SIZE_T STDMETHODCALLTYPE GetSerializedSize()
+  {
+    ID3D12RootSignature1 *real1 = NULL;
+    m_pReal->QueryInterface(__uuidof(ID3D12RootSignature1), (void **)&real1);
+
+    if(!real1)
+      return 0;
+
+    return real1->GetSerializedSize();
+  }
+
+  virtual HRESULT STDMETHODCALLTYPE GetSerializedData(void *pData, SIZE_T Size)
+  {
+    ID3D12RootSignature1 *real1 = NULL;
+    m_pReal->QueryInterface(__uuidof(ID3D12RootSignature1), (void **)&real1);
+
+    if(!real1)
+      return E_NOINTERFACE;
+
+    return real1->GetSerializedData(pData, Size);
+  }
 };
 
 class WrappedID3D12PipelineLibrary : public WrappedDeviceChild12<ID3D12PipelineLibrary1>

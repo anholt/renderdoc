@@ -478,6 +478,23 @@ public:
   virtual void STDMETHODCALLTYPE EndCapturableWork(_In_ REFGUID guid);
 };
 
+struct WrappedDeviceStatistics : public ID3D12DeviceStatistics
+{
+  WrappedID3D12Device &m_pDevice;
+  ID3D12DeviceStatistics *m_pReal = NULL;
+
+  WrappedDeviceStatistics(WrappedID3D12Device &dev) : m_pDevice(dev) {}
+  //////////////////////////////
+  // implement IUnknown
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppvObject);
+  ULONG STDMETHODCALLTYPE AddRef();
+  ULONG STDMETHODCALLTYPE Release();
+
+  //////////////////////////////
+  // implement ID3D12DeviceStatistics
+  virtual HRESULT STDMETHODCALLTYPE GetStateObjectStatistics(D3D12_STATE_OBJECT_STATISTICS *pStatistics);
+};
+
 struct WrappedCompatibilityDevice : public ID3D12CompatibilityDevice
 {
   WrappedID3D12Device &m_pDevice;
@@ -673,6 +690,7 @@ private:
   WrappedDRED m_DRED;
   WrappedDREDSettings m_DREDSettings;
   WrappedCompatibilityDevice m_CompatDevice;
+  WrappedDeviceStatistics m_DeviceStats;
   WrappedNVAPI12 m_WrappedNVAPI;
   WrappedAGS12 m_WrappedAGS;
 

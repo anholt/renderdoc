@@ -689,6 +689,7 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
           break;
         }
       }
+      case D3D12_UAV_DIMENSION_BUFFER_BYTE_OFFSET:
       case D3D12_UAV_DIMENSION_UNKNOWN:
       {
         RDCWARN("Invalid view dimension for GetResourceInfo");
@@ -798,6 +799,7 @@ ShaderVariable D3D12ShaderDebug::GetResourceInfo(WrappedID3D12Device *device,
           break;
         }
       }
+      case D3D12_SRV_DIMENSION_BUFFER_BYTE_OFFSET:
       case D3D12_SRV_DIMENSION_UNKNOWN:
       {
         RDCWARN("Invalid view dimension for GetResourceInfo");

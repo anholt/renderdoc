@@ -356,6 +356,27 @@ ULONG STDMETHODCALLTYPE WrappedDREDSettings::Release()
   return m_pDevice.Release();
 }
 
+HRESULT STDMETHODCALLTYPE WrappedDeviceStatistics::QueryInterface(REFIID riid, void **ppvObject)
+{
+  return m_pDevice.QueryInterface(riid, ppvObject);
+}
+
+ULONG STDMETHODCALLTYPE WrappedDeviceStatistics::AddRef()
+{
+  return m_pDevice.AddRef();
+}
+
+ULONG STDMETHODCALLTYPE WrappedDeviceStatistics::Release()
+{
+  return m_pDevice.Release();
+}
+
+HRESULT STDMETHODCALLTYPE
+WrappedDeviceStatistics::GetStateObjectStatistics(D3D12_STATE_OBJECT_STATISTICS *pStatistics)
+{
+  return m_pReal->GetStateObjectStatistics(pStatistics);
+}
+
 HRESULT STDMETHODCALLTYPE WrappedCompatibilityDevice::QueryInterface(REFIID riid, void **ppvObject)
 {
   return m_pDevice.QueryInterface(riid, ppvObject);
@@ -564,6 +585,7 @@ WrappedID3D12Device::WrappedID3D12Device(ID3D12Device *realDevice, D3D12InitPara
       m_DRED(*this),
       m_DREDSettings(*this),
       m_SharingContract(*this),
+      m_DeviceStats(*this),
       m_CompatDevice(*this),
       m_WrappedNVAPI(*this),
       m_WrappedAGS(*this)
@@ -632,6 +654,7 @@ WrappedID3D12Device::WrappedID3D12Device(ID3D12Device *realDevice, D3D12InitPara
     m_pDevice->QueryInterface(__uuidof(ID3D12DeviceTools), (void **)&m_pDeviceTools);
     m_pDevice->QueryInterface(__uuidof(ID3D12DeviceTools1), (void **)&m_pDeviceTools1);
     m_pDevice->QueryInterface(__uuidof(ID3D12CompatibilityDevice), (void **)&m_CompatDevice.m_pReal);
+    m_pDevice->QueryInterface(__uuidof(ID3D12DeviceStatistics), (void **)&m_DeviceStats.m_pReal);
     m_pDevice->QueryInterface(__uuidof(ID3D12SharingContract), (void **)&m_SharingContract.m_pReal);
 
     for(size_t i = 0; i < ARRAY_COUNT(m_DescriptorIncrements); i++)
@@ -986,6 +1009,7 @@ WrappedID3D12Device::~WrappedID3D12Device()
   SAFE_RELEASE(m_DREDSettings.m_pReal2);
   SAFE_RELEASE(m_CompatDevice.m_pReal);
   SAFE_RELEASE(m_SharingContract.m_pReal);
+  SAFE_RELEASE(m_DeviceStats.m_pReal);
   SAFE_RELEASE(m_pDownlevel);
   SAFE_RELEASE(m_pDeviceTools);
   SAFE_RELEASE(m_pDeviceTools1);
@@ -1566,6 +1590,19 @@ HRESULT WrappedID3D12Device::QueryInterface(REFIID riid, void **ppvObject)
     {
       AddRef();
       *ppvObject = (ID3D12CompatibilityDevice *)&m_CompatDevice;
+      return S_OK;
+    }
+    else
+    {
+      return E_NOINTERFACE;
+    }
+  }
+  else if(riid == __uuidof(ID3D12DeviceStatistics))
+  {
+    if(m_DeviceStats.m_pReal)
+    {
+      AddRef();
+      *ppvObject = (ID3D12DeviceStatistics *)&m_DeviceStats;
       return S_OK;
     }
     else
