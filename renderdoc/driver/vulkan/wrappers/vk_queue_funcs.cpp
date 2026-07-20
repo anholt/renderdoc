@@ -303,6 +303,8 @@ void WrappedVulkan::ReplayQueueSubmit(VkQueue queue, VkSubmitInfo2 submitInfo, r
     for(uint32_t c = 0; c < numCmds; c++)
     {
       DoSubmit(queue, submitInfo);
+      // ensure we wait for the submit to finish before processing it
+      ObjDisp(queue)->QueueWaitIdle(Unwrap(queue));
       FlushQ();
 
       ResourceId cmd = GetResID(submitInfo.pCommandBufferInfos[0].commandBuffer);
