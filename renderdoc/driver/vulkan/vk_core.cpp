@@ -6017,6 +6017,7 @@ void WrappedVulkan::AddForcedReference(VkResourceRecord *record)
 
 void WrappedVulkan::AddAction(const ActionDescription &a)
 {
+  RDCASSERT(IsLoading(m_State));
   m_AddedAction = true;
 
   ActionDescription action = a;
@@ -6698,6 +6699,7 @@ void WrappedVulkan::AddFramebufferUsageAllChildren(VulkanActionTreeNode &actionN
 
 void WrappedVulkan::AddEvent()
 {
+  RDCASSERT(IsLoading(m_State));
   APIEvent apievent;
 
   apievent.fileOffset = m_CurChunkOffset;
