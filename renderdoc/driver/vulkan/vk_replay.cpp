@@ -2689,7 +2689,13 @@ rdcarray<Descriptor> VulkanReplay::GetDescriptors(ResourceId descriptorStore,
     const DescriptorSetSlot *desc = set.data.binds.empty() ? NULL : set.data.binds[0];
     const DescriptorSetSlot *end = desc + set.data.totalDescriptorCount();
 
-    RDCASSERT(r.offset >= set.data.inlineBytes.size());
+    if(r.offset < set.data.inlineBytes.size())
+    {
+      // can't query descriptors from within inline bytes range - possibly mismatched descriptor
+      // sets or stale state. silently drop this range
+      dst += r.count;
+      continue;
+    }
 
     desc += (r.offset - set.data.inlineBytes.size());
 
@@ -2850,7 +2856,13 @@ rdcarray<SamplerDescriptor> VulkanReplay::GetSamplerDescriptors(ResourceId descr
     const DescriptorSetSlot *desc = set.data.binds.empty() ? NULL : set.data.binds[0];
     const DescriptorSetSlot *end = desc + set.data.totalDescriptorCount();
 
-    RDCASSERT(r.offset >= set.data.inlineBytes.size());
+    if(r.offset < set.data.inlineBytes.size())
+    {
+      // can't query descriptors from within inline bytes range - possibly mismatched descriptor
+      // sets or stale state. silently drop this range
+      dst += r.count;
+      continue;
+    }
 
     desc += (r.offset - set.data.inlineBytes.size());
 
