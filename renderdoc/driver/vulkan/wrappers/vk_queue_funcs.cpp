@@ -1517,6 +1517,7 @@ bool WrappedVulkan::Serialise_vkQueueSubmit(SerialiserType &ser, VkQueue queue, 
       {
         // account for the queue submit event
         m_RootEventID++;
+        ObjDisp(queue)->QueueSubmit(Unwrap(queue), 0, NULL, VK_NULL_HANDLE);
       }
     }
     else
