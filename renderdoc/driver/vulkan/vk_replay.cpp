@@ -1856,15 +1856,25 @@ void VulkanReplay::SavePipelineState(uint32_t eventId)
       fbState.attachments.push_back({});
 
       ResourceId viewid = GetResID(dyn.depth.imageView);
+      ResourceId resolveImageView;
       if(state.dynamicRendering.beginCustomResolve &&
          (dyn.depth.resolveMode & VK_RESOLVE_MODE_CUSTOM_BIT_EXT))
         viewid = GetResID(dyn.depth.resolveImageView);
+      else if((dyn.depth.resolveMode != VK_RESOLVE_MODE_NONE) &&
+              !(dyn.depth.resolveMode & VK_RESOLVE_MODE_CUSTOM_BIT_EXT) &&
+              (dyn.depth.resolveImageView != VK_NULL_HANDLE))
+        resolveImageView = GetResID(dyn.depth.resolveImageView);
+
       if(dyn.depth.imageView == VK_NULL_HANDLE)
       {
         viewid = GetResID(dyn.stencil.imageView);
         if(state.dynamicRendering.beginCustomResolve &&
            (dyn.stencil.resolveMode & VK_RESOLVE_MODE_CUSTOM_BIT_EXT))
           viewid = GetResID(dyn.stencil.resolveImageView);
+        else if((dyn.stencil.resolveMode != VK_RESOLVE_MODE_NONE) &&
+                !(dyn.stencil.resolveMode & VK_RESOLVE_MODE_CUSTOM_BIT_EXT) &&
+                (dyn.stencil.resolveImageView != VK_NULL_HANDLE))
+          resolveImageView = GetResID(dyn.stencil.resolveImageView);
       }
 
       fbState.attachments.back().view = viewid;
@@ -1879,6 +1889,29 @@ void VulkanReplay::SavePipelineState(uint32_t eventId)
       Convert(fbState.attachments.back().swizzle, c.m_ImageView[viewid].componentMapping);
 
       rpState.depthstencilAttachment = int32_t(attIdx++);
+
+      if(resolveImageView != ResourceId())
+      {
+        fbState.attachments.push_back({});
+
+        fbState.attachments.back().view = resolveImageView;
+        ret.currentPass.framebuffer.attachments[attIdx].resource =
+            c.m_ImageView[resolveImageView].image;
+
+        fbState.attachments.back().format =
+            MakeResourceFormat(c.m_ImageView[resolveImageView].format);
+        fbState.attachments.back().firstMip =
+            c.m_ImageView[resolveImageView].range.baseMipLevel & 0xff;
+        fbState.attachments.back().firstSlice =
+            c.m_ImageView[resolveImageView].range.baseArrayLayer & 0xffff;
+        fbState.attachments.back().numMips = c.m_ImageView[resolveImageView].range.levelCount & 0xff;
+        fbState.attachments.back().numSlices =
+            c.m_ImageView[resolveImageView].range.layerCount & 0xffff;
+
+        Convert(fbState.attachments.back().swizzle, c.m_ImageView[resolveImageView].componentMapping);
+
+        ret.currentPass.renderpass.depthstencilResolveAttachment = int32_t(attIdx++);
+      }
     }
     else
     {
