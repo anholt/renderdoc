@@ -89,6 +89,9 @@ Rasterizer
 .. autoclass:: renderdoc.CullMode
   :members:
 
+.. autoclass:: renderdoc.DepthBiasMode
+  :members:
+
 .. autoclass:: renderdoc.FillMode
   :members:
 
