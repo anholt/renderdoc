@@ -36,6 +36,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_conditional_rendering`
 * `VK_EXT_conservative_rasterization`
 * `VK_EXT_custom_border_color`
+* `VK_EXT_custom_resolve`
 * `VK_EXT_debug_marker`
 * `VK_EXT_debug_report`
 * `VK_EXT_debug_utils`
@@ -311,7 +312,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 ## EXT Extensions
 
 * `VK_EXT_blend_operation_advanced`
-* `VK_EXT_custom_resolve`
 * `VK_EXT_depth_clamp_control`
 * `VK_EXT_descriptor_heap`
 * `VK_EXT_device_address_binding_report`
