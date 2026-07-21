@@ -635,6 +635,13 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_ZERO_ONE_FEATURES_KHR,                    \
                VkPhysicalDeviceDepthClampZeroOneFeaturesKHR)                                           \
                                                                                                        \
+  /* VK_EXT_depth_bias_control */                                                                      \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT,                      \
+               VkPhysicalDeviceDepthBiasControlFeaturesEXT)                                            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_DEPTH_BIAS_INFO_EXT, VkDepthBiasInfoEXT)                              \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT,                                   \
+               VkDepthBiasRepresentationInfoEXT)                                                       \
+                                                                                                       \
   /* VK_EXT_depth_clip_control */                                                                      \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT,                      \
                VkPhysicalDeviceDepthClipControlFeaturesEXT)                                            \
@@ -1895,11 +1902,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_FEATURES_EXT)           \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_PROPERTIES_EXT)         \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_ADVANCED_STATE_CREATE_INFO_EXT)             \
-                                                                                                       \
-  /* VK_EXT_depth_bias_control */                                                                      \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT)                 \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_DEPTH_BIAS_INFO_EXT)                                             \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT)                              \
                                                                                                        \
   /* VK_EXT_depth_clamp_control */                                                                     \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_CONTROL_FEATURES_EXT)                \
@@ -11058,6 +11060,58 @@ void Deserialise(const VkPipelineDiscardRectangleStateCreateInfoEXT &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDepthBiasControlFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(depthBiasControl);
+  SERIALISE_MEMBER(leastRepresentableValueForceUnormRepresentation);
+  SERIALISE_MEMBER(floatRepresentation);
+  SERIALISE_MEMBER(depthBiasExact);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceDepthBiasControlFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDepthBiasInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_DEPTH_BIAS_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(depthBiasConstantFactor);
+  SERIALISE_MEMBER(depthBiasClamp);
+  SERIALISE_MEMBER(depthBiasSlopeFactor);
+}
+
+template <>
+void Deserialise(const VkDepthBiasInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkDepthBiasRepresentationInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(depthBiasRepresentation);
+  SERIALISE_MEMBER(depthBiasExact);
+}
+
+template <>
+void Deserialise(const VkDepthBiasRepresentationInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDepthClipControlFeaturesEXT &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15288,6 +15342,8 @@ INSTANTIATE_SERIALISE_TYPE(VkDedicatedAllocationBufferCreateInfoNV);
 INSTANTIATE_SERIALISE_TYPE(VkDedicatedAllocationImageCreateInfoNV);
 INSTANTIATE_SERIALISE_TYPE(VkDedicatedAllocationMemoryAllocateInfoNV);
 INSTANTIATE_SERIALISE_TYPE(VkDependencyInfo);
+INSTANTIATE_SERIALISE_TYPE(VkDepthBiasInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkDepthBiasRepresentationInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorAddressInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorBufferBindingInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkDescriptorBufferBindingPushDescriptorBufferHandleEXT);
@@ -15434,6 +15490,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceConservativeRasterizationPropertiesEX
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceCustomBorderColorFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceCustomBorderColorPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceCustomResolveFeaturesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDepthBiasControlFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDepthClampZeroOneFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDepthClipControlFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDepthClipEnableFeaturesEXT);

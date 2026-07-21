@@ -3698,6 +3698,17 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
         CHECK_PHYS_EXT_FEATURE(diagnosticsConfig);
       }
       END_PHYS_EXT_CHECK();
+
+      BEGIN_PHYS_EXT_CHECK(VkPhysicalDeviceDepthBiasControlFeaturesEXT,
+                           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT);
+      {
+        CHECK_PHYS_EXT_FEATURE(depthBiasControl);
+        CHECK_PHYS_EXT_FEATURE(leastRepresentableValueForceUnormRepresentation);
+        CHECK_PHYS_EXT_FEATURE(floatRepresentation);
+        CHECK_PHYS_EXT_FEATURE(depthBiasExact);
+        m_DepthBiasControl = ext->depthBiasControl != VK_FALSE;
+      }
+      END_PHYS_EXT_CHECK();
     }
 
     if(availFeatures.depthClamp)

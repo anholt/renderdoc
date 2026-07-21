@@ -579,6 +579,7 @@ private:
   bool m_DynColorWrite = false;
   bool m_DynVertexInput = false;
   bool m_DynAttachmentLoop = false;
+  bool m_DepthBiasControl = false;
   bool m_MultiView = false;
   bool m_MultiViewGeometryShaders = false;
   bool m_MeshQueries = false;
@@ -1566,6 +1567,7 @@ public:
   bool DynamicColorWrite() const { return m_DynColorWrite; }
   bool DynamicVertexInput() const { return m_DynVertexInput; }
   bool DynamicAttachmentLoop() const { return m_DynAttachmentLoop; }
+  bool DepthBiasControl() const { return m_DepthBiasControl; }
   bool MultiView() const { return m_MultiView; }
   bool MeshQueries() const { return m_MeshQueries; }
   bool TaskShaders() const { return m_TaskShaders; }
@@ -3375,4 +3377,8 @@ public:
                                   VkCheckpointDataNV *pCheckpointData);
   void vkGetQueueCheckpointData2NV(VkQueue queue, uint32_t *pCheckpointDataCount,
                                    VkCheckpointData2NV *pCheckpointData);
+
+  // VK_EXT_depth_bias_control
+  IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdSetDepthBias2EXT, VkCommandBuffer commandBuffer,
+                                const VkDepthBiasInfoEXT *pDepthBiasInfo);
 };

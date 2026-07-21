@@ -1637,6 +1637,24 @@ void VulkanReplay::SavePipelineState(uint32_t eventId)
     ret.rasterizer.slopeScaledDepthBias = state.bias.slope;
     ret.rasterizer.lineWidth = state.lineWidth;
 
+    ret.rasterizer.depthBiasExact = state.bias.exact != VK_FALSE;
+    switch(state.bias.repr)
+    {
+      case VK_DEPTH_BIAS_REPRESENTATION_MAX_ENUM_EXT:
+        ret.rasterizer.depthBiasRepresentation = DepthBiasMode::Default;
+        RDCERR("Unexpected value for DepthBiasMode %x", state.bias.repr);
+        break;
+      case VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT:
+        ret.rasterizer.depthBiasRepresentation = DepthBiasMode::Default;
+        break;
+      case VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT:
+        ret.rasterizer.depthBiasRepresentation = DepthBiasMode::ForceUNorm;
+        break;
+      case VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT:
+        ret.rasterizer.depthBiasRepresentation = DepthBiasMode::One;
+        break;
+    }
+
     // MSAA
     ret.multisample.rasterSamples = state.rastSamples;
     ret.multisample.sampleShadingEnable = p.sampleShadingEnable;

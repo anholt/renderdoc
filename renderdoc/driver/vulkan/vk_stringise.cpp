@@ -28,7 +28,7 @@
 template <>
 rdcstr DoStringise(const VulkanChunk &el)
 {
-  RDCCOMPILE_ASSERT((uint32_t)VulkanChunk::Max == 1238, "Chunks changed without updating names");
+  RDCCOMPILE_ASSERT((uint32_t)VulkanChunk::Max == 1239, "Chunks changed without updating names");
 
   BEGIN_ENUM_STRINGISE(VulkanChunk)
   {
@@ -270,6 +270,7 @@ rdcstr DoStringise(const VulkanChunk &el)
     STRINGISE_ENUM_CLASS_NAMED(SetQueueAnnotation, "Internal::SetQueueAnnotation");
     STRINGISE_ENUM_CLASS(vkCmdBeginCustomResolveEXT)
     STRINGISE_ENUM_CLASS(vkCmdSetCheckpointNV)
+    STRINGISE_ENUM_CLASS(vkCmdSetDepthBias2EXT)
     STRINGISE_ENUM_CLASS_NAMED(Max, "Max Chunk");
   }
   END_ENUM_STRINGISE()
@@ -4840,4 +4841,16 @@ rdcstr DoStringise(const VkDeviceDiagnosticsConfigFlagBitsNV &el)
     STRINGISE_BITFIELD_BIT(VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV);
   }
   END_BITFIELD_STRINGISE();
+}
+
+template <>
+rdcstr DoStringise(const VkDepthBiasRepresentationEXT &el)
+{
+  BEGIN_ENUM_STRINGISE(VkDepthBiasRepresentationEXT);
+  {
+    STRINGISE_ENUM(VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT)
+    STRINGISE_ENUM(VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT)
+    STRINGISE_ENUM(VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT)
+  }
+  END_ENUM_STRINGISE();
 }

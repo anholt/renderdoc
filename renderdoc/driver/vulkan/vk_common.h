@@ -1411,6 +1411,7 @@ enum class VulkanChunk : uint32_t
   SetCommandAnnotation,
   vkCmdBeginCustomResolveEXT,
   vkCmdSetCheckpointNV,
+  vkCmdSetDepthBias2EXT,
   Max,
 };
 
@@ -1540,6 +1541,8 @@ DECLARE_REFLECTION_STRUCT(VkDedicatedAllocationBufferCreateInfoNV);
 DECLARE_REFLECTION_STRUCT(VkDedicatedAllocationImageCreateInfoNV);
 DECLARE_REFLECTION_STRUCT(VkDedicatedAllocationMemoryAllocateInfoNV);
 DECLARE_REFLECTION_STRUCT(VkDependencyInfo);
+DECLARE_REFLECTION_STRUCT(VkDepthBiasInfoEXT);
+DECLARE_REFLECTION_STRUCT(VkDepthBiasRepresentationInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkDescriptorAddressInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkDescriptorBufferBindingInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkDescriptorBufferBindingPushDescriptorBufferHandleEXT);
@@ -1686,6 +1689,7 @@ DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceConservativeRasterizationPropertiesEXT
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceCustomBorderColorFeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceCustomBorderColorPropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceCustomResolveFeaturesEXT);
+DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceDepthBiasControlFeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceDepthClampZeroOneFeaturesKHR);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceDepthClipControlFeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceDepthClipEnableFeaturesEXT);
@@ -2092,6 +2096,8 @@ DECLARE_DESERIALISE_TYPE(VkDedicatedAllocationBufferCreateInfoNV);
 DECLARE_DESERIALISE_TYPE(VkDedicatedAllocationImageCreateInfoNV);
 DECLARE_DESERIALISE_TYPE(VkDedicatedAllocationMemoryAllocateInfoNV);
 DECLARE_DESERIALISE_TYPE(VkDependencyInfo);
+DECLARE_DESERIALISE_TYPE(VkDepthBiasInfoEXT);
+DECLARE_DESERIALISE_TYPE(VkDepthBiasRepresentationInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkDescriptorAddressInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkDescriptorBufferBindingInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkDescriptorBufferBindingPushDescriptorBufferHandleEXT);
@@ -2233,6 +2239,7 @@ DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceConditionalRenderingFeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceConservativeRasterizationPropertiesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceCustomBorderColorFeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceCustomBorderColorPropertiesEXT);
+DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceDepthBiasControlFeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceDepthClampZeroOneFeaturesKHR);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceDepthClipControlFeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceDepthClipEnableFeaturesEXT);
@@ -2793,6 +2800,7 @@ DECLARE_REFLECTION_ENUM(VkDebugUtilsMessageSeverityFlagBitsEXT);
 DECLARE_REFLECTION_ENUM(VkDebugUtilsMessageTypeFlagBitsEXT);
 DECLARE_REFLECTION_ENUM(VkDefaultVertexAttributeValueKHR);
 DECLARE_REFLECTION_ENUM(VkDependencyFlagBits);
+DECLARE_REFLECTION_ENUM(VkDepthBiasRepresentationEXT);
 DECLARE_REFLECTION_ENUM(VkDescriptorBindingFlagBits);
 DECLARE_REFLECTION_ENUM(VkDescriptorPoolCreateFlagBits);
 DECLARE_REFLECTION_ENUM(VkDescriptorSetLayoutCreateFlagBits);

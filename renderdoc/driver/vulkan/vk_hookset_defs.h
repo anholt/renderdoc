@@ -561,7 +561,8 @@
   DeclExt(EXT_fragment_density_map_offset);            \
   DeclExt(EXT_image_drm_format_modifier);              \
   DeclExt(EXT_custom_resolve);                         \
-  DeclExt(NV_device_diagnostic_checkpoints);
+  DeclExt(NV_device_diagnostic_checkpoints);           \
+  DeclExt(EXT_depth_bias_control);
 
 // for simplicity and since the check itself is platform agnostic,
 // these aren't protected in platform defines
@@ -709,7 +710,8 @@
   CheckExt(EXT_fragment_density_map_offset, VKXX);            \
   CheckExt(EXT_image_drm_format_modifier, VKXX);              \
   CheckExt(EXT_custom_resolve, VKXX);                         \
-  CheckExt(NV_device_diagnostic_checkpoints, VKXX);
+  CheckExt(NV_device_diagnostic_checkpoints, VKXX);           \
+  CheckExt(EXT_depth_bias_control, VKXX);
 
 #define HookInitVulkanInstanceExts_PhysDev()                                                         \
   HookInitExtension(KHR_surface, GetPhysicalDeviceSurfaceSupportKHR);                                \
@@ -1118,6 +1120,7 @@
   HookInitExtension(NV_device_diagnostic_checkpoints, CmdSetCheckpointNV);                           \
   HookInitExtension(NV_device_diagnostic_checkpoints, GetQueueCheckpointDataNV);                     \
   HookInitExtension(NV_device_diagnostic_checkpoints, GetQueueCheckpointData2NV);                    \
+  HookInitExtension(EXT_depth_bias_control, CmdSetDepthBias2EXT);                                    \
   HookInitExtension_Device_Win32();                                                                  \
   HookInitExtension_Device_Linux();                                                                  \
   HookInitExtension_Device_Android();                                                                \
@@ -2098,6 +2101,8 @@
               VkCheckpointDataNV *, pCheckpointData);                                                \
   HookDefine3(void, vkGetQueueCheckpointData2NV, VkQueue, queue, uint32_t *, pCheckpointDataCount,   \
               VkCheckpointData2NV *, pCheckpointData);                                               \
+  HookDefine2(void, vkCmdSetDepthBias2EXT, VkCommandBuffer, commandBuffer,                           \
+              const VkDepthBiasInfoEXT *, pDepthBiasInfo);                                           \
   HookDefine_Win32();                                                                                \
   HookDefine_Linux();                                                                                \
   HookDefine_Android();                                                                              \

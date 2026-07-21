@@ -3489,6 +3489,8 @@ bool WrappedVulkan::Serialise_vkCmdBindPipeline(SerialiserType &ser, VkCommandBu
               renderstate.bias.depth = pipeInfo.depthBiasConstantFactor;
               renderstate.bias.biasclamp = pipeInfo.depthBiasClamp;
               renderstate.bias.slope = pipeInfo.depthBiasSlopeFactor;
+              renderstate.bias.exact = pipeInfo.depthBiasExact != VK_FALSE;
+              renderstate.bias.repr = pipeInfo.depthBiasRepresentation;
             }
             if(!pipeInfo.dynamicStates[VkDynamicBlendConstants])
             {

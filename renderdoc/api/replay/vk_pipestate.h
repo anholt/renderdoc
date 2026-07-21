@@ -875,6 +875,18 @@ See :data:`conservativeRasterizationMode`
 )");
   float slopeScaledDepthBias = 0.0f;
 
+  DOCUMENT(R"(Whether the depth bias least representable value is calculated exactly.
+
+:type: bool
+)");
+  bool depthBiasExact = false;
+
+  DOCUMENT(R"(The mode used for calculating the depth bias least representable value.
+
+:type: DepthBiasMode
+)");
+  DepthBiasMode depthBiasRepresentation = DepthBiasMode::Default;
+
   DOCUMENT(R"(The fixed line width in pixels.
 
 :type: float

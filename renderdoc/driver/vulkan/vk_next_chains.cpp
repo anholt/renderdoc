@@ -140,6 +140,9 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
               VkDedicatedAllocationBufferCreateInfoNV);                                              \
   COPY_STRUCT(VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV,                           \
               VkDedicatedAllocationImageCreateInfoNV);                                               \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_DEPTH_BIAS_INFO_EXT, VkDepthBiasInfoEXT);                            \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT,                                  \
+              VkDepthBiasRepresentationInfoEXT);                                                     \
   COPY_STRUCT(VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,                                  \
               VkDescriptorBufferBindingInfoEXT);                                                     \
   COPY_STRUCT(VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT, VkDescriptorAddressInfoEXT);            \
@@ -281,6 +284,8 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
               VkPhysicalDeviceCustomResolveFeaturesEXT);                                             \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEDICATED_ALLOCATION_IMAGE_ALIASING_FEATURES_NV,     \
               VkPhysicalDeviceDedicatedAllocationImageAliasingFeaturesNV);                           \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT,                     \
+              VkPhysicalDeviceDepthBiasControlFeaturesEXT);                                          \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_ZERO_ONE_FEATURES_KHR,                   \
               VkPhysicalDeviceDepthClampZeroOneFeaturesKHR);                                         \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT,                     \
@@ -1099,8 +1104,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_DATA_GRAPH_PIPELINE_SINGLE_NODE_CREATE_INFO_ARM:                        \
   case VK_STRUCTURE_TYPE_DATA_GRAPH_PROCESSING_ENGINE_CREATE_INFO_ARM:                           \
   case VK_STRUCTURE_TYPE_DECOMPRESS_MEMORY_INFO_EXT:                                             \
-  case VK_STRUCTURE_TYPE_DEPTH_BIAS_INFO_EXT:                                                    \
-  case VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT:                                     \
   case VK_STRUCTURE_TYPE_DESCRIPTOR_GET_TENSOR_INFO_ARM:                                         \
   case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT:                                 \
   case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_BINDING_REFERENCE_VALVE:                                 \
@@ -1279,7 +1282,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DATA_GRAPH_MODEL_FEATURES_QCOM:                         \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DATA_GRAPH_NEURAL_ACCELERATOR_STATISTICS_FEATURES_ARM:  \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DATA_GRAPH_OPTICAL_FLOW_FEATURES_ARM:                   \
-  case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT:                        \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_CONTROL_FEATURES_EXT:                       \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_TENSOR_FEATURES_ARM:                  \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_TENSOR_PROPERTIES_ARM:                \

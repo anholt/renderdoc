@@ -3238,6 +3238,32 @@ enum class CullMode : uint32_t
 
 DECLARE_REFLECTION_ENUM(CullMode);
 
+DOCUMENT(R"(The mode for calculating the r least representable value in depth bias.
+
+.. data:: Default
+
+  The default calculation is used which may be vendor-specific and depends on the
+  format of the depth attachment. It may vary across different primitives at
+  different depths.
+
+.. data:: ForceUNorm
+
+  A forced calculation based purely on the bit-size of either the fixed point or
+  floating point mantissa representation in the attachment format.
+
+.. data:: One
+
+  A literal ``1.0`` value is used
+)");
+enum class DepthBiasMode : uint32_t
+{
+  Default = 0,
+  ForceUNorm,
+  One,
+};
+
+DECLARE_REFLECTION_ENUM(DepthBiasMode);
+
 DOCUMENT(R"(The conservative rasterization mode.
 
 .. data:: Disabled

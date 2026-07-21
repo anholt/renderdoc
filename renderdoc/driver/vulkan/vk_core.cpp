@@ -1138,6 +1138,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_EXT_DEBUG_UTILS_SPEC_VERSION,
     },
     {
+        VK_EXT_DEPTH_BIAS_CONTROL_EXTENSION_NAME,
+        VK_EXT_DEPTH_BIAS_CONTROL_SPEC_VERSION,
+    },
+    {
         VK_EXT_DEPTH_CLAMP_ZERO_ONE_EXTENSION_NAME,
         VK_EXT_DEPTH_CLAMP_ZERO_ONE_SPEC_VERSION,
     },
@@ -4969,6 +4973,9 @@ bool WrappedVulkan::ProcessChunk(ReadSerialiser &ser, VulkanChunk chunk)
 
     case VulkanChunk::vkCmdSetCheckpointNV:
       return Serialise_vkCmdSetCheckpointNV(ser, VK_NULL_HANDLE, NULL);
+
+    case VulkanChunk::vkCmdSetDepthBias2EXT:
+      return Serialise_vkCmdSetDepthBias2EXT(ser, VK_NULL_HANDLE, NULL);
 
     // chunks that are reserved but not yet serialised
     case VulkanChunk::vkResetCommandPool:

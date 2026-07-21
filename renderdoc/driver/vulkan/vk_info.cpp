@@ -1563,6 +1563,19 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
     extraPrimitiveOverestimationSize = conservRast->extraPrimitiveOverestimationSize;
   }
 
+  // VkDepthBiasRepresentationInfoEXT
+  depthBiasRepresentation = VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT;
+  depthBiasExact = false;
+
+  const VkDepthBiasRepresentationInfoEXT *depthBiasRepr =
+      (const VkDepthBiasRepresentationInfoEXT *)FindNextStruct(
+          pCreateInfo->pRasterizationState, VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT);
+  if(depthBiasRepr)
+  {
+    depthBiasRepresentation = depthBiasRepr->depthBiasRepresentation;
+    depthBiasExact = depthBiasRepr->depthBiasExact;
+  }
+
   // VkPipelineRasterizationLineStateCreateInfo
   lineRasterMode = VK_LINE_RASTERIZATION_MODE_DEFAULT;
   stippleEnabled = false;
@@ -1795,6 +1808,8 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
         depthBiasConstantFactor = pipeInfo.depthBiasConstantFactor;
         depthBiasClamp = pipeInfo.depthBiasClamp;
         depthBiasSlopeFactor = pipeInfo.depthBiasSlopeFactor;
+        depthBiasRepresentation = pipeInfo.depthBiasRepresentation;
+        depthBiasExact = pipeInfo.depthBiasExact;
         lineWidth = pipeInfo.lineWidth;
 
         rasterizationStream = pipeInfo.rasterizationStream;

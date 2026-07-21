@@ -2134,6 +2134,9 @@ void DoSerialise(SerialiserType &ser, VKPipe::Rasterizer &el)
   SERIALISE_MEMBER(depthBias);
   SERIALISE_MEMBER(depthBiasClamp);
   SERIALISE_MEMBER(slopeScaledDepthBias);
+  SERIALISE_MEMBER(depthBiasExact);
+  SERIALISE_MEMBER(depthBiasRepresentation);
+
   SERIALISE_MEMBER(lineWidth);
 
   SERIALISE_MEMBER(lineRasterMode);
@@ -2143,7 +2146,7 @@ void DoSerialise(SerialiserType &ser, VKPipe::Rasterizer &el)
   SERIALISE_MEMBER(pipelineShadingRate);
   SERIALISE_MEMBER(shadingRateCombiners);
 
-  SIZE_CHECK(68);
+  SIZE_CHECK(76);
 }
 
 template <typename SerialiserType>
@@ -2329,7 +2332,7 @@ void DoSerialise(SerialiserType &ser, VKPipe::State &el)
 
   SERIALISE_MEMBER(conditionalRendering);
 
-  SIZE_CHECK(1928);
+  SIZE_CHECK(1936);
 }
 
 #pragma endregion Vulkan pipeline state
