@@ -182,9 +182,9 @@ void main()
     indirectData.data[10].w = 0;
 
     // DrawMeshIndirect
-    indirectData.data[11].x = 1;
-    indirectData.data[11].y = 1;
-    indirectData.data[11].z = 1;
+    indirectData.data[11].x = 9;
+    indirectData.data[11].y = 7;
+    indirectData.data[11].z = 5;
     indirectData.data[11].w = 0;
 
     indirectData.data[12].x = 2;
