@@ -3109,11 +3109,11 @@ bool RunProcessAsAdmin(const QString &fullExecutablePath, const QStringList &par
   };
 
   // if none of the graphical options, then look for sudo and either
-  const QString termEmulator[] = {
-      lit("x-terminal-emulator"),
-      lit("gnome-terminal"),
-      lit("konsole"),
-      lit("xterm"),
+  const QPair<QString, QString> termEmulator[] = {
+      qMakePair(lit("x-terminal-emulator"), lit("-e")),
+      qMakePair(lit("gnome-terminal"), lit("-x")),
+      qMakePair(lit("konsole"), lit("-e")),
+      qMakePair(lit("xterm"), lit("-e")),
   };
 
   for(const QString &sudo : graphicalSudo)
@@ -3162,9 +3162,9 @@ bool RunProcessAsAdmin(const QString &fullExecutablePath, const QStringList &par
     return false;
   }
 
-  for(const QString &term : termEmulator)
+  for(const QPair<QString, QString> &term : termEmulator)
   {
-    QString inPath = QStandardPaths::findExecutable(term);
+    QString inPath = QStandardPaths::findExecutable(term.first);
 
     // can't find in path
     if(inPath.isEmpty())
@@ -3174,12 +3174,12 @@ bool RunProcessAsAdmin(const QString &fullExecutablePath, const QStringList &par
 
     // run terminal sudo with emulator
     QStringList termParams;
-    termParams << lit("-e")
-               << lit("bash -c 'echo Running \"%1 %2\" as root.;echo;sudo %1 %2'")
+    termParams << term.second << lit("bash") << lit("-c")
+               << lit("echo Running \"%1 %2\" as root.;echo;sudo %1 %2")
                       .arg(fullExecutablePath)
                       .arg(params.join(QLatin1Char(' ')));
 
-    process->start(term, termParams);
+    process->start(term.first, termParams);
 
     // when the process exits, call the callback and delete
     QObject::connect(process, OverloadedSlot<int, QProcess::ExitStatus>::of(&QProcess::finished),
