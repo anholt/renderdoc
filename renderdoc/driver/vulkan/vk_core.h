@@ -130,18 +130,19 @@ struct VkIndirectPatchData
   ResourceId commandBuffer;
 };
 
-struct VulkanActionTreeNode
+struct VulkanEventNode
 {
-  VulkanActionTreeNode() {}
-  explicit VulkanActionTreeNode(const ActionDescription &a) : action(a) {}
+  VulkanEventNode() = default;
+  ~VulkanEventNode() = default;
+
+  // eventId is not used
+  APIEvent event;
+
   ActionDescription action;
-  rdcarray<VulkanActionTreeNode> children;
 
   VkIndirectPatchData indirectPatch;
 
-  rdcarray<rdcpair<ResourceId, EventUsage>> resourceUsage;
-
-  rdcarray<ResourceId> executedCmds;
+  rdcarray<rdcpair<ResourceId, ResourceUsage>> resourceUsage;
 
   struct DeferredResourceUsage
   {
@@ -152,59 +153,16 @@ struct VulkanActionTreeNode
   };
   rdcarray<DeferredResourceUsage> deferredResourceUsage;
 
-  VulkanActionTreeNode &operator=(const ActionDescription &a)
-  {
-    *this = VulkanActionTreeNode(a);
-    return *this;
-  }
+  // eventId is not used
+  rdcarray<DebugMessage> debugMessages;
+  rdcarray<PendingAnnotation> annotations;
 
-  void InsertAndUpdateIDs(const VulkanActionTreeNode &child, uint32_t baseEventID, uint32_t baseDrawID)
-  {
-    resourceUsage.reserve(child.resourceUsage.size());
-    for(size_t i = 0; i < child.resourceUsage.size(); i++)
-    {
-      resourceUsage.push_back(child.resourceUsage[i]);
-      resourceUsage.back().second.eventId += baseEventID;
-    }
-
-    children.reserve(child.children.size());
-    for(size_t i = 0; i < child.children.size(); i++)
-    {
-      children.push_back(child.children[i]);
-      children.back().UpdateIDs(baseEventID, baseDrawID);
-    }
-  }
-
-  void UpdateIDs(uint32_t baseEventID, uint32_t baseDrawID)
-  {
-    action.eventId += baseEventID;
-    action.actionId += baseDrawID;
-
-    for(APIEvent &ev : action.events)
-      ev.eventId += baseEventID;
-
-    for(size_t i = 0; i < resourceUsage.size(); i++)
-      resourceUsage[i].second.eventId += baseEventID;
-
-    for(size_t i = 0; i < children.size(); i++)
-      children[i].UpdateIDs(baseEventID, baseDrawID);
-  }
-
-  rdcarray<ActionDescription> Bake()
-  {
-    rdcarray<ActionDescription> ret;
-    if(children.empty())
-      return ret;
-
-    ret.resize(children.size());
-    for(size_t i = 0; i < children.size(); i++)
-    {
-      ret[i] = children[i].action;
-      ret[i].children = children[i].Bake();
-    }
-
-    return ret;
-  }
+  ResourceId cmdBufId;
+  ResourceId childCmdBufId;
+  bool addActionUse = false;
+  bool addSubmit = false;
+  bool startChildExecute = false;
+  bool endChildExecute = false;
 };
 
 #define SERIALISE_TIME_CALL(...)                                                                \
@@ -333,10 +291,6 @@ private:
   uint64_t debugMessageSinkTLSSlot;
   ScopedDebugMessageSink *GetDebugMessageSink();
   void SetDebugMessageSink(ScopedDebugMessageSink *sink);
-
-  // the messages retrieved for the current event (filled in Serialise_vk...() and read in
-  // AddEvent())
-  rdcarray<DebugMessage> m_EventMessages;
 
   // list of all debug messages by EID in the frame
   rdcarray<DebugMessage> m_DebugMessages;
@@ -794,36 +748,33 @@ private:
     }
   };
 
-  // CommandBufferExecuteInfo tracks the position of the execution of a secondary command buffer
-  // relative to the beginning of the parent command buffer. At the end of a replay's initial
-  // loading stage, these are used to build the tree of CommandBufferNodes that track a command
-  // buffer execution's absolute position in the frame.
+  // CommandBufferExecuteInfo tracks the absolute position of the execution of a secondary command
+  // buffer. After baking the VulkanEventNodes into actions/events, these are used to build the tree
+  // of CommandBufferNodes that track a command buffer execution's absolute position in the frame.
   struct CommandBufferExecuteInfo
   {
     ResourceId cmdId = ResourceId();
-    uint32_t relPos = 0;
+    uint32_t eid = 0;
   };
 
   struct BakedCmdBufferInfo
   {
     BakedCmdBufferInfo()
-        : action(NULL),
-          eventCount(0),
+        : eventCount(0),
           curEventID(0),
-          actionCount(0),
           level(VK_COMMAND_BUFFER_LEVEL_PRIMARY),
           beginFlags(0),
           markerCount(0)
 
     {
     }
-    ~BakedCmdBufferInfo() { SAFE_DELETE(action); }
+    ~BakedCmdBufferInfo() {}
     rdcarray<APIEvent> curEvents;
-    rdcarray<DebugMessage> debugMessages;
-    rdcarray<VulkanActionTreeNode *> actionStack;
-    rdcarray<PendingAnnotation> annotations;
 
     rdcarray<VkIndirectRecordData> indirectCopies;
+    rdcarray<VulkanEventNode> eventNodes;
+    rdcarray<PendingAnnotation> pendingAnnotations;
+    rdcarray<ResourceId> executedCmds;
 
     uint32_t beginChunk = 0;
     uint32_t endChunk = 0;
@@ -834,8 +785,6 @@ private:
     bool inheritConditionalRendering = false;
 
     int markerCount;
-
-    rdcarray<rdcpair<ResourceId, EventUsage>> resourceUsage;
 
     VulkanRenderState state;
 
@@ -862,10 +811,8 @@ private:
     }
     ResourceId pushDescriptorID[3][64];
 
-    VulkanActionTreeNode *action;    // the root action to copy from when submitting
-    uint32_t eventCount;             // how many events are in this cmd buffer, for quick skipping
-    uint32_t curEventID;             // current event ID while reading or executing
-    uint32_t actionCount;            // similar to above
+    uint32_t eventCount;    // how many events are in this cmd buffer, for quick skipping
+    uint32_t curEventID;    // current event ID while replaying, not used during loading
 
     // the index in m_DescriptorBufferVersions for the current GPUBuffer containing the descriptor buffer snapshot
     uint32_t descBufVersionIdx = ~0U;
@@ -978,12 +925,6 @@ private:
 
   // determines whether we should track the open/close state of a renderpass.
   bool ShouldUpdateRenderpassActive(ResourceId cmdId, bool dynamicRendering = false);
-
-  // shifts the beginEvent of any command buffer nodes executed after targetEvent by eidShift.
-  // additionally updates the action and event counts for the corresponding BakedCmdBufferInfo.
-  // this function is used to account for events added by DrawIndirectCount calls
-  void ShiftSuccessiveCommandNodes(uint32_t targetEvent, uint32_t eidShift,
-                                   CommandBufferNode *current = NULL);
 
   // if we're replaying just a single action or a particular command
   // buffer subsection of command events, we don't go through the
@@ -1248,14 +1189,16 @@ private:
 
   void ApplyInitialContents();
 
-  rdcarray<APIEvent> m_RootEvents, m_Events;
-  bool m_AddedAction;
+  rdcarray<APIEvent> m_Events;
+  VulkanEventNode m_LoadingEventNode;
+  rdcarray<VulkanEventNode> m_EventNodes;
+  bool m_AddedEventNode;
 
   SDObject *m_RootAnnotation = NULL;
 
   uint64_t m_CurChunkOffset;
   SDChunkMetaData m_ChunkMetadata;
-  uint32_t m_RootEventID, m_RootActionID;
+  uint32_t m_RootEventID;
   uint32_t m_FirstEventID, m_LastEventID;
   VulkanChunk m_LastChunk;
 
@@ -1268,8 +1211,6 @@ private:
   double m_DeferredTime = 0.0;
   RDResult m_FailedReplayResult = ResultCode::APIReplayFailed;
 
-  VulkanActionTreeNode m_ParentAction;
-
   bool m_LayersEnabled[VkCheckLayer_Max] = {};
 
   // in vk_<platform>.cpp
@@ -1277,8 +1218,9 @@ private:
                              const std::set<rdcstr> &supportedExtensions);
 
   bool PatchIndirectDraw(size_t drawIndex, uint32_t paramStride, VkIndirectPatchType type,
-                         ActionDescription &action, byte *&argptr, byte *argend);
-  void InsertActionsAndRefreshIDs(BakedCmdBufferInfo &cmdBufInfo);
+                         uint32_t chunkIndex, ActionDescription &action, byte *&argptr, byte *argend);
+  // insert the baked command buffer into the root events, resolving indirect and deferred actions
+  SDObject *InsertEventNodes(BakedCmdBufferInfo &cmdBufInfo);
   void AddReferencesForSecondaries(VkResourceRecord *record,
                                    rdcarray<VkResourceRecord *> &cmdsWithReferences,
                                    std::unordered_set<ResourceId> &refdIDs);
@@ -1299,16 +1241,6 @@ private:
 
   void DoSubmit(VkQueue queue, VkSubmitInfo2 submitInfo);
 
-  rdcarray<VulkanActionTreeNode *> m_ActionStack;
-
-  rdcarray<VulkanActionTreeNode *> &GetActionStack()
-  {
-    if(m_LastCmdBufferID != ResourceId())
-      return m_BakedCmdBufferInfo[m_LastCmdBufferID].actionStack;
-
-    return m_ActionStack;
-  }
-
   bool ProcessChunk(ReadSerialiser &ser, VulkanChunk chunk);
   RDResult ContextReplayLog(CaptureState readType, uint32_t startEventID, uint32_t endEventID,
                             bool partial);
@@ -1316,28 +1248,31 @@ private:
   void AddAction(const ActionDescription &a);
   void AddEvent();
 
-  void AddUsage(VulkanActionTreeNode &actionNode, rdcarray<DebugMessage> &debugMessages);
+  VulkanEventNode &GetLastEventNode()
+  {
+    rdcarray<VulkanEventNode> &eventNodes =
+        (m_LastCmdBufferID != ResourceId() ? m_BakedCmdBufferInfo[m_LastCmdBufferID].eventNodes
+                                           : m_EventNodes);
+    return eventNodes.back();
+  }
 
-  void AddUsageForDescriptorSets(VulkanActionTreeNode &actionNode,
-                                 rdcarray<DebugMessage> &debugMessages);
-  void AddUsageForDescriptorSetBind(VulkanActionTreeNode &actionNode,
-                                    rdcarray<DebugMessage> &debugMessages, uint32_t bindset,
-                                    uint32_t bind, ResourceUsage usage);
-  void AddUsageForDescriptorBuffers(VulkanActionTreeNode &actionNode,
-                                    rdcarray<DebugMessage> &debugMessages,
-                                    const VulkanActionTreeNode::DeferredResourceUsage &def);
-  void AddUsageForDescriptorBufferBind(VulkanActionTreeNode &actionNode,
-                                       rdcarray<DebugMessage> &debugMessages,
-                                       const VulkanActionTreeNode::DeferredResourceUsage &def,
+  void BakeEventNodes(ActionDescription &rootAction);
+
+  void AddUsage(VulkanEventNode &eventNode);
+  void AddUsageForDescriptorSets(VulkanEventNode &eventNode);
+  void AddUsageForDescriptorSetBind(VulkanEventNode &eventNode, uint32_t bindset, uint32_t bind,
+                                    ResourceUsage usage);
+  void AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
+                                    const VulkanEventNode::DeferredResourceUsage &def);
+  void AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
+                                       const VulkanEventNode::DeferredResourceUsage &def,
                                        byte *descriptorBytes, size_t descriptorSize,
                                        DescriptorType type, uint32_t bindset, uint32_t bind,
                                        ResourceUsage usage);
-  void AddUsageForDescriptor(VulkanActionTreeNode &actionNode, const DescriptorSetSlot &slot,
+  void AddUsageForDescriptor(VulkanEventNode &eventNode, const DescriptorSetSlot &slot,
                              ResourceUsage usage);
 
-  void AddFramebufferUsage(VulkanActionTreeNode &actionNode, const VulkanRenderState &renderState);
-  void AddFramebufferUsageAllChildren(VulkanActionTreeNode &actionNode,
-                                      const VulkanRenderState &renderState);
+  void AddFramebufferUsage(VulkanEventNode &eventNode, const VulkanRenderState &renderState);
 
   // no copy semantics
   WrappedVulkan(const WrappedVulkan &) = delete;

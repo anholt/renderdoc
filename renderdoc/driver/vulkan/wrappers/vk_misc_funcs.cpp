@@ -1930,22 +1930,18 @@ bool WrappedVulkan::Serialise_vkCopyImageToImage(SerialiserType &ser, VkDevice d
 
       AddAction(action);
 
-      VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
-
+      VulkanEventNode &eventNode = GetLastEventNode();
       if(CopyImageToImageInfo.srcImage == CopyImageToImageInfo.dstImage)
       {
-        actionNode.resourceUsage.push_back(
-            make_rdcpair(GetResID(CopyImageToImageInfo.srcImage),
-                         EventUsage(actionNode.action.eventId, ResourceUsage::Copy)));
+        eventNode.resourceUsage.push_back(
+            make_rdcpair(GetResID(CopyImageToImageInfo.srcImage), ResourceUsage::Copy));
       }
       else
       {
-        actionNode.resourceUsage.push_back(
-            make_rdcpair(GetResID(CopyImageToImageInfo.srcImage),
-                         EventUsage(actionNode.action.eventId, ResourceUsage::CopySrc)));
-        actionNode.resourceUsage.push_back(
-            make_rdcpair(GetResID(CopyImageToImageInfo.dstImage),
-                         EventUsage(actionNode.action.eventId, ResourceUsage::CopyDst)));
+        eventNode.resourceUsage.push_back(
+            make_rdcpair(GetResID(CopyImageToImageInfo.srcImage), ResourceUsage::CopySrc));
+        eventNode.resourceUsage.push_back(
+            make_rdcpair(GetResID(CopyImageToImageInfo.dstImage), ResourceUsage::CopyDst));
       }
     }
   }
@@ -2025,10 +2021,8 @@ bool WrappedVulkan::Serialise_vkCopyImageToMemory(SerialiserType &ser, VkDevice 
 
       AddAction(action);
 
-      VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
-
-      actionNode.resourceUsage.push_back(make_rdcpair(
-          GetResID(srcImage), EventUsage(actionNode.action.eventId, ResourceUsage::CopySrc)));
+      VulkanEventNode &eventNode = GetLastEventNode();
+      eventNode.resourceUsage.push_back(make_rdcpair(GetResID(srcImage), ResourceUsage::CopySrc));
     }
   }
 
@@ -2112,10 +2106,8 @@ bool WrappedVulkan::Serialise_vkCopyMemoryToImage(SerialiserType &ser, VkDevice 
 
       AddAction(action);
 
-      VulkanActionTreeNode &actionNode = GetActionStack().back()->children.back();
-
-      actionNode.resourceUsage.push_back(make_rdcpair(
-          GetResID(dstImage), EventUsage(actionNode.action.eventId, ResourceUsage::CopyDst)));
+      VulkanEventNode &eventNode = GetLastEventNode();
+      eventNode.resourceUsage.push_back(make_rdcpair(GetResID(dstImage), ResourceUsage::CopyDst));
     }
   }
 
@@ -2823,10 +2815,8 @@ bool WrappedVulkan::Serialise_SetCommandAnnotation(SerialiserType &ser, VkComman
       if(!m_RootAnnotation)
         m_RootAnnotation = new SDObject("Event Annotations"_lit, "Event Annotations"_lit);
 
-      PendingAnnotation annot = {m_BakedCmdBufferInfo[m_LastCmdBufferID].curEventID, key, valueType,
-                                 valueVectorWidth, value};
-
-      m_BakedCmdBufferInfo[m_LastCmdBufferID].annotations.push_back(annot);
+      PendingAnnotation annot = {0, key, valueType, valueVectorWidth, value};
+      m_BakedCmdBufferInfo[m_LastCmdBufferID].pendingAnnotations.push_back(annot);
 
       m_Replay->WriteFrameRecord().frameInfo.containsAnnotations = true;
     }
