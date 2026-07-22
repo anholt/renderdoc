@@ -427,3 +427,6 @@ class VK_Resource_Usage(rdtest.TestCase):
                     if eid not in self.eids:
                         raise rdtest.TestFailureException(f"'{res.name}' {res.resourceId} Missing EID:{eid}")
         
+        with rdtest.log.auto_section("Checking Indirect Action Names"):
+            if not self.check_indirect_action_name_consistency(self.controller):
+                raise rdtest.TestFailureException("Indirect action parameters do not match its event parameters")

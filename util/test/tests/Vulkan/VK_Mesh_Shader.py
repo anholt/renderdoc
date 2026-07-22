@@ -103,3 +103,7 @@ class VK_Mesh_Shader(rdtest.TestCase):
             postms_data = self.get_postvs(action, rd.MeshDataStage.MeshOut, 0, action.numIndices)
             self.check_mesh_data(postms_ref, postms_data)
             self.check_debug_pixel(x, y)
+
+        with rdtest.log.auto_section("Checking Indirect Action Names"):
+            if not self.check_indirect_action_name_consistency(self.controller):
+                raise rdtest.TestFailureException("Indirect action parameters do not match its event parameters")
