@@ -274,6 +274,7 @@ struct Decorations
     ColMajor = 0x8,
     Restrict = 0x10,
     Aliased = 0x20,
+    UTF8 = 0x40,
 
     // which packed decorations have been set
     HasLocation = 0x01000000,

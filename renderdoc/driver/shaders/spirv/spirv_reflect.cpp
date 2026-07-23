@@ -746,7 +746,7 @@ void Reflector::CalculateArrayTypeName(DataType &type)
 
     // if not, use the constant value
     if(lengthName.empty())
-      lengthName = StringiseConstant(type.length);
+      lengthName = StringiseConstant(type.length, {});
 
     // if not, it might be a spec constant, use the fallback
     if(lengthName.empty())
@@ -2467,6 +2467,36 @@ void Reflector::AddSignatureParameter(const bool isInput, const ShaderStage stag
 #include "catch/catch.hpp"
 #include "data/glsl_shaders.h"
 #include "glslang_compile.h"
+
+#if 0
+
+TEST_CASE("DO NOT COMMIT - convenience test", "[spirv]")
+{
+  // this test loads a file from disk and passes it through Reflector. Useful for when you
+  // are iterating on a shader and don't want to have to load a whole capture.
+  rdcarray<uint32_t> buf;
+  FileIO::ReadAll("/path/to/file.spv", buf);
+
+  rdcspv::Reflector reflector;
+
+  reflector.Parse(buf);
+
+  ShaderReflection reflection;
+  SPIRVPatchData patchData;
+
+  rdcstr entryPoint = reflector.EntryPoints()[0].name;
+  ShaderStage stage = reflector.EntryPoints()[0].stage;
+
+  reflector.MakeReflection(GraphicsAPI::Vulkan, stage, entryPoint, {}, reflection, patchData);
+
+  // the only thing fetched lazily is the disassembly, so grab that here
+  std::map<size_t, uint32_t> instructionLines;
+  rdcstr disasm = reflector.Disassemble(entryPoint, {}, instructionLines);
+
+  RDCLOG("%s", disasm.c_str());
+}
+
+#endif
 
 TEST_CASE("Validate SPIR-V reflection", "[spirv][reflection]")
 {

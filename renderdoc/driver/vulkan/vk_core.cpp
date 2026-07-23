@@ -1877,6 +1877,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_KHR_SEPARATE_DEPTH_STENCIL_LAYOUTS_SPEC_VERSION,
     },
     {
+        VK_KHR_SHADER_ABORT_EXTENSION_NAME,
+        VK_KHR_SHADER_ABORT_SPEC_VERSION,
+    },
+    {
         VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME,
         VK_KHR_SHADER_ATOMIC_INT64_SPEC_VERSION,
     },
@@ -1887,6 +1891,10 @@ static const VkExtensionProperties supportedExtensions[] = {
     {
         VK_KHR_SHADER_CLOCK_EXTENSION_NAME,
         VK_KHR_SHADER_CLOCK_SPEC_VERSION,
+    },
+    {
+        VK_KHR_SHADER_CONSTANT_DATA_EXTENSION_NAME,
+        VK_KHR_SHADER_CONSTANT_DATA_SPEC_VERSION,
     },
     {
         VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,

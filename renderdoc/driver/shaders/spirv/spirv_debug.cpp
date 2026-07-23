@@ -4277,6 +4277,24 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       break;
     }
+    case Op::AbortKHR:
+    {
+      // if this actually ran it would have taken down the whole device and we wouldn't be shader
+      // debugging, so we should not hit this.
+      RDCERR(
+          "Op::Abort reached, this should not happen and indicates the shader has diverged from "
+          "GPU execution");
+      DebugBreak();
+      dead = true;
+
+      // destroy all stack frames
+      for(StackFrame *exitingFrame : callstack)
+        delete exitingFrame;
+
+      callstack.clear();
+
+      break;
+    }
     case Op::Return:
     case Op::ReturnValue:
     {
@@ -5421,7 +5439,6 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
     case Op::HitObjectIsEmptyEXT:
     case Op::HitObjectIsHitEXT:
     case Op::HitObjectIsMissEXT:
-    case Op::AbortKHR:
     case Op::PoisonKHR:
     case Op::FreezeKHR:
     case Op::BitcastExtractEXT:
