@@ -1445,6 +1445,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_EXT_SHADER_OBJECT_SPEC_VERSION,
     },
     {
+        VK_EXT_SHADER_SPLIT_BARRIER_EXTENSION_NAME,
+        VK_EXT_SHADER_SPLIT_BARRIER_SPEC_VERSION,
+    },
+    {
         VK_EXT_SHADER_STENCIL_EXPORT_EXTENSION_NAME,
         VK_EXT_SHADER_STENCIL_EXPORT_SPEC_VERSION,
     },
