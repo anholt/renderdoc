@@ -89,6 +89,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_non_seamless_cube_map`
 * `VK_EXT_pageable_device_local_memory`
 * `VK_EXT_pci_bus_info`
+* `VK_EXT_physical_device_drm`
 * `VK_EXT_pipeline_creation_cache_control`
 * `VK_EXT_pipeline_creation_feedback`
 * `VK_EXT_pipeline_protected_access`
@@ -331,7 +332,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_EXT_multi_draw`
 * `VK_EXT_multisampled_render_to_swapchain`
 * `VK_EXT_opacity_micromap`
-* `VK_EXT_physical_device_drm`
 * `VK_EXT_pipeline_library_group_handles`
 * `VK_EXT_present_timing`
 * `VK_EXT_primitive_restart_index`
