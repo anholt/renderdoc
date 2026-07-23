@@ -993,6 +993,12 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_PARTITIONED_FEATURES_EXT,             \
                VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT)                                   \
                                                                                                        \
+  /* VK_EXT_shader_tile_image */                                                                       \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_FEATURES_EXT,                       \
+               VkPhysicalDeviceShaderTileImageFeaturesEXT)                                             \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_PROPERTIES_EXT,                     \
+               VkPhysicalDeviceShaderTileImagePropertiesEXT)                                           \
+                                                                                                       \
   /* VK_EXT_separate_stencil_usage */                                                                  \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO, VkImageStencilUsageCreateInfo)       \
                                                                                                        \
@@ -2103,10 +2109,6 @@ SERIALISE_VK_HANDLES();
                                                                                                        \
   /* VK_EXT_shader_replicated_composites */                                                            \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT)       \
-                                                                                                       \
-  /* VK_EXT_shader_tile_image */                                                                       \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_FEATURES_EXT)                  \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_PROPERTIES_EXT)                \
                                                                                                        \
   /* VK_EXT_shader_uniform_buffer_unsized_array */                                                     \
   PNEXT_UNSUPPORTED(                                                                                   \
@@ -11799,6 +11801,41 @@ void Deserialise(const VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderTileImageFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(shaderTileImageColorReadAccess);
+  SERIALISE_MEMBER(shaderTileImageDepthReadAccess);
+  SERIALISE_MEMBER(shaderTileImageStencilReadAccess);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceShaderTileImageFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderTileImagePropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(shaderTileImageCoherentReadAccelerated);
+  SERIALISE_MEMBER(shaderTileImageReadSampleFromPixelRateInvocation);
+  SERIALISE_MEMBER(shaderTileImageReadFromHelperInvocation);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceShaderTileImagePropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderSplitBarrierFeaturesEXT &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15812,6 +15849,8 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupRotateFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderTerminateInvocationFeatures);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderTileImageFeaturesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderTileImagePropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSparseImageFormatInfo2);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSubgroupProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSubgroupSizeControlFeatures);
