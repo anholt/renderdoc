@@ -156,7 +156,8 @@ public:
                                  const ShaderVariable &compare, GatherChannel gatherChannel,
                                  const rdcspv::ImageOperandsAndParamDatas &operands,
                                  ShaderVariable &output, bool &hasResult) = 0;
-  virtual bool QueueCalculateMathOp(GLSLstd450 op, const rdcarray<ShaderVariable> &params) = 0;
+  virtual bool QueueCalculateMathOp(Op opcode, GLSLstd450 op,
+                                    const rdcarray<ShaderVariable> &params) = 0;
   virtual bool GetQueuedResults(rdcarray<ShaderVariable *> &mathOpResults,
                                 rdcarray<ShaderVariable *> &sampleGatherResults) = 0;
   virtual bool QueuedOpsHasSpace() = 0;
@@ -285,7 +286,8 @@ private:
 struct GpuMathOperation
 {
   uint32_t workgroupIndex;
-  GLSLstd450 op;
+  Op opcode;
+  GLSLstd450 glslop;
   rdcarray<ShaderVariable> paramVars;
   ShaderVariable *result;
 };
@@ -419,7 +421,7 @@ struct ThreadState
     Stepped,
   };
 
-  void QueueMathOp(GLSLstd450 op, const rdcarray<ShaderVariable> &paramVars,
+  void QueueMathOp(Op opcode, GLSLstd450 op, const rdcarray<ShaderVariable> &paramVars,
                    const ShaderVariable &result);
   void QueueSampleGather(Op opcode, DebugAPIWrapper::TextureType texType,
                          const ShaderBindIndex &imageBind, const ShaderBindIndex &samplerBind,

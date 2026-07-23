@@ -446,6 +446,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       "SPV_KHR_device_group",
       "SPV_KHR_expect_assume",
       "SPV_KHR_float_controls",
+      "SPV_KHR_fma",
       "SPV_KHR_maximal_reconvergence",
       "SPV_KHR_multiview",
       "SPV_KHR_no_integer_wrap_decoration",
@@ -626,6 +627,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       case Capability::DotProductInputAll:
       case Capability::AbortKHR:
       case Capability::ConstantDataKHR:
+      case Capability::FMAKHR:
       {
         supported = true;
         break;
@@ -667,13 +669,6 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
 
       // SPV_KHR_float_controls2
       case Capability::FloatControls2:
-      {
-        supported = false;
-        break;
-      }
-
-      // SPV_KHR_fma
-      case Capability::FMAKHR:
       {
         supported = false;
         break;
@@ -747,6 +742,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
         break;
       }
 
+      // SPV_EXT_replicated_composites
       case Capability::ReplicatedCompositesEXT:
       {
         supported = false;
@@ -5081,7 +5077,7 @@ void Debugger::ProcessQueuedGpuMathOps()
       const GpuMathOperation &mathOp = workgroup[lane].GetQueuedGpuMathOp();
 
       uint32_t workgroupIndex = mathOp.workgroupIndex;
-      if(apiWrapper->QueueCalculateMathOp(mathOp.op, mathOp.paramVars))
+      if(apiWrapper->QueueCalculateMathOp(mathOp.opcode, mathOp.glslop, mathOp.paramVars))
       {
         pendingGpuMathsOpsResults.push_back(mathOp.result);
       }

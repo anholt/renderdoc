@@ -1557,7 +1557,7 @@ public:
     return true;
   }
 
-  virtual bool QueueCalculateMathOp(rdcspv::GLSLstd450 op,
+  virtual bool QueueCalculateMathOp(rdcspv::Op opcode, rdcspv::GLSLstd450 glslop,
                                     const rdcarray<ShaderVariable> &params) override
   {
     CHECK_DEVICE_THREAD();
@@ -1645,8 +1645,16 @@ public:
     }
 
     // push the operation afterwards
+
+    if(glslop == rdcspv::GLSLstd450::Invalid)
+    {
+      RDCCOMPILE_ASSERT(rdcspv::GLSLstd450::Max < (rdcspv::GLSLstd450)1000,
+                        "GLSL std450 ops max is higher than expected");
+      glslop = (rdcspv::GLSLstd450)(1000 + (uint32_t)opcode);
+    }
+
     ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(m_DebugData.PipeLayout), VK_SHADER_STAGE_ALL,
-                                   sizeof(Vec4f) * 6, sizeof(uint32_t), &op);
+                                   sizeof(Vec4f) * 6, sizeof(uint32_t), &glslop);
 
     ObjDisp(cmd)->CmdDispatch(Unwrap(cmd), 1, 1, 1);
 
@@ -2762,6 +2770,22 @@ private:
       rdcspv::Id eta = cases.add(rdcspv::OpCompositeExtract(floatType, editor.MakeId(), c, {0}));
       rdcspv::Id result =
           cases.add(rdcspv::OpGLSL450(vec4Type, editor.MakeId(), glsl450, op, {a, b, eta}));
+      cases.add(rdcspv::OpStore(outVar, result));
+      cases.add(rdcspv::OpBranch(breakLabel));
+    }
+
+    // non-glsl opcodes
+    if(m_pDriver->PreciseFMAMask() & floatBitSize)
+    {
+      editor.AddCapability(rdcspv::Capability::FMAKHR);
+
+      uint32_t op = 1000 + (uint32_t)rdcspv::Op::FmaKHR;
+
+      rdcspv::Id label = editor.MakeId();
+      targets.push_back({(uint32_t)op, label});
+
+      cases.add(rdcspv::OpLabel(label));
+      rdcspv::Id result = cases.add(rdcspv::OpFmaKHR(vec4Type, editor.MakeId(), a, b, c));
       cases.add(rdcspv::OpStore(outVar, result));
       cases.add(rdcspv::OpBranch(breakLabel));
     }

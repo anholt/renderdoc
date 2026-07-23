@@ -1546,6 +1546,10 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT_CONTROLS_2_FEATURES,                     \
                VkPhysicalDeviceShaderFloatControls2Features)                                           \
                                                                                                        \
+  /* VK_KHR_shader_fma */                                                                              \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FMA_FEATURES_KHR,                              \
+               VkPhysicalDeviceShaderFmaFeaturesKHR)                                                   \
+                                                                                                       \
   /* VK_KHR_shader_integer_dot_product */                                                              \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES,                  \
                VkPhysicalDeviceShaderIntegerDotProductFeatures)                                        \
@@ -2223,9 +2227,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PIPELINE_CREATE_INFO_KHR)                                        \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_DEVICE_PIPELINE_BINARY_INTERNAL_CACHE_CONTROL_KHR)               \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PIPELINE_BINARY_HANDLES_INFO_KHR)                                \
-                                                                                                       \
-  /* VK_KHR_shader_fma */                                                                              \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FMA_FEATURES_KHR)                         \
                                                                                                        \
   /* VK_KHR_shader_untyped_pointers */                                                                 \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_UNTYPED_POINTERS_FEATURES_KHR)            \
@@ -12427,6 +12428,23 @@ void Deserialise(const VkPhysicalDeviceShaderFloat16Int8Features &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderFmaFeaturesKHR &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FMA_FEATURES_KHR);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(shaderFmaFloat16);
+  SERIALISE_MEMBER(shaderFmaFloat32);
+  SERIALISE_MEMBER(shaderFmaFloat64);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceShaderFmaFeaturesKHR &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderFloatControls2Features &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15708,6 +15726,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderDrawParametersFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderExpectAssumeFeatures)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderFloat16Int8Features);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderFloatControls2Features);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderFmaFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderImageFootprintFeaturesNV);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderIntegerDotProductFeatures);

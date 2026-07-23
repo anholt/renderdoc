@@ -1917,6 +1917,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_KHR_SHADER_FLOAT_CONTROLS_2_SPEC_VERSION,
     },
     {
+        VK_KHR_SHADER_FMA_EXTENSION_NAME,
+        VK_KHR_SHADER_FMA_SPEC_VERSION,
+    },
+    {
         VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME,
         VK_KHR_SHADER_INTEGER_DOT_PRODUCT_SPEC_VERSION,
     },

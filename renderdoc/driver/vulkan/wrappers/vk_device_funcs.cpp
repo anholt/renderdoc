@@ -3723,6 +3723,22 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
         CHECK_PHYS_EXT_FEATURE(shaderAbort);
       }
       END_PHYS_EXT_CHECK();
+
+      BEGIN_PHYS_EXT_CHECK(VkPhysicalDeviceShaderFmaFeaturesKHR,
+                           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FMA_FEATURES_KHR);
+      {
+        CHECK_PHYS_EXT_FEATURE(shaderFmaFloat16);
+        CHECK_PHYS_EXT_FEATURE(shaderFmaFloat32);
+        CHECK_PHYS_EXT_FEATURE(shaderFmaFloat64);
+
+        if(ext->shaderFmaFloat16)
+          m_PreciseFMAMask |= 16;
+        if(ext->shaderFmaFloat32)
+          m_PreciseFMAMask |= 32;
+        if(ext->shaderFmaFloat64)
+          m_PreciseFMAMask |= 64;
+      }
+      END_PHYS_EXT_CHECK();
     }
 
     if(availFeatures.depthClamp)

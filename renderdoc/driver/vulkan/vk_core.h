@@ -547,6 +547,7 @@ private:
   bool m_Maintenance9 = false;
   bool m_DescriptorBuffers = false;
   bool m_MultiviewPerViewViewports = false;
+  uint32_t m_PreciseFMAMask = 0;
 
   uint32_t m_RTCaptureReplayHandleSize = 0;
 
@@ -1516,6 +1517,7 @@ public:
   bool DescriptorBuffers() const { return m_DescriptorBuffers; }
   bool MultiViewGeometryShaders() const { return m_MultiViewGeometryShaders; }
   bool MultiviewPerViewViewports() const { return m_MultiviewPerViewViewports; }
+  uint32_t PreciseFMAMask() const { return m_PreciseFMAMask; }
   VulkanRenderState &GetRenderState() { return m_RenderState; }
   void SetActionCB(VulkanActionCallback *cb) { m_ActionCallback = cb; }
   void SetSubmitChain(void *submitChain) { m_SubmitChain = submitChain; }

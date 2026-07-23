@@ -1276,11 +1276,14 @@ public:
     return true;
   }
 
-  virtual bool QueueCalculateMathOp(rdcspv::GLSLstd450 op,
+  virtual bool QueueCalculateMathOp(rdcspv::Op opcode, rdcspv::GLSLstd450 glslop,
                                     const rdcarray<ShaderVariable> &params) override
   {
     CHECK_DEVICE_THREAD();
     RDCASSERT(params.size() <= 3, params.size());
+
+    // only support GLSL std450 ops
+    RDCASSERT(opcode == rdcspv::Op::ExtInst && glslop != rdcspv::GLSLstd450::Invalid, opcode, glslop);
 
     RDCASSERTEQUAL(params[0].type, VarType::Float);
 
@@ -1363,7 +1366,7 @@ public:
     }
 
     // push the operation afterwards
-    GL.glUniform1i(GL.glGetUniformLocation(mathProg, "op"), (int32_t)op);
+    GL.glUniform1i(GL.glGetUniformLocation(mathProg, "op"), (int32_t)glslop);
 
     GL.glDispatchCompute(1, 1, 1);
 
