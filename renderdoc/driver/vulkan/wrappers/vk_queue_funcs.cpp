@@ -680,14 +680,13 @@ SDObject *WrappedVulkan::InsertEventNodes(BakedCmdBufferInfo &cmdBufInfo)
         }
 
         // this can be negative if indirectCount is 0
-        int32_t eidShift = indirectCount - 1;
+        int32_t countExtraNodes = indirectCount - 1;
 
         // we reserved one event and action for the indirect count based action.
-        // if we ended up with a different number eidShift will be non-zero, so we need to adjust
-        // all subsequent EIDs and action IDs and either remove the subdraw we allocated (if no
-        // draws
-        // happened) or clone the subdraw to create more that we can then patch.
-        if(eidShift != 0)
+        // if we ended up with a different number countExtraNodes will be non-zero, so we need to adjust
+        // and either remove the subdraw we allocated (if no draws happened)
+        // or clone the subdraw to create more that we can then patch.
+        if(countExtraNodes != 0)
         {
           // everything afterwards is adjusted. Now see if we need to remove the subdraw or clone it
           if(indirectCount == 0)
@@ -701,26 +700,26 @@ SDObject *WrappedVulkan::InsertEventNodes(BakedCmdBufferInfo &cmdBufInfo)
             // i is the pushmarker, which we leave. i+1 is the subdraw
             eventNodes.erase(i + 1);
           }
-          else
+          else if(countExtraNodes > 0)
           {
             uint32_t chunkIndex = eventNodes[i + 1].event.chunkIndex;
             // duplicate the fake structured data chunk N times
             SDChunk *chunk = m_StructuredFile->chunks[chunkIndex];
 
             uint32_t baseAddedChunk = (uint32_t)m_StructuredFile->chunks.size();
-            m_StructuredFile->chunks.reserve(m_StructuredFile->chunks.size() + eidShift);
-            for(int32_t e = 0; e < eidShift; e++)
+            m_StructuredFile->chunks.reserve(m_StructuredFile->chunks.size() + countExtraNodes);
+            for(int32_t e = 0; e < countExtraNodes; e++)
               m_StructuredFile->chunks.push_back(chunk->Duplicate());
 
             // now copy the subdraw so we're not inserting into the array from itself
             VulkanEventNode node = eventNodes[i + 1];
 
-            eventNodes.resize(eventNodes.size() + eidShift);
-            for(size_t e = eventNodes.size() - 1; e > i + 1 + eidShift; e--)
-              eventNodes[e] = std::move(eventNodes[e - eidShift]);
+            eventNodes.resize(eventNodes.size() + countExtraNodes);
+            for(size_t e = eventNodes.size() - 1; e > i + 1 + countExtraNodes; e--)
+              eventNodes[e] = std::move(eventNodes[e - countExtraNodes]);
 
             // then insert enough duplicates
-            for(int32_t e = 0; e < eidShift; e++)
+            for(int32_t e = 0; e < countExtraNodes; e++)
             {
               node.event.chunkIndex = baseAddedChunk + e;
               eventNodes[i + 2 + e] = node;
