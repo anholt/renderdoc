@@ -1137,7 +1137,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       // Result Type must be an OpTypeInt with 32-bit Width and 0 Signedness
       result.type = VarType::UInt;
-      setUintComp(result, 0, uint32_t(byteLen));
+      setUint64Comp(result, 0, byteLen);
 
       SetDst(len.result, result);
 

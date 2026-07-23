@@ -956,6 +956,10 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,                         \
                VkPhysicalDeviceScalarBlockLayoutFeatures)                                              \
                                                                                                        \
+  /* VK_EXT_shader_64bit_indexing */                                                                   \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_64_BIT_INDEXING_FEATURES_EXT,                  \
+               VkPhysicalDeviceShader64BitIndexingFeaturesEXT)                                         \
+                                                                                                       \
   /* VK_EXT_shader_atomic_float */                                                                     \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT,                     \
                VkPhysicalDeviceShaderAtomicFloatFeaturesEXT)                                           \
@@ -2080,9 +2084,6 @@ SERIALISE_VK_HANDLES();
                                                                                                        \
   /* VK_EXT_primitive_restart_index */                                                                 \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_RESTART_INDEX_FEATURES_EXT)            \
-                                                                                                       \
-  /* VK_EXT_shader_64bit_indexing */                                                                   \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_64_BIT_INDEXING_FEATURES_EXT)             \
                                                                                                        \
   /* VK_EXT_shader_float8     */                                                                       \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT8_FEATURES_EXT)                      \
@@ -12275,6 +12276,22 @@ void Deserialise(const VkSamplerYcbcrConversionImageFormatProperties &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShader64BitIndexingFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_64_BIT_INDEXING_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(shader64BitIndexing);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceShader64BitIndexingFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderAtomicFloatFeaturesEXT &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15763,6 +15780,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSamplerFilterMinmaxProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSamplerYcbcrConversionFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceScalarBlockLayoutFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShader64BitIndexingFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderAbortFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderAbortPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT);

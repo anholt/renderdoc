@@ -628,6 +628,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       case Capability::AbortKHR:
       case Capability::ConstantDataKHR:
       case Capability::FMAKHR:
+      case Capability::Shader64BitIndexingEXT:
       {
         supported = true;
         break;
@@ -744,13 +745,6 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
 
       // SPV_EXT_replicated_composites
       case Capability::ReplicatedCompositesEXT:
-      {
-        supported = false;
-        break;
-      }
-
-      // SPV_EXT_shader_64bit_indexing
-      case Capability::Shader64BitIndexingEXT:
       {
         supported = false;
         break;
@@ -3421,7 +3415,8 @@ ShaderVariable Debugger::MakeCompositePointer(const ShaderVariable &base, Id id,
 
         // offset increases by index * arrayStride
         arrayStride = dec.arrayStride;
-        byteOffset += indices[i] * arrayStride;
+        // ensure calculation is done at 64-bit precision
+        byteOffset += indices[i] * uint64_t(arrayStride);
 
         // new type is the inner type
         type = &dataTypes[type->InnerType()];

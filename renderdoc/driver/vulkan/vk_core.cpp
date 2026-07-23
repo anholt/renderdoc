@@ -1425,6 +1425,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_EXT_SEPARATE_STENCIL_USAGE_SPEC_VERSION,
     },
     {
+        VK_EXT_SHADER_64BIT_INDEXING_EXTENSION_NAME,
+        VK_EXT_SHADER_64BIT_INDEXING_SPEC_VERSION,
+    },
+    {
         VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME,
         VK_EXT_SHADER_ATOMIC_FLOAT_SPEC_VERSION,
     },

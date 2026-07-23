@@ -109,6 +109,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_sampler_filter_minmax`
 * `VK_EXT_scalar_block_layout`
 * `VK_EXT_separate_stencil_usage`
+* `VK_EXT_shader_64bit_indexing`
 * `VK_EXT_shader_atomic_float`
 * `VK_EXT_shader_atomic_float2`
 * `VK_EXT_shader_demote_to_helper_invocation`
@@ -337,7 +338,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_EXT_pipeline_library_group_handles`
 * `VK_EXT_present_timing`
 * `VK_EXT_primitive_restart_index`
-* `VK_EXT_shader_64bit_indexing`
 * `VK_EXT_shader_float8`
 * `VK_EXT_shader_long_vector`
 * `VK_EXT_shader_module_identifier`
