@@ -5649,10 +5649,9 @@ RDResult WrappedID3D12Device::ReadLogInitialisation(RDCFile *rdc, bool storeStru
 
   if(!IsStructuredExporting(m_State))
   {
-    GetReplay()->WriteFrameRecord().actionList = m_Queue->GetParentAction().Bake();
-
-    m_Queue->GetParentAction().children.clear();
-
+    ActionDescription rootAction;
+    m_Queue->BakeEventNodes(rootAction);
+    rootAction.children.swap(GetReplay()->WriteFrameRecord().actionList);
     SetupActionPointers(m_Actions, GetReplay()->WriteFrameRecord().actionList);
   }
 
