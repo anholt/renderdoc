@@ -972,6 +972,17 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_ATOMIC_INT64_FEATURES_EXT,               \
                VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT)                                      \
                                                                                                        \
+  /* VK_EXT_shader_object*/                                                                            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT, VkShaderCreateInfoEXT)                        \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT,                           \
+               VkPhysicalDeviceShaderObjectFeaturesEXT)                                                \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_PROPERTIES_EXT,                         \
+               VkPhysicalDeviceShaderObjectPropertiesEXT)                                              \
+                                                                                                       \
+  /* VK_EXT_shader_subgroup_partitioned */                                                             \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_PARTITIONED_FEATURES_EXT,             \
+               VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT)                                   \
+                                                                                                       \
   /* VK_EXT_separate_stencil_usage */                                                                  \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO, VkImageStencilUsageCreateInfo)       \
                                                                                                        \
@@ -1556,13 +1567,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_PROPERTIES,                \
                VkPhysicalDeviceShaderIntegerDotProductProperties)                                      \
                                                                                                        \
-  /* VK_EXT_shader_object*/                                                                            \
-  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT, VkShaderCreateInfoEXT)                        \
-  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT,                           \
-               VkPhysicalDeviceShaderObjectFeaturesEXT)                                                \
-  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_PROPERTIES_EXT,                         \
-               VkPhysicalDeviceShaderObjectPropertiesEXT)                                              \
-                                                                                                       \
   /* VK_KHR_shader_maximal_reconvergence */                                                            \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MAXIMAL_RECONVERGENCE_FEATURES_KHR,            \
                VkPhysicalDeviceShaderMaximalReconvergenceFeaturesKHR)                                  \
@@ -2093,9 +2097,6 @@ SERIALISE_VK_HANDLES();
   /* VK_EXT_shader_split_barrier */                                                                    \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SPLIT_BARRIER_FEATURES_EXT)               \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SPLIT_BARRIER_PROPERTIES_EXT)             \
-                                                                                                       \
-  /* VK_EXT_shader_subgroup_partitioned */                                                             \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_PARTITIONED_FEATURES_EXT)        \
                                                                                                        \
   /* VK_EXT_shader_replicated_composites */                                                            \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT)       \
@@ -11779,6 +11780,22 @@ void Deserialise(const VkPhysicalDeviceShaderSubgroupRotateFeatures &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_PARTITIONED_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(shaderSubgroupPartitioned);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15737,6 +15754,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderObjectPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderQuadControlFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupPartitionedFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupRotateFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceShaderTerminateInvocationFeatures);

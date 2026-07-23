@@ -116,6 +116,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_shader_object`
 * `VK_EXT_shader_stencil_export`
 * `VK_EXT_shader_subgroup_ballot`
+* `VK_EXT_shader_subgroup_partitioned`
 * `VK_EXT_shader_subgroup_vote`
 * `VK_EXT_shader_viewport_index_layer`
 * `VK_EXT_subgroup_size_control`
@@ -342,7 +343,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_EXT_shader_ocp_microscaling_types`
 * `VK_EXT_shader_replicated_composites`
 * `VK_EXT_shader_split_barrier`
-* `VK_EXT_shader_subgroup_partitioned`
 * `VK_EXT_shader_tile_image`
 * `VK_EXT_shader_uniform_buffer_unsized_array`
 * `VK_EXT_subpass_merge_feedback`
