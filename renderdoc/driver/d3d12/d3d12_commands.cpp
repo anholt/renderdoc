@@ -2440,10 +2440,11 @@ void D3D12CommandData::AddAction(const ActionDescription &a)
   {
     D3D12ActionTreeNode node(action);
 
-    node.resourceUsage.swap(m_BakedCmdListInfo[m_LastCmdListID].resourceUsage);
-
     if(m_LastCmdListID != ResourceId())
+    {
+      node.resourceUsage.swap(m_BakedCmdListInfo[m_LastCmdListID].resourceUsage);
       AddUsage(m_BakedCmdListInfo[m_LastCmdListID].state, node);
+    }
 
     for(const ActionDescription &child : action.children)
       node.children.push_back(D3D12ActionTreeNode(child));

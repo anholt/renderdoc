@@ -5825,8 +5825,9 @@ void WrappedID3D12Device::ReplayLog(uint32_t startEventID, uint32_t endEventID,
     else
     {
       // Copy the state in case m_RenderState was modified externally for the partial replay.
-      cmd.m_BakedCmdListInfo[cmd.m_Partial[D3D12CommandData::Primary].partialParent].state =
-          cmd.m_RenderState;
+      ResourceId cmdList = cmd.m_Partial[D3D12CommandData::Primary].partialParent;
+      if(cmdList != ResourceId())
+        cmd.m_BakedCmdListInfo[cmdList].state = cmd.m_RenderState;
     }
 
     // we'll need our own command list if we're replaying just a subsection
@@ -5875,8 +5876,11 @@ void WrappedID3D12Device::ReplayLog(uint32_t startEventID, uint32_t endEventID,
     if(HasFatalError())
       return;
 
-    cmd.m_RenderState =
-        cmd.m_BakedCmdListInfo[cmd.m_Partial[D3D12CommandData::Primary].partialParent].state;
+    ResourceId cmdList = cmd.m_Partial[D3D12CommandData::Primary].partialParent;
+    if(cmdList != ResourceId())
+      cmd.m_RenderState = cmd.m_BakedCmdListInfo[cmdList].state;
+    else
+      cmd.m_RenderState = D3D12RenderState();
     cmd.m_RenderState.ResolvePendingIndirectState(this);
 
     if(D3D12_Debug_SingleSubmitFlushing())
