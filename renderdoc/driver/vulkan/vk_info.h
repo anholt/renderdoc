@@ -771,6 +771,9 @@ struct VulkanCreationInfo
     VkImageSubresourceRange range;
     VkComponentMapping componentMapping;
 
+    uint32_t storageSliceOffset;
+    uint32_t storageSliceCount;
+
     bool isDepthImage;
 
     // VkImageViewMinLodCreateInfoEXT

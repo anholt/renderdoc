@@ -726,16 +726,18 @@ bool VulkanPipelineStateViewer::setViewDetails(RDTreeWidgetItem *node, const Des
       viewdetails = true;
     }
 
-    if(tex->depth > 1 && ((tex->depth != descriptor.numSlices && descriptor.numSlices > 0) ||
-                          descriptor.firstSlice > 0))
+    uint32_t effectiveDepth = qMax(1U, tex->depth >> descriptor.firstMip);
+
+    if(effectiveDepth > 1 && ((effectiveDepth != descriptor.numSlices && descriptor.numSlices > 0) ||
+                              descriptor.firstSlice > 0))
     {
       if(descriptor.numSlices == 1)
-        text += tr("The texture has %1 3D slices, the view covers slice %2.\n")
-                    .arg(tex->depth)
+        text += tr("The texture has %1 3D slices at first mip, the view covers slice %2.\n")
+                    .arg(effectiveDepth)
                     .arg(descriptor.firstSlice);
       else
-        text += tr("The texture has %1 3D slices, the view covers slices %2-%3.\n")
-                    .arg(tex->depth)
+        text += tr("The texture has %1 3D slices at first mip, the view covers slices %2-%3.\n")
+                    .arg(effectiveDepth)
                     .arg(descriptor.firstSlice)
                     .arg(descriptor.firstSlice + descriptor.numSlices - 1);
 

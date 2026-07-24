@@ -814,6 +814,11 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_ROBUSTNESS_FEATURES,                            \
                VkPhysicalDeviceImageRobustnessFeatures)                                                \
                                                                                                        \
+  /* VK_EXT_image_sliced_view_of_3d */                                                                 \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT,                 \
+               VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT)                                         \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT, VkImageViewSlicedCreateInfoEXT)    \
+                                                                                                       \
   /* VK_EXT_image_view_min_lod */                                                                      \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_MIN_LOD_FEATURES_EXT,                      \
                VkPhysicalDeviceImageViewMinLodFeaturesEXT)                                             \
@@ -2033,10 +2038,6 @@ SERIALISE_VK_HANDLES();
                                                                                                        \
   /* VK_EXT_headless_surface */                                                                        \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT)                                \
-                                                                                                       \
-  /* VK_EXT_image_sliced_view_of_3d */                                                                 \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT)            \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT)                               \
                                                                                                        \
   /* VK_EXT_legacy_dithering */                                                                        \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_DITHERING_FEATURES_EXT)                   \
@@ -11807,6 +11808,38 @@ void Deserialise(const VkPhysicalDeviceIndexTypeUint8Features &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkImageViewSlicedCreateInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(sliceOffset);
+  SERIALISE_MEMBER(sliceCount);
+}
+
+template <>
+void Deserialise(const VkImageViewSlicedCreateInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(imageSlicedViewOf3D);
+}
+
+template <>
+void Deserialise(const VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VkPhysicalDeviceImageViewMinLodFeaturesEXT &el)
 {
   RDCASSERT(ser.IsReading() ||
@@ -15958,6 +15991,8 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageFormatInfo2);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImagelessFramebufferFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageRobustnessFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageViewImageFormatInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageViewMinLodFeaturesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceIndexTypeUint8Features);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceInlineUniformBlockFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceInlineUniformBlockProperties);

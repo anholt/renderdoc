@@ -2762,6 +2762,26 @@ void VulkanCreationInfo::ImageView::Init(VulkanResourceManager *resourceMan, Vul
   }
 
   isDepthImage = !!(info.m_Image[image].creationFlags & TextureCategory::DepthTarget);
+
+  storageSliceOffset = 0;
+  storageSliceCount = 0;
+
+  const VkImageViewSlicedCreateInfoEXT *slicedInfo =
+      (const VkImageViewSlicedCreateInfoEXT *)FindNextStruct(
+          pCreateInfo, VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT);
+  if(slicedInfo)
+  {
+    // only valid for 3D image views, which should have 0/1 layers currently
+    RDCASSERTEQUAL(range.baseArrayLayer, 0);
+    RDCASSERTEQUAL(range.layerCount, 1);
+    storageSliceOffset = slicedInfo->sliceOffset;
+    storageSliceCount = slicedInfo->sliceCount;
+
+    if(storageSliceCount == VK_REMAINING_3D_SLICES_EXT)
+    {
+      storageSliceCount = info.m_Image[image].extent.depth - storageSliceOffset;
+    }
+  }
 }
 
 void VulkanCreationInfo::ShaderModule::Init(VulkanResourceManager *resourceMan,
