@@ -140,6 +140,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_vertex_input_dynamic_state`
 * `VK_EXT_ycbcr_2plane_444_formats`
 * `VK_EXT_ycbcr_image_arrays`
+* `VK_EXT_zero_initialize_device_memory`
 * `VK_GOOGLE_decorate_string`
 * `VK_GOOGLE_display_timing`
 * `VK_GOOGLE_hlsl_functionality1`
@@ -347,7 +348,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_EXT_shader_uniform_buffer_unsized_array`
 * `VK_EXT_subpass_merge_feedback`
 * `VK_EXT_texture_compression_astc_3d`
-* `VK_EXT_zero_initialize_device_memory`
 
 ## Platform/IHV Extensions
 

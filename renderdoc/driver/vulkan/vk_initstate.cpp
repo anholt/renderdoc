@@ -1810,6 +1810,9 @@ void WrappedVulkan::Create_InitialState(ResourceId id, WrappedVkRes *res, bool)
       tag = VkInitialContents::PreInit;
     }
 
+    // zero-initialised images here will just go through the discard+clear path - which works out
+    // for their expected contents
+
     GetResourceManager()->SetInitialContents(id, VkInitialContents(type, tag));
   }
   else if(type == eResDeviceMemory)
