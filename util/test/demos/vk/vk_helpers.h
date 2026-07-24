@@ -147,15 +147,19 @@ void updateDescriptorSets(VkDevice device, const std::vector<VkWriteDescriptorSe
 void cmdPipelineBarrier(VkCommandBuffer cmd, std::initializer_list<VkImageMemoryBarrier> img,
                         std::initializer_list<VkBufferMemoryBarrier> buf = {},
                         std::initializer_list<VkMemoryBarrier> mem = {},
-                        VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                        VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                        VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+                                                            VK_PIPELINE_STAGE_HOST_BIT,
+                        VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+                                                            VK_PIPELINE_STAGE_HOST_BIT,
                         VkDependencyFlags dependencyFlags = 0);
 
 void cmdPipelineBarrier(VkCommandBuffer cmd, const std::vector<VkImageMemoryBarrier> &img,
                         const std::vector<VkBufferMemoryBarrier> &buf = {},
                         const std::vector<VkMemoryBarrier> &mem = {},
-                        VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                        VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                        VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+                                                            VK_PIPELINE_STAGE_HOST_BIT,
+                        VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+                                                            VK_PIPELINE_STAGE_HOST_BIT,
                         VkDependencyFlags dependencyFlags = 0);
 
 struct ClearColorValue;
@@ -309,7 +313,7 @@ struct DeviceQueueCreateInfo : public VkDeviceQueueCreateInfo
 struct DeviceCreateInfo : public VkDeviceCreateInfo
 {
   DeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo> &queues,
-                   const std::vector<const char *> &layers, const std::vector<const char *> &exts,
+                   const std::vector<const char *> &exts,
                    const VkPhysicalDeviceFeatures *features = NULL)
   {
     sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -317,17 +321,16 @@ struct DeviceCreateInfo : public VkDeviceCreateInfo
     flags = 0;
     queueCreateInfoCount = uint32_t(queues.size());
     pQueueCreateInfos = queues.data();
-    enabledLayerCount = uint32_t(layers.size());
-    ppEnabledLayerNames = layers.data();
+    enabledLayerCount = 0;
+    ppEnabledLayerNames = NULL;
     enabledExtensionCount = uint32_t(exts.size());
     ppEnabledExtensionNames = exts.data();
     pEnabledFeatures = features;
   }
 
   DeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo> &queues,
-                   const std::vector<const char *> &layers, const std::vector<const char *> &exts,
-                   const VkPhysicalDeviceFeatures &features)
-      : DeviceCreateInfo(queues, layers, exts, &features)
+                   const std::vector<const char *> &exts, const VkPhysicalDeviceFeatures &features)
+      : DeviceCreateInfo(queues, exts, &features)
   {
   }
 
