@@ -994,15 +994,18 @@ private:
     // with descriptor buffers, we also need to hold onto images and image views
     rdcarray<VkImage> DeadImages;
     rdcarray<VkImageView> DeadImageViews;
-  } m_DeviceAddressResources;
+
+    // image states are needed until the end of the capture, don't erase them until then
+    rdcarray<ResourceId> DeadImageStates;
+  } m_DeferredDestructResources;
 
   struct
   {
     rdcarray<VkDeviceMemory> DeadMemories;
     rdcarray<VkImage> DeadImages;
     rdcarray<VkImageView> DeadImageViews;
-  } m_InternalDeviceAddressResources;
-  Threading::CriticalSection m_DeviceAddressResourcesLock;
+  } m_InternalDeferredDestructResources;
+  Threading::CriticalSection m_DeferredDestructLock;
 
   // holds the current list of coherent mapped memory. Locked against concurrent use
   rdcarray<VkResourceRecord *> m_CoherentMaps;
@@ -1581,7 +1584,7 @@ public:
   LockedConstImageStateRef FindConstImageState(ResourceId id);
   LockedImageStateRef InsertImageState(VkImage wrappedHandle, ResourceId id, const ImageInfo &info,
                                        FrameRefType refType, bool *inserted = NULL);
-  bool EraseImageState(ResourceId id);
+  void EraseImageState(ResourceId id);
   void UpdateImageStates(const rdcflatmap<ResourceId, ImageState> &dstStates);
 
   inline ImageTransitionInfo GetImageTransitionInfo() const

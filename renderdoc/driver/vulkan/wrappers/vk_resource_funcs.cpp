@@ -964,8 +964,8 @@ void WrappedVulkan::vkFreeMemory(VkDevice device, VkDeviceMemory memory, const V
       SCOPED_READLOCK(m_CapTransitionLock);
       if(IsActiveCapturing(m_State) && wrapped->record->hasBDA)
       {
-        SCOPED_LOCK(m_DeviceAddressResourcesLock);
-        m_DeviceAddressResources.DeadMemories.push_back(memory);
+        SCOPED_LOCK(m_DeferredDestructLock);
+        m_DeferredDestructResources.DeadMemories.push_back(memory);
         return;
       }
     }

@@ -2982,6 +2982,7 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
   rdcarray<VkDeviceMemory> DeadInternalMemories;
   rdcarray<VkImage> DeadInternalImages;
   rdcarray<VkImageView> DeadInternalImageViews;
+  rdcarray<ResourceId> DeadImageStates;
 
   // transition back to IDLE atomically
   {
@@ -3005,14 +3006,16 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
     }
 
     {
-      SCOPED_LOCK(m_DeviceAddressResourcesLock);
-      DeadMemories.swap(m_DeviceAddressResources.DeadMemories);
-      DeadBuffers.swap(m_DeviceAddressResources.DeadBuffers);
-      DeadImages.swap(m_DeviceAddressResources.DeadImages);
-      DeadImageViews.swap(m_DeviceAddressResources.DeadImageViews);
-      DeadInternalMemories.swap(m_InternalDeviceAddressResources.DeadMemories);
-      DeadInternalImages.swap(m_InternalDeviceAddressResources.DeadImages);
-      DeadInternalImageViews.swap(m_InternalDeviceAddressResources.DeadImageViews);
+      SCOPED_LOCK(m_DeferredDestructLock);
+      DeadMemories.swap(m_DeferredDestructResources.DeadMemories);
+      DeadBuffers.swap(m_DeferredDestructResources.DeadBuffers);
+      DeadImages.swap(m_DeferredDestructResources.DeadImages);
+      DeadImageViews.swap(m_DeferredDestructResources.DeadImageViews);
+      DeadImageStates.swap(m_DeferredDestructResources.DeadImageStates);
+
+      DeadInternalMemories.swap(m_InternalDeferredDestructResources.DeadMemories);
+      DeadInternalImages.swap(m_InternalDeferredDestructResources.DeadImages);
+      DeadInternalImageViews.swap(m_InternalDeferredDestructResources.DeadImageViews);
     }
   }
 
@@ -3376,6 +3379,9 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
   for(VkImageView v : DeadImageViews)
     vkDestroyImageView(m_Device, v, NULL);
 
+  for(ResourceId id : DeadImageStates)
+    EraseImageState(id);
+
   for(VkDeviceMemory m : DeadInternalMemories)
   {
     ObjDisp(m_Device)->FreeMemory(Unwrap(m_Device), Unwrap(m), NULL);
@@ -3444,14 +3450,14 @@ bool WrappedVulkan::DiscardFrameCapture(DeviceOwnedWindow devWnd)
     }
 
     {
-      SCOPED_LOCK(m_DeviceAddressResourcesLock);
-      DeadMemories.swap(m_DeviceAddressResources.DeadMemories);
-      DeadBuffers.swap(m_DeviceAddressResources.DeadBuffers);
-      DeadImages.swap(m_DeviceAddressResources.DeadImages);
-      DeadImageViews.swap(m_DeviceAddressResources.DeadImageViews);
-      DeadInternalMemories.swap(m_InternalDeviceAddressResources.DeadMemories);
-      DeadInternalImages.swap(m_InternalDeviceAddressResources.DeadImages);
-      DeadInternalImageViews.swap(m_InternalDeviceAddressResources.DeadImageViews);
+      SCOPED_LOCK(m_DeferredDestructLock);
+      DeadMemories.swap(m_DeferredDestructResources.DeadMemories);
+      DeadBuffers.swap(m_DeferredDestructResources.DeadBuffers);
+      DeadImages.swap(m_DeferredDestructResources.DeadImages);
+      DeadImageViews.swap(m_DeferredDestructResources.DeadImageViews);
+      DeadInternalMemories.swap(m_InternalDeferredDestructResources.DeadMemories);
+      DeadInternalImages.swap(m_InternalDeferredDestructResources.DeadImages);
+      DeadInternalImageViews.swap(m_InternalDeferredDestructResources.DeadImageViews);
     }
   }
 
@@ -6887,16 +6893,22 @@ VkQueueFlags WrappedVulkan::GetCommandType(ResourceId cmdId)
   return m_PhysicalDeviceData.queueProps[it->second].queueFlags;
 }
 
-bool WrappedVulkan::EraseImageState(ResourceId id)
+void WrappedVulkan::EraseImageState(ResourceId id)
 {
+  {
+    SCOPED_READLOCK(m_CapTransitionLock);
+    if(IsActiveCapturing(m_State))
+    {
+      SCOPED_LOCK(m_DeferredDestructLock);
+      m_DeferredDestructResources.DeadImageStates.push_back(id);
+      return;
+    }
+  }
+
   SCOPED_LOCK(m_ImageStatesLock);
   auto it = m_ImageStates.find(id);
   if(it != m_ImageStates.end())
-  {
     m_ImageStates.erase(it);
-    return true;
-  }
-  return false;
 }
 
 void WrappedVulkan::UpdateImageStates(const rdcflatmap<ResourceId, ImageState> &dstStates)

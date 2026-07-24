@@ -201,10 +201,10 @@ void WrappedVulkan::vkDestroyImageView(VkDevice device, VkImageView obj, const V
   if(DescriptorBuffers())
   {
     SCOPED_READLOCK(m_CapTransitionLock);
-    SCOPED_LOCK(m_DeviceAddressResourcesLock);
+    SCOPED_LOCK(m_DeferredDestructLock);
     if(IsActiveCapturing(m_State))
     {
-      m_DeviceAddressResources.DeadImageViews.push_back(obj);
+      m_DeferredDestructResources.DeadImageViews.push_back(obj);
       return;
     }
   }
@@ -310,8 +310,8 @@ void WrappedVulkan::vkDestroyBuffer(VkDevice device, VkBuffer buffer, const VkAl
     SCOPED_READLOCK(m_CapTransitionLock);
     if(IsActiveCapturing(m_State) && GetRecord(buffer)->hasBDA)
     {
-      SCOPED_LOCK(m_DeviceAddressResourcesLock);
-      m_DeviceAddressResources.DeadBuffers.push_back(buffer);
+      SCOPED_LOCK(m_DeferredDestructLock);
+      m_DeferredDestructResources.DeadBuffers.push_back(buffer);
       return;
     }
   }
@@ -370,14 +370,14 @@ void WrappedVulkan::vkDestroySwapchainKHR(VkDevice device, VkSwapchainKHR obj,
       deferFakeBackbuffers = IsActiveCapturing(m_State);
       if(deferFakeBackbuffers)
       {
-        SCOPED_LOCK(m_DeviceAddressResourcesLock);
+        SCOPED_LOCK(m_DeferredDestructLock);
         for(size_t i = 0; i < info.images.size(); i++)
         {
           SwapchainInfo::SwapImage &img = info.images[i];
-          m_InternalDeviceAddressResources.DeadImages.push_back(img.userSwapImage);
-          m_InternalDeviceAddressResources.DeadImageViews.push_back(img.view);
+          m_InternalDeferredDestructResources.DeadImages.push_back(img.userSwapImage);
+          m_InternalDeferredDestructResources.DeadImageViews.push_back(img.view);
         }
-        m_InternalDeviceAddressResources.DeadMemories.push_back(info.imageMemory);
+        m_InternalDeferredDestructResources.DeadMemories.push_back(info.imageMemory);
       }
     }
 
@@ -436,10 +436,10 @@ void WrappedVulkan::vkDestroyImage(VkDevice device, VkImage obj, const VkAllocat
   if(DescriptorBuffers())
   {
     SCOPED_READLOCK(m_CapTransitionLock);
-    SCOPED_LOCK(m_DeviceAddressResourcesLock);
+    SCOPED_LOCK(m_DeferredDestructLock);
     if(IsActiveCapturing(m_State))
     {
-      m_DeviceAddressResources.DeadImages.push_back(obj);
+      m_DeferredDestructResources.DeadImages.push_back(obj);
       return;
     }
   }
@@ -449,10 +449,12 @@ void WrappedVulkan::vkDestroyImage(VkDevice device, VkImage obj, const VkAllocat
     m_ForcedReferences.removeOne(GetRecord(obj));
   }
 
+  ResourceId id = GetResID(obj);
+
   VkImage unwrappedObj = Unwrap(obj);
   GetResourceManager()->ReleaseWrappedResource(obj, true);
 
-  EraseImageState(GetResID(obj));
+  EraseImageState(id);
 
   return ObjDisp(device)->DestroyImage(Unwrap(device), unwrappedObj, NULL);
 }
