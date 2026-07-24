@@ -3235,6 +3235,36 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
 
   uint64_t captureSectionSize = 0;
 
+  // any images that were pre-initialized need to reference their device memory to ensure it has
+  // proper initial contents. This is not referenced any other way because normally images don't
+  // mark references into the memory as they're usually independent, but pre-initialized images
+  // can't be saved as normal initial contents (because we can't transition them to copy from them)
+  // so they must be snapshotted on replay which requires proper memory contents underneath.
+  //
+  // this only applies to images that are in PREINITIALIZED at capture start
+  {
+    for(auto it = m_ImageStates.begin(); it != m_ImageStates.end(); ++it)
+    {
+      LockedConstImageStateRef lockedState = it->second.LockRead();
+
+      if(lockedState->GetImageInfo().initialLayout == VK_IMAGE_LAYOUT_PREINITIALIZED)
+      {
+        for(auto subit = lockedState->subresourceStates.begin();
+            subit != lockedState->subresourceStates.end(); ++subit)
+        {
+          if(subit->state().oldLayout == VK_IMAGE_LAYOUT_PREINITIALIZED ||
+             subit->state().newLayout == UNKNOWN_PREV_IMG_LAYOUT)
+          {
+            GetResourceManager()->MarkMemoryFrameReferenced(
+                lockedState->boundMemory, lockedState->boundMemoryOffset,
+                lockedState->boundMemorySize, eFrameRef_Read);
+            break;
+          }
+        }
+      }
+    }
+  }
+
   {
     WriteSerialiser ser(captureWriter, Ownership::Stream);
 

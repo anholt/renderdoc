@@ -1038,6 +1038,9 @@ void WrappedVulkan::ProcessMap(VkDeviceMemory memory, VkDeviceSize offset, VkDev
     RDCASSERT(memrecord->memMapState);
     MemMapState &state = *memrecord->memMapState;
 
+    // memory that is mapped should be marked as dirty, in case a buffer is bound to it mid-capture
+    GetResourceManager()->MarkDirtyResource(memrecord->GetResourceID());
+
     // ensure size is valid
     RDCASSERT(size == VK_WHOLE_SIZE || (size > 0 && offset + size <= memrecord->Length),
               GetResID(memory), size, memrecord->Length);
@@ -1967,6 +1970,14 @@ VkResult WrappedVulkan::vkBindImageMemory(VkDevice device, VkImage image, VkDevi
       // we're currently capturing, do the same with the memory with the correct semantics.
       GetResourceManager()->MarkMemoryFrameReferenced(
           GetResID(mem), memOffset, record->resInfo->memreqs.size, eFrameRef_Read);
+    }
+
+    // pre-initialised images act like buffers, and dirty & ref the memory they are bound to.
+    if(record->resInfo->imageInfo.initialLayout == VK_IMAGE_LAYOUT_PREINITIALIZED)
+    {
+      GetResourceManager()->MarkDirtyResource(memrecord->GetResourceID());
+      GetResourceManager()->MarkMemoryFrameReferenced(
+          memrecord->GetResourceID(), memOffset, record->resInfo->memreqs.size, eFrameRef_Read);
     }
 
     // images are a base resource but we want to track where their memory comes from.
@@ -3811,6 +3822,15 @@ VkResult WrappedVulkan::vkBindImageMemory2(VkDevice device, uint32_t bindInfoCou
       {
         // AddForcedReference will also call MarkResourceFrameReferenced() on the image in case
         // we're currently capturing, do the same with the memory with the correct semantics.
+        GetResourceManager()->MarkMemoryFrameReferenced(
+            GetResID(pBindInfos[i].memory), pBindInfos[i].memoryOffset,
+            imgrecord->resInfo->memreqs.size, eFrameRef_Read);
+      }
+
+      // pre-initialised images act like buffers, and dirty & ref the memory they are bound to.
+      if(imgrecord->resInfo->imageInfo.initialLayout == VK_IMAGE_LAYOUT_PREINITIALIZED)
+      {
+        GetResourceManager()->MarkDirtyResource(memrecord->GetResourceID());
         GetResourceManager()->MarkMemoryFrameReferenced(
             GetResID(pBindInfos[i].memory), pBindInfos[i].memoryOffset,
             imgrecord->resInfo->memreqs.size, eFrameRef_Read);
