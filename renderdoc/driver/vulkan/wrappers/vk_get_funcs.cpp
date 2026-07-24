@@ -1117,8 +1117,19 @@ VkResult WrappedVulkan::vkGetCalibratedTimestampsEXT(VkDevice device, uint32_t t
                                                      const VkCalibratedTimestampInfoKHR *pTimestampInfos,
                                                      uint64_t *pTimestamps, uint64_t *pMaxDeviation)
 {
-  return ObjDisp(device)->GetCalibratedTimestampsEXT(Unwrap(device), timestampCount,
-                                                     pTimestampInfos, pTimestamps, pMaxDeviation);
+  size_t memSize = sizeof(VkCalibratedTimestampInfoKHR) * timestampCount;
+  for(uint32_t i = 0; i < timestampCount; i++)
+    memSize += GetNextPatchSize(&pTimestampInfos[i]);
+
+  byte *tempMem = GetTempMemory(memSize);
+  VkCalibratedTimestampInfoKHR *unwrappedInfos = (VkCalibratedTimestampInfoKHR *)tempMem;
+  tempMem += sizeof(VkCalibratedTimestampInfoKHR) * timestampCount;
+
+  for(uint32_t i = 0; i < timestampCount; i++)
+    unwrappedInfos[i] = *UnwrapStructAndChain(m_State, tempMem, &pTimestampInfos[i]);
+
+  return ObjDisp(device)->GetCalibratedTimestampsEXT(Unwrap(device), timestampCount, unwrappedInfos,
+                                                     pTimestamps, pMaxDeviation);
 }
 
 VkResult WrappedVulkan::vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(
@@ -1133,8 +1144,19 @@ VkResult WrappedVulkan::vkGetCalibratedTimestampsKHR(VkDevice device, uint32_t t
                                                      const VkCalibratedTimestampInfoKHR *pTimestampInfos,
                                                      uint64_t *pTimestamps, uint64_t *pMaxDeviation)
 {
-  return ObjDisp(device)->GetCalibratedTimestampsKHR(Unwrap(device), timestampCount,
-                                                     pTimestampInfos, pTimestamps, pMaxDeviation);
+  size_t memSize = sizeof(VkCalibratedTimestampInfoKHR) * timestampCount;
+  for(uint32_t i = 0; i < timestampCount; i++)
+    memSize += GetNextPatchSize(&pTimestampInfos[i]);
+
+  byte *tempMem = GetTempMemory(memSize);
+  VkCalibratedTimestampInfoKHR *unwrappedInfos = (VkCalibratedTimestampInfoKHR *)tempMem;
+  tempMem += sizeof(VkCalibratedTimestampInfoKHR) * timestampCount;
+
+  for(uint32_t i = 0; i < timestampCount; i++)
+    unwrappedInfos[i] = *UnwrapStructAndChain(m_State, tempMem, &pTimestampInfos[i]);
+
+  return ObjDisp(device)->GetCalibratedTimestampsKHR(Unwrap(device), timestampCount, unwrappedInfos,
+                                                     pTimestamps, pMaxDeviation);
 }
 
 VkDeviceAddress WrappedVulkan::vkGetBufferDeviceAddressEXT(VkDevice device,

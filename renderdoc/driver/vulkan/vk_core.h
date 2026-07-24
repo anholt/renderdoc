@@ -3318,4 +3318,18 @@ public:
   // VK_EXT_depth_bias_control
   IMPLEMENT_FUNCTION_SERIALISED(void, vkCmdSetDepthBias2EXT, VkCommandBuffer commandBuffer,
                                 const VkDepthBiasInfoEXT *pDepthBiasInfo);
+
+  // VK_EXT_present_timing
+  VkResult vkGetPastPresentationTimingEXT(
+      VkDevice device, const VkPastPresentationTimingInfoEXT *pPastPresentationTimingInfo,
+      VkPastPresentationTimingPropertiesEXT *pPastPresentationTimingProperties);
+  VkResult vkGetSwapchainTimeDomainPropertiesEXT(
+      VkDevice device, VkSwapchainKHR swapchain,
+      VkSwapchainTimeDomainPropertiesEXT *pSwapchainTimeDomainProperties,
+      uint64_t *pTimeDomainsCounter);
+  VkResult vkGetSwapchainTimingPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain,
+                                             VkSwapchainTimingPropertiesEXT *pSwapchainTimingProperties,
+                                             uint64_t *pSwapchainTimingPropertiesCounter);
+  VkResult vkSetSwapchainPresentTimingQueueSizeEXT(VkDevice device, VkSwapchainKHR swapchain,
+                                                   uint32_t size);
 };

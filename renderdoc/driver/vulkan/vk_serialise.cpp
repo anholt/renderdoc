@@ -167,6 +167,9 @@ DECL_VKFLAG_EXT(VkGraphicsPipelineLibrary, EXT);
 DECL_VKFLAG(VkRendering);
 DECL_VKFLAG_EXT(VkPresentScaling, KHR);
 DECL_VKFLAG_EXT(VkPresentGravity, KHR);
+DECL_VKFLAG_EXT(VkPastPresentationTiming, EXT);
+DECL_VKFLAG_EXT(VkPresentStage, EXT);
+DECL_VKFLAG_EXT(VkPresentTimingInfo, EXT);
 DECL_VKFLAG_EXT(VkAccelerationStructureCreate, KHR);
 DECL_VKFLAG_EXT(VkBuildAccelerationStructure, KHR);
 DECL_VKFLAG_EXT(VkGeometry, KHR);
@@ -902,6 +905,23 @@ SERIALISE_VK_HANDLES();
                VkPhysicalDevicePipelineRobustnessFeatures)                                             \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_ROBUSTNESS_PROPERTIES,                       \
                VkPhysicalDevicePipelineRobustnessProperties)                                           \
+                                                                                                       \
+  /* VK_EXT_present_timing */                                                                          \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_EXT, VkPastPresentationTimingEXT)            \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT, VkPastPresentationTimingInfoEXT)   \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT,                              \
+               VkPastPresentationTimingPropertiesEXT)                                                  \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT,                          \
+               VkPhysicalDevicePresentTimingFeaturesEXT)                                               \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT, VkPresentTimingInfoEXT)                      \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT,                              \
+               VkPresentTimingSurfaceCapabilitiesEXT)                                                  \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT, VkPresentTimingsInfoEXT)                    \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_CALIBRATED_TIMESTAMP_INFO_EXT,                              \
+               VkSwapchainCalibratedTimestampInfoEXT)                                                  \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT,                                 \
+               VkSwapchainTimeDomainPropertiesEXT)                                                     \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT, VkSwapchainTimingPropertiesEXT)      \
                                                                                                        \
   /* VK_EXT_primitive_topology_list_restart */                                                         \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_TOPOLOGY_LIST_RESTART_FEATURES_EXT,         \
@@ -2075,18 +2095,6 @@ SERIALISE_VK_HANDLES();
   /* VK_EXT_pipeline_properties */                                                                     \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PIPELINE_PROPERTIES_IDENTIFIER_EXT)                              \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_PROPERTIES_FEATURES_EXT)                \
-                                                                                                       \
-  /* VK_EXT_present_timing */                                                                          \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_EXT)                                    \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT)                               \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT)                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT)                     \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT)                                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT)                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT)                                        \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SWAPCHAIN_CALIBRATED_TIMESTAMP_INFO_EXT)                         \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT)                            \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT)                                 \
                                                                                                        \
   /* VK_EXT_primitive_restart_index */                                                                 \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_RESTART_INDEX_FEATURES_EXT)            \
@@ -8074,6 +8082,185 @@ void DoSerialise(SerialiserType &ser, VkPhysicalDevicePresentId2FeaturesKHR &el)
 
 template <>
 void Deserialise(const VkPhysicalDevicePresentId2FeaturesKHR &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPresentStageTimeEXT &el)
+{
+  SERIALISE_MEMBER_VKFLAGS(VkPresentStageFlagsEXT, stage);
+  SERIALISE_MEMBER(time);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPastPresentationTimingEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(presentId);
+  SERIALISE_MEMBER(targetTime);
+  SERIALISE_MEMBER_ARRAY(pPresentStages, presentStageCount);
+  SERIALISE_MEMBER(timeDomain);
+  SERIALISE_MEMBER(timeDomainId);
+  SERIALISE_MEMBER(reportComplete);
+}
+
+template <>
+void Deserialise(const VkPastPresentationTimingEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPastPresentationTimingInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPastPresentationTimingFlagsEXT, flags);
+  SERIALISE_MEMBER(swapchain);
+}
+
+template <>
+void Deserialise(const VkPastPresentationTimingInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPastPresentationTimingPropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(timingPropertiesCounter);
+  SERIALISE_MEMBER(timeDomainsCounter);
+  SERIALISE_MEMBER_ARRAY(pPresentationTimings, presentationTimingCount);
+}
+
+template <>
+void Deserialise(const VkPastPresentationTimingPropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPhysicalDevicePresentTimingFeaturesEXT &el)
+{
+  RDCASSERT(ser.IsReading() ||
+            el.sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(presentTiming);
+  SERIALISE_MEMBER(presentAtAbsoluteTime);
+  SERIALISE_MEMBER(presentAtRelativeTime);
+}
+
+template <>
+void Deserialise(const VkPhysicalDevicePresentTimingFeaturesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPresentTimingInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_VKFLAGS(VkPresentTimingInfoFlagsEXT, flags);
+  SERIALISE_MEMBER(targetTime);
+  SERIALISE_MEMBER(timeDomainId);
+  SERIALISE_MEMBER_VKFLAGS(VkPresentStageFlagsEXT, presentStageQueries);
+  SERIALISE_MEMBER_VKFLAGS(VkPresentStageFlagsEXT, targetTimeDomainPresentStage);
+}
+
+template <>
+void Deserialise(const VkPresentTimingInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPresentTimingSurfaceCapabilitiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(presentTimingSupported);
+  SERIALISE_MEMBER(presentAtAbsoluteTimeSupported);
+  SERIALISE_MEMBER(presentAtRelativeTimeSupported);
+  SERIALISE_MEMBER_VKFLAGS(VkPresentStageFlagsEXT, presentStageQueries);
+}
+
+template <>
+void Deserialise(const VkPresentTimingSurfaceCapabilitiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkPresentTimingsInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_ARRAY(pTimingInfos, swapchainCount);
+}
+
+template <>
+void Deserialise(const VkPresentTimingsInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkSwapchainCalibratedTimestampInfoEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CALIBRATED_TIMESTAMP_INFO_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(swapchain);
+  SERIALISE_MEMBER_VKFLAGS(VkPresentStageFlagsEXT, presentStage);
+  SERIALISE_MEMBER(timeDomainId);
+}
+
+template <>
+void Deserialise(const VkSwapchainCalibratedTimestampInfoEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkSwapchainTimeDomainPropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER_ARRAY(pTimeDomains, timeDomainCount);
+  SERIALISE_MEMBER_ARRAY(pTimeDomainIds, timeDomainCount);
+}
+
+template <>
+void Deserialise(const VkSwapchainTimeDomainPropertiesEXT &el)
+{
+  DeserialiseNext(el.pNext);
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkSwapchainTimingPropertiesEXT &el)
+{
+  RDCASSERT(ser.IsReading() || el.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT);
+  SerialiseNext(ser, el.sType, el.pNext);
+
+  SERIALISE_MEMBER(refreshDuration);
+  SERIALISE_MEMBER(refreshInterval);
+}
+
+template <>
+void Deserialise(const VkSwapchainTimingPropertiesEXT &el)
 {
   DeserialiseNext(el.pNext);
 }
@@ -15512,8 +15699,8 @@ INSTANTIATE_SERIALISE_TYPE(VkBufferOpaqueCaptureAddressCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBufferUsageFlags2CreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkBufferViewCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCalibratedTimestampInfoKHR);
-INSTANTIATE_SERIALISE_TYPE(VkCheckpointDataNV);
 INSTANTIATE_SERIALISE_TYPE(VkCheckpointData2NV);
+INSTANTIATE_SERIALISE_TYPE(VkCheckpointDataNV);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferAllocateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferBeginInfo);
 INSTANTIATE_SERIALISE_TYPE(VkCommandBufferInheritanceConditionalRenderingInfoEXT);
@@ -15671,7 +15858,10 @@ INSTANTIATE_SERIALISE_TYPE(VkMultisampledRenderToSingleSampledInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkMultisamplePropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkMutableDescriptorTypeCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkOpaqueCaptureDescriptorDataCreateInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPastPresentationTimingEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPastPresentationTimingGOOGLE);
+INSTANTIATE_SERIALISE_TYPE(VkPastPresentationTimingInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPastPresentationTimingPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPerformanceCounterDescriptionKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPerformanceCounterKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPerformanceQuerySubmitInfoKHR);
@@ -15708,6 +15898,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDescriptorIndexingProperties)
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDiagnosticsConfigFeaturesNV);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDiscardRectanglePropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDriverProperties);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDrmPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDynamicRenderingFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDynamicRenderingLocalReadFeatures);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT);
@@ -15786,7 +15977,6 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceNestedCommandBufferPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePCIBusInfoPropertiesEXT);
-INSTANTIATE_SERIALISE_TYPE(VkPhysicalDeviceDrmPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePerformanceQueryFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePerformanceQueryPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePipelineCreationCacheControlFeatures);
@@ -15798,6 +15988,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePointClippingProperties);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePresentId2FeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePresentIdFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR);
+INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePresentTimingFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePresentWaitFeaturesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePrimitivesGeneratedQueryFeaturesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT);
@@ -15938,6 +16129,9 @@ INSTANTIATE_SERIALISE_TYPE(VkPresentInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPresentRegionsKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPresentTimeGOOGLE);
 INSTANTIATE_SERIALISE_TYPE(VkPresentTimesInfoGOOGLE);
+INSTANTIATE_SERIALISE_TYPE(VkPresentTimingInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPresentTimingsInfoEXT);
+INSTANTIATE_SERIALISE_TYPE(VkPresentTimingSurfaceCapabilitiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPresentWait2InfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPrivateDataSlotCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkProtectedSubmitInfo);
@@ -15946,8 +16140,8 @@ INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetInfo);
 INSTANTIATE_SERIALISE_TYPE(VkPushDescriptorSetWithTemplateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkQueryPoolCreateInfo);
 INSTANTIATE_SERIALISE_TYPE(VkQueryPoolPerformanceCreateInfoKHR);
-INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyCheckpointPropertiesNV);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyCheckpointProperties2NV);
+INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyCheckpointPropertiesNV);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyGlobalPriorityProperties);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyOwnershipTransferPropertiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyProperties2);
@@ -16016,6 +16210,7 @@ INSTANTIATE_SERIALISE_TYPE(VkSurfacePresentModeCompatibilityKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSurfacePresentModeKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSurfacePresentScalingCapabilitiesKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSurfaceProtectedCapabilitiesKHR);
+INSTANTIATE_SERIALISE_TYPE(VkSwapchainCalibratedTimestampInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainCounterCreateInfoEXT);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainCreateInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainDisplayNativeHdrCreateInfoAMD);
@@ -16023,6 +16218,8 @@ INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentFenceInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentModeInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentModesCreateInfoKHR);
 INSTANTIATE_SERIALISE_TYPE(VkSwapchainPresentScalingCreateInfoKHR);
+INSTANTIATE_SERIALISE_TYPE(VkSwapchainTimeDomainPropertiesEXT);
+INSTANTIATE_SERIALISE_TYPE(VkSwapchainTimingPropertiesEXT);
 INSTANTIATE_SERIALISE_TYPE(VkTextureLODGatherFormatPropertiesAMD);
 INSTANTIATE_SERIALISE_TYPE(VkTimelineSemaphoreSubmitInfo);
 INSTANTIATE_SERIALISE_TYPE(VkValidationCacheCreateInfoEXT);
@@ -16092,6 +16289,7 @@ INSTANTIATE_SERIALISE_TYPE(VkPipelineColorBlendAttachmentState);
 INSTANTIATE_SERIALISE_TYPE(VkPipelineCreationFeedback);
 INSTANTIATE_SERIALISE_TYPE(VkPipelineExecutableStatisticValueKHR);
 INSTANTIATE_SERIALISE_TYPE(VkPresentRegionKHR);
+INSTANTIATE_SERIALISE_TYPE(VkPresentStageTimeEXT);
 INSTANTIATE_SERIALISE_TYPE(VkPushConstantRange);
 INSTANTIATE_SERIALISE_TYPE(VkQueueFamilyProperties);
 INSTANTIATE_SERIALISE_TYPE(VkRect2D);

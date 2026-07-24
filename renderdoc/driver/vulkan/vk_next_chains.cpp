@@ -238,6 +238,9 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
               VkMutableDescriptorTypeCreateInfoEXT);                                                 \
   COPY_STRUCT(VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DESCRIPTOR_DATA_CREATE_INFO_EXT,                      \
               VkOpaqueCaptureDescriptorDataCreateInfoEXT);                                           \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_EXT, VkPastPresentationTimingEXT);          \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT,                             \
+              VkPastPresentationTimingPropertiesEXT);                                                \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PERFORMANCE_COUNTER_DESCRIPTION_KHR,                                 \
               VkPerformanceCounterDescriptionKHR);                                                   \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PERFORMANCE_COUNTER_KHR, VkPerformanceCounterKHR);                   \
@@ -491,6 +494,8 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
               VkPhysicalDevicePresentId2FeaturesKHR);                                                \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR,         \
               VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR);                                \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT,                         \
+              VkPhysicalDevicePresentTimingFeaturesEXT);                                             \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR,                           \
               VkPhysicalDevicePresentWaitFeaturesKHR);                                               \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR,                         \
@@ -746,6 +751,10 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR, VkPresentId2KHR);                                  \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR, VkPresentRegionsKHR);                           \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE, VkPresentTimesInfoGOOGLE);                \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT, VkPresentTimingInfoEXT);                    \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT,                             \
+              VkPresentTimingSurfaceCapabilitiesEXT);                                                \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT, VkPresentTimingsInfoEXT);                  \
   COPY_STRUCT(VK_STRUCTURE_TYPE_PRIVATE_DATA_SLOT_CREATE_INFO, VkPrivateDataSlotCreateInfo);         \
   COPY_STRUCT(VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO, VkQueryPoolCreateInfo);                      \
   COPY_STRUCT(VK_STRUCTURE_TYPE_QUERY_POOL_PERFORMANCE_CREATE_INFO_KHR,                              \
@@ -825,6 +834,9 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
               VkSwapchainPresentModesCreateInfoKHR);                                                 \
   COPY_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_KHR,                           \
               VkSwapchainPresentScalingCreateInfoKHR);                                               \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT,                                \
+              VkSwapchainTimeDomainPropertiesEXT);                                                   \
+  COPY_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT, VkSwapchainTimingPropertiesEXT);    \
   COPY_STRUCT(VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD,                            \
               VkTextureLODGatherFormatPropertiesAMD);                                                \
   COPY_STRUCT(VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, VkTimelineSemaphoreSubmitInfo);      \
@@ -962,6 +974,8 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
                 UnwrapInPlace(out->buffer), UnwrapInPlace(out->image));                              \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_MEMORY_MAP_INFO, VkMemoryMapInfo, UnwrapInPlace(out->memory));     \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO, VkMemoryUnmapInfo, UnwrapInPlace(out->memory)); \
+  UNWRAP_STRUCT(VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT,                                 \
+                VkPastPresentationTimingInfoEXT, UnwrapInPlace(out->swapchain));                     \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR, VkPipelineInfoKHR,                              \
                 UnwrapInPlace(out->pipeline));                                                       \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR, VkPipelineExecutableInfoKHR,         \
@@ -991,6 +1005,8 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
                 UnwrapInPlace(out->semaphore));                                                      \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_SET_DESCRIPTOR_BUFFER_OFFSETS_INFO_EXT,                            \
                 VkSetDescriptorBufferOffsetsInfoEXT, UnwrapInPlace(out->layout));                    \
+  UNWRAP_STRUCT(VK_STRUCTURE_TYPE_SWAPCHAIN_CALIBRATED_TIMESTAMP_INFO_EXT,                           \
+                VkSwapchainCalibratedTimestampInfoEXT, UnwrapInPlace(out->swapchain));               \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_COPY_IMAGE_TO_IMAGE_INFO, VkCopyImageToImageInfo,                  \
                 UnwrapInPlace(out->srcImage), UnwrapInPlace(out->dstImage));                         \
   UNWRAP_STRUCT(VK_STRUCTURE_TYPE_COPY_IMAGE_TO_MEMORY_INFO, VkCopyImageToMemoryInfo,                \
@@ -1260,9 +1276,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_OUT_OF_BAND_QUEUE_TYPE_INFO_NV:                                         \
   case VK_STRUCTURE_TYPE_PARTITIONED_ACCELERATION_STRUCTURE_FLAGS_NV:                            \
   case VK_STRUCTURE_TYPE_PARTITIONED_ACCELERATION_STRUCTURE_INSTANCES_INPUT_NV:                  \
-  case VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_EXT:                                           \
-  case VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_INFO_EXT:                                      \
-  case VK_STRUCTURE_TYPE_PAST_PRESENTATION_TIMING_PROPERTIES_EXT:                                \
   case VK_STRUCTURE_TYPE_PER_TILE_BEGIN_INFO_QCOM:                                               \
   case VK_STRUCTURE_TYPE_PER_TILE_END_INFO_QCOM:                                                 \
   case VK_STRUCTURE_TYPE_PERF_HINT_INFO_QCOM:                                                    \
@@ -1392,7 +1405,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_PROPERTIES_FEATURES_EXT:                       \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_BARRIER_FEATURES_NV:                            \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_METERING_FEATURES_NV:                           \
-  case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT:                            \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_RESTART_INDEX_FEATURES_EXT:                   \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_CONSTANT_BANK_FEATURES_NV:                         \
   case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_CONSTANT_BANK_PROPERTIES_NV:                       \
@@ -1484,9 +1496,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_SWIZZLE_STATE_CREATE_INFO_NV:                         \
   case VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_W_SCALING_STATE_CREATE_INFO_NV:                       \
   case VK_STRUCTURE_TYPE_PRESENT_FRAME_TOKEN_GGP:                                                \
-  case VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT:                                                \
-  case VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT:                                \
-  case VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT:                                               \
   case VK_STRUCTURE_TYPE_PRESENT_WAIT_2_INFO_KHR:                                                \
   case VK_STRUCTURE_TYPE_PUSH_CONSTANT_BANK_INFO_NV:                                             \
   case VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT:                                                     \
@@ -1536,12 +1545,9 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_SUBPASS_SHADING_PIPELINE_CREATE_INFO_HUAWEI:                            \
   case VK_STRUCTURE_TYPE_SUBSAMPLED_IMAGE_FORMAT_PROPERTIES_EXT:                                 \
   case VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_PRESENT_BARRIER_NV:                                \
-  case VK_STRUCTURE_TYPE_SWAPCHAIN_CALIBRATED_TIMESTAMP_INFO_EXT:                                \
   case VK_STRUCTURE_TYPE_SWAPCHAIN_FLAGS_SURFACE_CAPABILITIES_EXT:                               \
   case VK_STRUCTURE_TYPE_SWAPCHAIN_LATENCY_CREATE_INFO_NV:                                       \
   case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_BARRIER_CREATE_INFO_NV:                               \
-  case VK_STRUCTURE_TYPE_SWAPCHAIN_TIME_DOMAIN_PROPERTIES_EXT:                                   \
-  case VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT:                                        \
   case VK_STRUCTURE_TYPE_SYSMEM_COLOR_SPACE_FUCHSIA:                                             \
   case VK_STRUCTURE_TYPE_TENSOR_CAPTURE_DESCRIPTOR_DATA_INFO_ARM:                                \
   case VK_STRUCTURE_TYPE_TENSOR_COPY_ARM:                                                        \

@@ -199,7 +199,7 @@ static void StripUnwantedExtensions(rdcarray<rdcstr> &Extensions)
        ext == "VK_EXT_present_mode_fifo_latest_ready" || ext == "VK_EXT_surface_maintenance1" ||
        ext == "VK_EXT_swapchain_maintenance1" || ext == "VK_KHR_surface_maintenance1" ||
        ext == "VK_KHR_swapchain_maintenance1" || ext == "VK_EXT_hdr_metadata" ||
-       ext == "VK_KHR_get_display_properties2")
+       ext == "VK_KHR_get_display_properties2" || ext == "VK_EXT_present_timing")
       return true;
 
     // remove fullscreen exclusive extension
@@ -2260,9 +2260,11 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
         RemoveNextStruct(&createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR);
     present_exts |= RemoveNextStruct(
         &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR);
+    present_exts |=
+        RemoveNextStruct(&createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT);
     if(present_exts)
     {
-      RDCLOG("Removed VK_KHR_present_id/wait/latest_ready structs from vkCreateDevice pNext chain");
+      RDCLOG("Removed present-related structs from vkCreateDevice pNext chain");
     }
 
     VkPhysicalDeviceFeatures enabledFeatures = {0};
