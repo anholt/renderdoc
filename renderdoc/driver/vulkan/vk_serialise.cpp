@@ -830,6 +830,9 @@ SERIALISE_VK_HANDLES();
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_INLINE_UNIFORM_BLOCK_CREATE_INFO,                     \
                VkDescriptorPoolInlineUniformBlockCreateInfo)                                           \
                                                                                                        \
+  /* VK_EXT_layer_settings */                                                                          \
+  PNEXT_STRUCT(VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT, VkLayerSettingsCreateInfoEXT)         \
+                                                                                                       \
   /* VK_KHR_line_rasterization promoted from VK_EXT_line_rasterization */                              \
   PNEXT_STRUCT(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES,                          \
                VkPhysicalDeviceLineRasterizationFeatures)                                              \
@@ -2015,9 +2018,6 @@ SERIALISE_VK_HANDLES();
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT)            \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT)                               \
                                                                                                        \
-  /* VK_EXT_layer_settings */                                                                          \
-  PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT)                                  \
-                                                                                                       \
   /* VK_EXT_legacy_dithering */                                                                        \
   PNEXT_UNSUPPORTED(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_DITHERING_FEATURES_EXT)                   \
                                                                                                        \
@@ -2952,6 +2952,15 @@ void DoSerialise(SerialiserType &ser, VkLayerInstanceCreateInfo &el)
   RDCERR("Serialising VkLayerInstanceCreateInfo - this should always be a NULL optional element");
   RDCEraseEl(el);
   el.sType = VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO;
+}
+
+template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VkLayerSettingsCreateInfoEXT &el)
+{
+  RDCERR(
+      "Serialising VkLayerSettingsCreateInfoEXT - this should always be a NULL optional element");
+  RDCEraseEl(el);
+  el.sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
 }
 
 template <typename SerialiserType>

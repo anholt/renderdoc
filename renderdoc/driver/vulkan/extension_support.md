@@ -77,6 +77,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_EXT_image_view_min_lod`
 * `VK_EXT_index_type_uint8`
 * `VK_EXT_inline_uniform_block`
+* `VK_EXT_layer_settings`
 * `VK_EXT_line_rasterization`
 * `VK_EXT_load_store_op_none`
 * `VK_EXT_memory_budget`
@@ -327,7 +328,6 @@ The portability subset is only relevant on mac, which is not a supported platfor
 * `VK_EXT_external_memory_host`
 * `VK_EXT_external_memory_metal`
 * `VK_EXT_image_sliced_view_of_3d`
-* `VK_EXT_layer_settings`
 * `VK_EXT_legacy_dithering`
 * `VK_EXT_legacy_vertex_attributes`
 * `VK_EXT_map_memory_placed`

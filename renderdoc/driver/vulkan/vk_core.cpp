@@ -1295,6 +1295,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_EXT_INLINE_UNIFORM_BLOCK_SPEC_VERSION,
     },
     {
+        VK_EXT_LAYER_SETTINGS_EXTENSION_NAME,
+        VK_EXT_LAYER_SETTINGS_SPEC_VERSION,
+    },
+    {
         VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME,
         VK_EXT_LINE_RASTERIZATION_SPEC_VERSION,
     },

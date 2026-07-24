@@ -847,6 +847,8 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   COPY_STRUCT(VK_STRUCTURE_TYPE_SUBRESOURCE_HOST_MEMCPY_SIZE, VkSubresourceHostMemcpySize);          \
   COPY_STRUCT(VK_STRUCTURE_TYPE_IMAGE_TO_MEMORY_COPY, VkImageToMemoryCopy);                          \
   COPY_STRUCT(VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY, VkMemoryToImageCopy);                          \
+  COPY_STRUCT_CAPTURE_ONLY(VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,                         \
+                           VkLayerSettingsCreateInfoEXT);                                            \
   COPY_STRUCT_CAPTURE_ONLY(VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO,                            \
                            VkLayerInstanceCreateInfo);                                               \
   COPY_STRUCT_CAPTURE_ONLY(VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO, VkLayerDeviceCreateInfo);    \
@@ -1228,7 +1230,6 @@ static void AppendModifiedChainedStruct(byte *&tempMem, VkStruct *outputStruct,
   case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV:                                       \
   case VK_STRUCTURE_TYPE_LATENCY_SURFACE_CAPABILITIES_NV:                                        \
   case VK_STRUCTURE_TYPE_LATENCY_TIMINGS_FRAME_REPORT_NV:                                        \
-  case VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT:                                         \
   case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_TENSOR_ARM:                              \
   case VK_STRUCTURE_TYPE_MEMORY_GET_METAL_HANDLE_INFO_EXT:                                       \
   case VK_STRUCTURE_TYPE_MEMORY_GET_NATIVE_BUFFER_INFO_OHOS:                                     \

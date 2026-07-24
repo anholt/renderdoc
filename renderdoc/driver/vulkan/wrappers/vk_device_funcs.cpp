@@ -213,7 +213,7 @@ static void StripUnwantedExtensions(rdcarray<rdcstr> &Extensions)
     // this is debug only, nothing to capture, so nothing to replay
     if(ext == "VK_EXT_tooling_info" || ext == "VK_EXT_private_data" ||
        ext == "VK_EXT_validation_features" || ext == "VK_EXT_validation_cache" ||
-       ext == "VK_EXT_validation_flags")
+       ext == "VK_EXT_validation_flags" || ext == "VK_EXT_layer_settings")
       return true;
 
     // these are debug only and will be added (if supported) as optional
