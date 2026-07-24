@@ -3521,7 +3521,9 @@ void VulkanReplay::FetchMeshOut(uint32_t eventId, VulkanRenderState &state)
 
   if(state.dynamicRendering.active)
   {
-    numViews = RDCMAX(numViews, Log2Ceil(state.dynamicRendering.viewMask + 1));
+    numViews = state.dynamicRendering.viewMask == ~0U
+                   ? 32
+                   : RDCMAX(numViews, Log2Ceil(state.dynamicRendering.viewMask + 1));
   }
   else
   {
@@ -4467,7 +4469,9 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
 
   if(state.dynamicRendering.active)
   {
-    numViews = RDCMAX(numViews, Log2Ceil(state.dynamicRendering.viewMask + 1));
+    numViews = state.dynamicRendering.viewMask == ~0U
+                   ? 32
+                   : RDCMAX(numViews, Log2Ceil(state.dynamicRendering.viewMask + 1));
   }
   else
   {

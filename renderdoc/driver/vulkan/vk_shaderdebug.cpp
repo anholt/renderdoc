@@ -5396,14 +5396,17 @@ ShaderDebugTrace *VulkanReplay::DebugVertex(uint32_t eventId, uint32_t vertid, u
       new VulkanAPIWrapper(m_pDriver, c, ShaderStage::Vertex, eventId, shadRefl.refl->resourceId);
 
   // clamp the view index to the number of multiviews, just to be sure
-  size_t numViews;
+  uint32_t numViews = 1;
 
   if(state.dynamicRendering.active)
-    numViews = Log2Ceil(state.dynamicRendering.viewMask + 1);
+    numViews = state.dynamicRendering.viewMask == ~0U
+                   ? 32
+                   : RDCMAX(numViews, Log2Ceil(state.dynamicRendering.viewMask + 1));
   else
-    numViews = c.m_RenderPass[state.GetRenderPass()].subpasses[state.subpass].multiviews.size();
+    numViews =
+        (uint32_t)c.m_RenderPass[state.GetRenderPass()].subpasses[state.subpass].multiviews.size();
   if(numViews > 1)
-    view = RDCMIN((uint32_t)numViews - 1, view);
+    view = RDCMIN(numViews - 1, view);
   else
     view = 0;
 
