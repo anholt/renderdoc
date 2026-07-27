@@ -447,6 +447,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       "SPV_KHR_expect_assume",
       "SPV_KHR_float_controls",
       "SPV_KHR_fma",
+      "SPV_KHR_fragment_shading_rate",
       "SPV_KHR_maximal_reconvergence",
       "SPV_KHR_multiview",
       "SPV_KHR_no_integer_wrap_decoration",
@@ -629,6 +630,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       case Capability::ConstantDataKHR:
       case Capability::FMAKHR:
       case Capability::Shader64BitIndexingEXT:
+      case Capability::FragmentShadingRateKHR:
       {
         supported = true;
         break;
@@ -677,13 +679,6 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
 
       // SPV_KHR_fragment_shader_barycentric
       case Capability::FragmentBarycentricKHR:
-      {
-        supported = false;
-        break;
-      }
-
-      // SPV_KHR_fragment_shading_rate
-      case Capability::FragmentShadingRateKHR:
       {
         supported = false;
         break;

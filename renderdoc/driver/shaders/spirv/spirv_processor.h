@@ -378,6 +378,11 @@ struct DataType
     return type == Type::ScalarType && basicType.vector.scalar.width == 32 &&
            basicType.vector.scalar.type == Op::TypeInt && !basicType.vector.scalar.signedness;
   }
+  bool IsS32() const
+  {
+    return type == Type::ScalarType && basicType.vector.scalar.width == 32 &&
+           basicType.vector.scalar.type == Op::TypeInt && basicType.vector.scalar.signedness;
+  }
   bool IsOpaqueType() const
   {
     switch(type)

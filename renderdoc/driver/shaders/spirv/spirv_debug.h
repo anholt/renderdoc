@@ -183,7 +183,8 @@ struct ResultDataBase
   uint32_t helperBallot[4];
 
   uint32_t numSubgroups;    // may be packed oddly so we don't assume we can calculate
-  uint32_t padding[3];
+  uint32_t shadRate;
+  uint32_t padding[2];
 
   // LaneData lanes[N]
   // each LaneData is prefixed by the subgroup struct below if needed, and then the stage struct unconditionally

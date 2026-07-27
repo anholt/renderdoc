@@ -196,6 +196,8 @@ void cmdPushConstants(VkCommandBuffer cmd, VkPipelineLayout layout, const T &val
   cmdPushConstants(cmd, layout, VK_SHADER_STAGE_ALL, val);
 }
 
+void cmdSetViewport(VkCommandBuffer cmd, VkViewport viewport);
+
 struct ApplicationInfo : public VkApplicationInfo
 {
   ApplicationInfo() : VkApplicationInfo() { sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; }
@@ -1243,6 +1245,13 @@ struct ClearValue
     clear.color.float32[1] = g;
     clear.color.float32[2] = b;
     clear.color.float32[3] = a;
+  }
+  ClearValue(uint32_t r, uint32_t g, uint32_t b, uint32_t a)
+  {
+    clear.color.uint32[0] = r;
+    clear.color.uint32[1] = g;
+    clear.color.uint32[2] = b;
+    clear.color.uint32[3] = a;
   }
 
   ClearValue(float d, uint32_t s)
