@@ -365,6 +365,7 @@ EXTEND_ARRAY_CLASS_METHODS(StructuredBufferList)
 // or in qrenderdoc.i, depending on which one is appropriate
 TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, float, 2)
 TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, float, 4)
+TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, uint32_t, 2)
 TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, uint32_t, 3)
 TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, uint32_t, 4)
 TEMPLATE_FIXEDARRAY_INSTANTIATE(rdcfixedarray, uint64_t, 4)
