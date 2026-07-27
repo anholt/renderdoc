@@ -2611,17 +2611,18 @@ void VulkanCreationInfo::Image::Init(VulkanResourceManager *resourceMan, VulkanC
 
   creationFlags = TextureCategory::NoFlags;
 
-  if(pCreateInfo->usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+  VkImageUsageFlagBits2KHR usage = (VkImageUsageFlagBits2KHR)GetImageUsageFlags(pCreateInfo);
+
+  if(usage & VK_IMAGE_USAGE_SAMPLED_BIT)
     creationFlags |= TextureCategory::ShaderRead;
-  if(pCreateInfo->usage &
-     (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT))
+  if(usage & (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT))
     creationFlags |= TextureCategory::ColorTarget;
-  if(pCreateInfo->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+  if(usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
     creationFlags |= TextureCategory::DepthTarget;
-  if(pCreateInfo->usage & VK_IMAGE_USAGE_STORAGE_BIT)
+  if(usage & VK_IMAGE_USAGE_STORAGE_BIT)
     creationFlags |= TextureCategory::ShaderReadWrite;
 
-  cube = (pCreateInfo->flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) ? true : false;
+  cube = (GetImageCreateFlags(pCreateInfo) & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) ? true : false;
 
   address = 0;
 }

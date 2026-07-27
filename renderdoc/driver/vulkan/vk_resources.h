@@ -949,7 +949,7 @@ struct ImageInfo
     }
     aspects = FormatImageAspects(format);
 
-    if(ci.usage & VK_IMAGE_USAGE_STORAGE_BIT)
+    if(GetImageUsageFlags(&ci) & VK_IMAGE_USAGE_STORAGE_BIT)
     {
       storage = true;
     }

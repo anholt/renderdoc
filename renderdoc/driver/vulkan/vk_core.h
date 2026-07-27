@@ -1123,6 +1123,7 @@ private:
   void PatchImageViewUsage(VkImageViewUsageCreateInfo *usage, VkFormat imgFormat,
                            VkSampleCountFlagBits samples);
   void PatchImageCreateInfo(VkImageCreateInfo *pInfo, VkFormat *newViewFormats);
+  void PatchStencilUsageInfo(VkImageCreateInfo *pInfo);
 
   VkIndirectPatchData FetchIndirectData(VkIndirectPatchType type, VkCommandBuffer commandBuffer,
                                         VkBuffer dataBuffer, VkDeviceSize dataOffset, uint32_t count,

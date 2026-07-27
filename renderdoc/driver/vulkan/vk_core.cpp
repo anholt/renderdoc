@@ -1683,6 +1683,10 @@ static const VkExtensionProperties supportedExtensions[] = {
         VK_KHR_DYNAMIC_RENDERING_LOCAL_READ_SPEC_VERSION,
     },
     {
+        VK_KHR_EXTENDED_FLAGS_EXTENSION_NAME,
+        VK_KHR_EXTENDED_FLAGS_SPEC_VERSION,
+    },
+    {
         VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME,
         VK_KHR_EXTERNAL_FENCE_SPEC_VERSION,
     },

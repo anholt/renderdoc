@@ -76,6 +76,9 @@
 #define VkFormatFeatureFlagBits2 VkFormatFeatureFlagBits2_VkFlags64_typedef
 #define VkBufferUsageFlagBits2 VkBufferUsageFlagBits2_VkFlags64_typedef
 #define VkPipelineCreateFlagBits2 VkPipelineCreateFlagBits2_VkFlags64_typedef
+#define VkFormatFeatureFlagBits4KHR VkFormatFeatureFlagBits4KHR_VkFlags64_typedef
+#define VkImageUsageFlagBits2KHR VkImageUsageFlagBits2KHR_VkFlags64_typedef
+#define VkImageCreateFlagBits2KHR VkImageUsageFlagBits2KHR_VkFlags64_typedef
 
 #include "core/core.h"
 #include "core/resource_manager.h"
@@ -90,6 +93,9 @@
 #undef VkFormatFeatureFlagBits2
 #undef VkBufferUsageFlagBits2
 #undef VkPipelineCreateFlagBits2
+#undef VkFormatFeatureFlagBits4KHR
+#undef VkImageUsageFlagBits2KHR
+#undef VkImageCreateFlagBits2KHR
 
 #undef Bool
 #undef None
@@ -141,17 +147,17 @@ VkShaderStageFlags ShaderMaskFromIndex(size_t index);
 
 // Generic getter/setter helpers to handle optional 64 flag structs in the pNext chain
 template <typename ParentStruct>
-uint64_t GetBufferUsageFlags(const ParentStruct *info)
+VkBufferUsageFlags2 GetBufferUsageFlags(const ParentStruct *info)
 {
   const VkBufferUsageFlags2CreateInfo *usage2 = (const VkBufferUsageFlags2CreateInfo *)FindNextStruct(
       info, VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO);
   if(usage2)
     return usage2->usage;
-  return info->usage;
+  return (VkBufferUsageFlags2)info->usage;
 }
 
 template <typename ParentStruct>
-void SetBufferUsageFlags(ParentStruct *info, uint64_t usage)
+void SetBufferUsageFlags(ParentStruct *info, VkBufferUsageFlags2 usage)
 {
   VkBufferUsageFlags2CreateInfo *usage2 = (VkBufferUsageFlags2CreateInfo *)FindNextStruct(
       info, VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO);
@@ -161,6 +167,78 @@ void SetBufferUsageFlags(ParentStruct *info, uint64_t usage)
     return;
   }
   info->usage = (VkBufferUsageFlags)usage;
+}
+
+template <typename ParentStruct>
+VkImageUsageFlags2KHR GetImageUsageFlags(const ParentStruct *info)
+{
+  const VkImageUsageFlags2CreateInfoKHR *usage2 =
+      (const VkImageUsageFlags2CreateInfoKHR *)FindNextStruct(
+          info, VK_STRUCTURE_TYPE_IMAGE_USAGE_FLAGS_2_CREATE_INFO_KHR);
+  if(usage2)
+    return usage2->usage;
+  return (VkImageUsageFlags2KHR)info->usage;
+}
+
+template <typename ParentStruct>
+void SetImageUsageFlags(ParentStruct *info, VkImageUsageFlags2KHR usage)
+{
+  VkImageUsageFlags2CreateInfoKHR *usage2 = (VkImageUsageFlags2CreateInfoKHR *)FindNextStruct(
+      info, VK_STRUCTURE_TYPE_IMAGE_USAGE_FLAGS_2_CREATE_INFO_KHR);
+  if(usage2)
+  {
+    usage2->usage = usage;
+    return;
+  }
+  info->usage = (VkImageUsageFlags)usage;
+}
+
+template <typename ParentStruct>
+VkImageUsageFlags2KHR GetImageViewUsageFlags(const ParentStruct *info)
+{
+  const VkImageViewUsage2CreateInfoKHR *usage2 =
+      (const VkImageViewUsage2CreateInfoKHR *)FindNextStruct(
+          info, VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_2_CREATE_INFO_KHR);
+  if(usage2)
+    return usage2->usage;
+  return (VkImageUsageFlags2KHR)info->usage;
+}
+
+template <typename ParentStruct>
+void SetImageViewUsageFlags(ParentStruct *info, VkImageUsageFlags2KHR usage)
+{
+  VkImageViewUsage2CreateInfoKHR *usage2 = (VkImageViewUsage2CreateInfoKHR *)FindNextStruct(
+      info, VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_2_CREATE_INFO_KHR);
+  if(usage2)
+  {
+    usage2->usage = usage;
+    return;
+  }
+  info->usage = (VkImageUsageFlags)usage;
+}
+
+template <typename ParentStruct>
+VkImageCreateFlags2KHR GetImageCreateFlags(const ParentStruct *info)
+{
+  const VkImageCreateFlags2CreateInfoKHR *create2 =
+      (const VkImageCreateFlags2CreateInfoKHR *)FindNextStruct(
+          info, VK_STRUCTURE_TYPE_IMAGE_CREATE_FLAGS_2_CREATE_INFO_KHR);
+  if(create2)
+    return create2->flags;
+  return (VkImageCreateFlags2KHR)info->flags;
+}
+
+template <typename ParentStruct>
+void SetImageCreateFlags(ParentStruct *info, VkImageCreateFlags2KHR flags)
+{
+  VkImageCreateFlags2CreateInfoKHR *create2 = (VkImageCreateFlags2CreateInfoKHR *)FindNextStruct(
+      info, VK_STRUCTURE_TYPE_IMAGE_CREATE_FLAGS_2_CREATE_INFO_KHR);
+  if(create2)
+  {
+    create2->flags = flags;
+    return;
+  }
+  info->flags = (VkImageCreateFlags)flags;
 }
 
 template <typename ParentStruct>
@@ -1604,6 +1682,7 @@ DECLARE_REFLECTION_STRUCT(VkFenceGetFdInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkFilterCubicImageViewImageFormatPropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkFormatProperties2);
 DECLARE_REFLECTION_STRUCT(VkFormatProperties3);
+DECLARE_REFLECTION_STRUCT(VkFormatProperties4KHR);
 DECLARE_REFLECTION_STRUCT(VkFragmentShadingRateAttachmentInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkFramebufferAttachmentImageInfo);
 DECLARE_REFLECTION_STRUCT(VkFramebufferAttachmentsCreateInfo);
@@ -1619,6 +1698,7 @@ DECLARE_REFLECTION_STRUCT(VkImageCompressionControlEXT);
 DECLARE_REFLECTION_STRUCT(VkImageCompressionPropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkImageCopy2);
 DECLARE_REFLECTION_STRUCT(VkImageCreateInfo);
+DECLARE_REFLECTION_STRUCT(VkImageCreateFlags2CreateInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImageDrmFormatModifierExplicitCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkImageDrmFormatModifierListCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkImageDrmFormatModifierPropertiesEXT);
@@ -1631,15 +1711,18 @@ DECLARE_REFLECTION_STRUCT(VkImagePlaneMemoryRequirementsInfo);
 DECLARE_REFLECTION_STRUCT(VkImageResolve2);
 DECLARE_REFLECTION_STRUCT(VkImageSparseMemoryRequirementsInfo2);
 DECLARE_REFLECTION_STRUCT(VkImageStencilUsageCreateInfo);
+DECLARE_REFLECTION_STRUCT(VkImageStencilUsage2CreateInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImageSubresource2);
 DECLARE_REFLECTION_STRUCT(VkImageSwapchainCreateInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImageToMemoryCopy);
+DECLARE_REFLECTION_STRUCT(VkImageUsageFlags2CreateInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImageViewASTCDecodeModeEXT);
 DECLARE_REFLECTION_STRUCT(VkImageViewCaptureDescriptorDataInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkImageViewCreateInfo);
 DECLARE_REFLECTION_STRUCT(VkImageViewMinLodCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkImageViewSlicedCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkImageViewUsageCreateInfo);
+DECLARE_REFLECTION_STRUCT(VkImageViewUsage2CreateInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImportFenceFdInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImportMemoryFdInfoKHR);
 DECLARE_REFLECTION_STRUCT(VkImportSemaphoreFdInfoKHR);
@@ -1714,6 +1797,7 @@ DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExtendedDynamicState2FeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExtendedDynamicState3FeaturesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExtendedDynamicState3PropertiesEXT);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExtendedDynamicStateFeaturesEXT);
+DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExtendedFlagsFeaturesKHR);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExternalBufferInfo);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExternalFenceInfo);
 DECLARE_REFLECTION_STRUCT(VkPhysicalDeviceExternalImageFormatInfo);
@@ -2002,6 +2086,7 @@ DECLARE_REFLECTION_STRUCT(VkShaderCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkShaderModuleCreateInfo);
 DECLARE_REFLECTION_STRUCT(VkShaderModuleValidationCacheCreateInfoEXT);
 DECLARE_REFLECTION_STRUCT(VkSharedPresentSurfaceCapabilitiesKHR);
+DECLARE_REFLECTION_STRUCT(VkSharedPresentSurfaceCapabilities2KHR);
 DECLARE_REFLECTION_STRUCT(VkSparseImageFormatProperties2);
 DECLARE_REFLECTION_STRUCT(VkSparseImageMemoryRequirements2);
 DECLARE_REFLECTION_STRUCT(VkSubmitInfo);
@@ -2185,6 +2270,7 @@ DECLARE_DESERIALISE_TYPE(VkFenceGetFdInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkFilterCubicImageViewImageFormatPropertiesEXT);
 DECLARE_DESERIALISE_TYPE(VkFormatProperties2);
 DECLARE_DESERIALISE_TYPE(VkFormatProperties3);
+DECLARE_DESERIALISE_TYPE(VkFormatProperties4KHR);
 DECLARE_DESERIALISE_TYPE(VkFragmentShadingRateAttachmentInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkFramebufferAttachmentImageInfo);
 DECLARE_DESERIALISE_TYPE(VkFramebufferAttachmentsCreateInfo);
@@ -2199,6 +2285,7 @@ DECLARE_DESERIALISE_TYPE(VkImageCompressionControlEXT);
 DECLARE_DESERIALISE_TYPE(VkImageCompressionPropertiesEXT);
 DECLARE_DESERIALISE_TYPE(VkImageCopy2);
 DECLARE_DESERIALISE_TYPE(VkImageCreateInfo);
+DECLARE_DESERIALISE_TYPE(VkImageCreateFlags2CreateInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImageDrmFormatModifierExplicitCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkImageDrmFormatModifierListCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkImageDrmFormatModifierPropertiesEXT);
@@ -2211,15 +2298,18 @@ DECLARE_DESERIALISE_TYPE(VkImagePlaneMemoryRequirementsInfo);
 DECLARE_DESERIALISE_TYPE(VkImageResolve2);
 DECLARE_DESERIALISE_TYPE(VkImageSparseMemoryRequirementsInfo2);
 DECLARE_DESERIALISE_TYPE(VkImageStencilUsageCreateInfo);
+DECLARE_DESERIALISE_TYPE(VkImageStencilUsage2CreateInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImageSubresource2);
 DECLARE_DESERIALISE_TYPE(VkImageSwapchainCreateInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImageToMemoryCopy);
+DECLARE_DESERIALISE_TYPE(VkImageUsageFlags2CreateInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImageViewASTCDecodeModeEXT);
 DECLARE_DESERIALISE_TYPE(VkImageViewCaptureDescriptorDataInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkImageViewCreateInfo);
 DECLARE_DESERIALISE_TYPE(VkImageViewMinLodCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkImageViewSlicedCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkImageViewUsageCreateInfo);
+DECLARE_DESERIALISE_TYPE(VkImageViewUsage2CreateInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImportFenceFdInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImportMemoryFdInfoKHR);
 DECLARE_DESERIALISE_TYPE(VkImportSemaphoreFdInfoKHR);
@@ -2291,6 +2381,7 @@ DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExtendedDynamicState2FeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExtendedDynamicState3FeaturesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExtendedDynamicState3PropertiesEXT);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExtendedDynamicStateFeaturesEXT);
+DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExtendedFlagsFeaturesKHR);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExternalBufferInfo);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExternalFenceInfo);
 DECLARE_DESERIALISE_TYPE(VkPhysicalDeviceExternalImageFormatInfo);
@@ -2579,6 +2670,7 @@ DECLARE_DESERIALISE_TYPE(VkShaderCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkShaderModuleCreateInfo);
 DECLARE_DESERIALISE_TYPE(VkShaderModuleValidationCacheCreateInfoEXT);
 DECLARE_DESERIALISE_TYPE(VkSharedPresentSurfaceCapabilitiesKHR);
+DECLARE_DESERIALISE_TYPE(VkSharedPresentSurfaceCapabilities2KHR);
 DECLARE_DESERIALISE_TYPE(VkSparseImageFormatProperties2);
 DECLARE_DESERIALISE_TYPE(VkSparseImageMemoryRequirements2);
 DECLARE_DESERIALISE_TYPE(VkSubmitInfo);
@@ -2814,6 +2906,18 @@ enum VkPipelineCreateFlagBits2 : uint64_t
 {
 };
 
+enum VkFormatFeatureFlagBits4KHR : uint64_t
+{
+};
+
+enum VkImageUsageFlagBits2KHR : uint64_t
+{
+};
+
+enum VkImageCreateFlagBits2KHR : uint64_t
+{
+};
+
 // enums
 
 DECLARE_REFLECTION_ENUM(VkAccelerationStructureBuildTypeKHR);
@@ -2886,6 +2990,7 @@ DECLARE_REFLECTION_ENUM(VkFlagWithNoBits);
 DECLARE_REFLECTION_ENUM(VkFormat);
 DECLARE_REFLECTION_ENUM(VkFormatFeatureFlagBits);
 DECLARE_REFLECTION_ENUM(VkFormatFeatureFlagBits2);
+DECLARE_REFLECTION_ENUM(VkFormatFeatureFlagBits4KHR);
 DECLARE_REFLECTION_ENUM(VkFragmentShadingRateCombinerOpKHR);
 DECLARE_REFLECTION_ENUM(VkFramebufferCreateFlagBits);
 DECLARE_REFLECTION_ENUM(VkFrontFace);
@@ -2898,10 +3003,12 @@ DECLARE_REFLECTION_ENUM(VkImageAspectFlagBits);
 DECLARE_REFLECTION_ENUM(VkImageCompressionFixedRateFlagBitsEXT);
 DECLARE_REFLECTION_ENUM(VkImageCompressionFlagBitsEXT);
 DECLARE_REFLECTION_ENUM(VkImageCreateFlagBits);
+DECLARE_REFLECTION_ENUM(VkImageCreateFlagBits2KHR);
 DECLARE_REFLECTION_ENUM(VkImageLayout);
 DECLARE_REFLECTION_ENUM(VkImageTiling);
 DECLARE_REFLECTION_ENUM(VkImageType);
 DECLARE_REFLECTION_ENUM(VkImageUsageFlagBits);
+DECLARE_REFLECTION_ENUM(VkImageUsageFlagBits2KHR);
 DECLARE_REFLECTION_ENUM(VkImageViewCreateFlagBits);
 DECLARE_REFLECTION_ENUM(VkImageViewType);
 DECLARE_REFLECTION_ENUM(VkIndexType);

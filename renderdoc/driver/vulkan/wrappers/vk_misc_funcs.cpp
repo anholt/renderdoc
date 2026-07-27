@@ -884,31 +884,37 @@ VkResult WrappedVulkan::vkCreateSampler(VkDevice device, const VkSamplerCreateIn
 void WrappedVulkan::PatchAttachment(VkFramebufferAttachmentImageInfo *att, VkFormat imgFormat,
                                     VkSampleCountFlagBits samples)
 {
+  VkImageUsageFlags2KHR usage = GetImageUsageFlags(att);
+  VkImageCreateFlags2KHR flags = GetImageCreateFlags(att);
+
   // this matches the mutations we do to images, so see vkCreateImage
-  att->usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-  att->usage |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-  att->usage &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+  usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  usage |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  usage &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
   if(IsYUVFormat(imgFormat))
-    att->flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
   if(samples != VK_SAMPLE_COUNT_1_BIT)
   {
-    att->usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-    att->flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
     if(!IsDepthOrStencilFormat(imgFormat))
     {
       if(GetDebugManager() && GetShaderCache()->IsBuffer2MSSupported())
-        att->usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+        usage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
     else
     {
-      att->usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+      usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     }
   }
 
-  att->flags &= ~VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT;
+  flags &= ~VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT;
+
+  SetImageUsageFlags(att, usage);
+  SetImageCreateFlags(att, flags);
 }
 
 template <typename SerialiserType>
