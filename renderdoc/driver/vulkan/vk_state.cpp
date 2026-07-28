@@ -455,6 +455,31 @@ void VulkanRenderState::InvalidateHeapDescriptors()
   samplerHeap.heapRange = {0, 0};
 }
 
+void VulkanRenderState::PushConstsForLayout(WrappedVulkan *vk, VkCommandBuffer cmd,
+                                            ResourceId pipeLayoutId)
+{
+  if(UsingDescHeaps())
+  {
+    VkPushDataInfoEXT push = {VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT};
+    push.data = {pushconsts, pushConstSize};
+    push.offset = 0;
+    ObjDisp(cmd)->CmdPushDataEXT(Unwrap(cmd), &push);
+  }
+  else
+  {
+    VkPipelineLayout layout = vk->GetResourceManager()->GetHandle<VkPipelineLayout>(pipeLayoutId);
+
+    const rdcarray<VkPushConstantRange> &pushRanges =
+        vk->GetDebugManager()->GetPipelineLayoutInfo(pipeLayoutId).pushRanges;
+
+    // only set push constant ranges that the layout uses
+    for(size_t i = 0; i < pushRanges.size(); i++)
+      ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(layout), pushRanges[i].stageFlags,
+                                     pushRanges[i].offset, pushRanges[i].size,
+                                     pushconsts + pushRanges[i].offset);
+  }
+}
+
 void VulkanRenderState::BindPipeline(WrappedVulkan *vk, VkCommandBuffer cmd,
                                      PipelineBinding binding, bool subpass0)
 {
@@ -482,17 +507,7 @@ void VulkanRenderState::BindPipeline(WrappedVulkan *vk, VkCommandBuffer cmd,
       ObjDisp(cmd)->CmdBindPipeline(Unwrap(cmd), VK_PIPELINE_BIND_POINT_GRAPHICS, Unwrap(pipe));
 
       // don't have to handle separate vert/frag layouts as push constant ranges must be identical
-      ResourceId pipeLayoutId = pipeinfo.vertLayout;
-      VkPipelineLayout layout = vk->GetResourceManager()->GetHandle<VkPipelineLayout>(pipeLayoutId);
-
-      const rdcarray<VkPushConstantRange> &pushRanges =
-          vk->GetDebugManager()->GetPipelineLayoutInfo(pipeLayoutId).pushRanges;
-
-      // only set push constant ranges that the layout uses
-      for(size_t i = 0; i < pushRanges.size(); i++)
-        ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(layout), pushRanges[i].stageFlags,
-                                       pushRanges[i].offset, pushRanges[i].size,
-                                       pushconsts + pushRanges[i].offset);
+      PushConstsForLayout(vk, cmd, pipeinfo.vertLayout);
     }
     else if(binding == BindInitial)
     {
@@ -515,21 +530,13 @@ void VulkanRenderState::BindPipeline(WrappedVulkan *vk, VkCommandBuffer cmd,
   {
     if(compute.pipeline != ResourceId())
     {
-      ObjDisp(cmd)->CmdBindPipeline(
-          Unwrap(cmd), VK_PIPELINE_BIND_POINT_COMPUTE,
-          Unwrap(vk->GetResourceManager()->GetHandle<VkPipeline>(compute.pipeline)));
+      VkPipeline pipe = vk->GetResourceManager()->GetHandle<VkPipeline>(compute.pipeline);
+      const VulkanCreationInfo::Pipeline pipeinfo =
+          vk->GetDebugManager()->GetPipelineInfo(compute.pipeline);
 
-      ResourceId pipeLayoutId = vk->GetDebugManager()->GetPipelineInfo(compute.pipeline).compLayout;
-      VkPipelineLayout layout = vk->GetResourceManager()->GetHandle<VkPipelineLayout>(pipeLayoutId);
+      ObjDisp(cmd)->CmdBindPipeline(Unwrap(cmd), VK_PIPELINE_BIND_POINT_COMPUTE, Unwrap(pipe));
 
-      const rdcarray<VkPushConstantRange> &pushRanges =
-          vk->GetDebugManager()->GetPipelineLayoutInfo(pipeLayoutId).pushRanges;
-
-      // only set push constant ranges that the layout uses
-      for(size_t i = 0; i < pushRanges.size(); i++)
-        ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(layout), pushRanges[i].stageFlags,
-                                       pushRanges[i].offset, pushRanges[i].size,
-                                       pushconsts + pushRanges[i].offset);
+      PushConstsForLayout(vk, cmd, pipeinfo.compLayout);
 
       BindDescriptorSetsForPipeline(vk, cmd, compute, VK_PIPELINE_BIND_POINT_COMPUTE);
     }
@@ -545,21 +552,14 @@ void VulkanRenderState::BindPipeline(WrappedVulkan *vk, VkCommandBuffer cmd,
   {
     if(rt.pipeline != ResourceId())
     {
-      ObjDisp(cmd)->CmdBindPipeline(
-          Unwrap(cmd), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-          Unwrap(vk->GetResourceManager()->GetHandle<VkPipeline>(rt.pipeline)));
+      VkPipeline pipe = vk->GetResourceManager()->GetHandle<VkPipeline>(rt.pipeline);
+      const VulkanCreationInfo::Pipeline pipeinfo =
+          vk->GetDebugManager()->GetPipelineInfo(rt.pipeline);
 
-      ResourceId pipeLayoutId = vk->GetDebugManager()->GetPipelineInfo(rt.pipeline).compLayout;
-      VkPipelineLayout layout = vk->GetResourceManager()->GetHandle<VkPipelineLayout>(pipeLayoutId);
+      ObjDisp(cmd)->CmdBindPipeline(Unwrap(cmd), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                                    Unwrap(pipe));
 
-      const rdcarray<VkPushConstantRange> &pushRanges =
-          vk->GetDebugManager()->GetPipelineLayoutInfo(pipeLayoutId).pushRanges;
-
-      // only set push constant ranges that the layout uses
-      for(size_t i = 0; i < pushRanges.size(); i++)
-        ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(layout), pushRanges[i].stageFlags,
-                                       pushRanges[i].offset, pushRanges[i].size,
-                                       pushconsts + pushRanges[i].offset);
+      PushConstsForLayout(vk, cmd, pipeinfo.compLayout);
 
       BindDescriptorSetsForPipeline(vk, cmd, rt, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
     }
@@ -1536,18 +1536,9 @@ void VulkanRenderState::SetFramebuffer(WrappedVulkan *vk, ResourceId fb,
 
 void VulkanRenderState::BindLastPushConstants(WrappedVulkan *vk, VkCommandBuffer cmd)
 {
-  if(pushLayout != ResourceId())
+  // set push constants with the last layout used
+  if(UsingDescHeaps() || pushLayout != ResourceId())
   {
-    // set push constants with the last layout used
-    VkPipelineLayout layout = vk->GetResourceManager()->GetHandle<VkPipelineLayout>(pushLayout);
-
-    const rdcarray<VkPushConstantRange> &pushRanges =
-        vk->GetDebugManager()->GetPipelineLayoutInfo(pushLayout).pushRanges;
-
-    // only set push constant ranges that the layout uses
-    for(size_t i = 0; i < pushRanges.size(); i++)
-      ObjDisp(cmd)->CmdPushConstants(Unwrap(cmd), Unwrap(layout), pushRanges[i].stageFlags,
-                                     pushRanges[i].offset, pushRanges[i].size,
-                                     pushconsts + pushRanges[i].offset);
+    PushConstsForLayout(vk, cmd, pushLayout);
   }
 }
