@@ -113,6 +113,7 @@ struct VulkanRenderState
 
   void BindDescriptorBuffers(WrappedVulkan *vk, VkCommandBuffer cmd);
   void BindDescriptorHeaps(WrappedVulkan *vk, VkCommandBuffer cmd);
+  void PushConstsForLayout(WrappedVulkan *vk, VkCommandBuffer cmd, ResourceId pipeLayoutId);
   void InvalidateNonHeapDescriptors();
   void InvalidateHeapDescriptors();
   bool UsingDescHeaps() const
