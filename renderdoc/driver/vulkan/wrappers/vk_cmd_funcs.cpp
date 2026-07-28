@@ -10646,13 +10646,72 @@ template <typename SerialiserType>
 bool WrappedVulkan::Serialise_vkCmdPushDataEXT(SerialiserType &ser, VkCommandBuffer commandBuffer,
                                                const VkPushDataInfoEXT *pPushDataInfo)
 {
+  SERIALISE_ELEMENT(commandBuffer);
+  SERIALISE_ELEMENT_OPT(pPushDataInfo);
+
+  RDCASSERT(pPushDataInfo->pNext == NULL);
+
+  Serialise_DebugMessages(ser);
+
+  SERIALISE_CHECK_READ_ERRORS();
+  if(IsReplayingAndReading())
+  {
+    m_LastCmdBufferID = GetResID(commandBuffer);
+
+    if(IsActiveReplaying(m_State))
+    {
+      if(InRerecordRange(m_LastCmdBufferID))
+      {
+        commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+        ObjDisp(commandBuffer)->CmdPushDataEXT(Unwrap(commandBuffer), pPushDataInfo);
+        {
+          VulkanRenderState &renderstate = GetCmdRenderState();
+          RDCASSERT(pPushDataInfo->offset + pPushDataInfo->data.size <
+                    (uint32_t)ARRAY_COUNT(renderstate.pushconsts));
+
+          // XXX should push data be the same storage area as push consts?  This
+          // and vkCmdPushConstants invalidate each other, and whatever looks
+          // into it for displaying push consts probably wants to just see this
+          // data.
+          memcpy(renderstate.pushconsts + pPushDataInfo->offset, pPushDataInfo->data.address,
+                 pPushDataInfo->data.size);
+
+          // XXX how does this get zeroed out ever?
+          renderstate.pushConstSize =
+              RDCMAX(renderstate.pushConstSize,
+                     (uint32_t)(pPushDataInfo->offset + pPushDataInfo->data.size));
+          renderstate.pushLayout = ResourceId();
+
+          m_PushCommandBuffer = GetResourceManager()->GetUnreplacedID(m_LastCmdBufferID);
+        }
+      }
+    }
+    else
+    {
+      ObjDisp(commandBuffer)->CmdPushDataEXT(Unwrap(commandBuffer), pPushDataInfo);
+    }
+  }
   return true;
 }
 
 void WrappedVulkan::vkCmdPushDataEXT(VkCommandBuffer commandBuffer,
                                      const VkPushDataInfoEXT *pPushDataInfo)
 {
-  ObjDisp(commandBuffer)->CmdPushDataEXT(Unwrap(commandBuffer), pPushDataInfo);
+  SCOPED_DBG_SINK();
+
+  SERIALISE_TIME_CALL(ObjDisp(commandBuffer)->CmdPushDataEXT(Unwrap(commandBuffer), pPushDataInfo));
+
+  if(IsCaptureMode(m_State))
+  {
+    VkResourceRecord *record = GetRecord(commandBuffer);
+
+    CACHE_THREAD_SERIALISER();
+
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCmdPushDataEXT);
+    Serialise_vkCmdPushDataEXT(ser, commandBuffer, pPushDataInfo);
+
+    record->AddChunk(scope.Get(&record->cmdInfo->alloc));
+  }
 }
 
 INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkCreateCommandPool, VkDevice device,
