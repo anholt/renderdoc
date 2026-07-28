@@ -617,12 +617,6 @@ SDObject *WrappedVulkan::InsertEventNodes(BakedCmdBufferInfo &cmdBufInfo)
 
     for(VulkanEventNode::DeferredResourceUsage &def : n.deferredResourceUsage)
     {
-      if(def.snapshotVersionIdx >= m_MemorySnapshots.size())
-      {
-        RDCERR("Invalid deferred resource usage buffer reference");
-        continue;
-      }
-
       AddUsageForDescriptorBuffers(n, def);
     }
 
