@@ -641,12 +641,6 @@ void WrappedVulkan::InsertActionsAndRefreshIDs(BakedCmdBufferInfo &cmdBufInfo)
 
     for(VulkanActionTreeNode::DeferredResourceUsage &def : n.deferredResourceUsage)
     {
-      if(def.snapshotVersionIdx >= m_MemorySnapshots.size())
-      {
-        RDCERR("Invalid deferred resource usage buffer reference");
-        continue;
-      }
-
       AddUsageForDescriptorBuffers(n, cmdBufInfo.debugMessages, def);
     }
 
