@@ -597,6 +597,141 @@ void VulkanShaderCache::SetPipeCacheBlob(bytebuf &blob)
   m_ShaderCacheDirty = true;
 }
 
+// Storage for the createinfo chain for a pEmbeddedSampler that we have to
+// re-create from a VulkanCreationInfo::Sampler.
+struct EmbeddedSamplerCreateInfo
+{
+public:
+  VkSamplerCreateInfo sampInfo;
+  VkSamplerReductionModeCreateInfo reductionInfo;
+  VkSamplerCustomBorderColorCreateInfoEXT borderInfo;
+
+  void Init(const VulkanCreationInfo::Sampler &samplerProps)
+  {
+    sampInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    sampInfo.magFilter = samplerProps.magFilter;
+    sampInfo.minFilter = samplerProps.minFilter;
+    sampInfo.mipmapMode = samplerProps.mipmapMode;
+    sampInfo.addressModeU = samplerProps.address[0];
+    sampInfo.addressModeV = samplerProps.address[1];
+    sampInfo.addressModeW = samplerProps.address[2];
+    sampInfo.mipLodBias = samplerProps.mipLodBias;
+    sampInfo.anisotropyEnable = samplerProps.maxAnisotropy >= 1.0f;
+    sampInfo.maxAnisotropy = samplerProps.maxAnisotropy;
+    sampInfo.compareEnable = samplerProps.compareEnable;
+    sampInfo.compareOp = samplerProps.compareOp;
+    sampInfo.minLod = samplerProps.minLod;
+    sampInfo.maxLod = samplerProps.maxLod;
+    sampInfo.borderColor = samplerProps.borderColor;
+    sampInfo.unnormalizedCoordinates = samplerProps.unnormalizedCoordinates;
+    if (!samplerProps.seamless)
+      sampInfo.flags |= VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT;
+
+    reductionInfo = {VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO};
+    if(samplerProps.reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE)
+    {
+      reductionInfo.reductionMode = samplerProps.reductionMode;
+
+      reductionInfo.pNext = sampInfo.pNext;
+      sampInfo.pNext = &reductionInfo;
+    }
+
+    if(samplerProps.ycbcr != ResourceId())
+    {
+      RDCERR("XXX: Add support for YCBCR conversion");
+    }
+
+    borderInfo = {VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_CREATE_INFO_EXT};
+    if(samplerProps.customBorder)
+    {
+      borderInfo.customBorderColor = samplerProps.customBorderColor;
+      borderInfo.format = samplerProps.customBorderFormat;
+
+      borderInfo.pNext = sampInfo.pNext;
+      sampInfo.pNext = &borderInfo;
+    }
+    // XXX: Map VkSamplerCustomBorderColorIndexCreateInfoEXT.
+  }
+};
+
+// Translates DescriptorMapping[]s back to a
+// VkShaderDescriptorSetAndBindingMappingInfoEXT to chain into a new pipeline
+// stage or shader object creation.
+//
+// mappings/mappingInfo are expected to be references static memory, due to the
+// structure of MakeGraphicsPipelineInfo() returning a tree of pointers to static
+// data for its pNext chains.
+static void ChainDescriptorMappings(const VulkanCreationInfo::ShaderEntry &shad,
+                                    VulkanCreationInfo &creationInfo,
+                                    rdcarray<VkDescriptorSetAndBindingMappingEXT> &mappings,
+                                    rdcarray<EmbeddedSamplerCreateInfo> &embeddedSamplers,
+                                    VkShaderDescriptorSetAndBindingMappingInfoEXT &mappingInfo,
+                                    const void **pNext)
+{
+  if(shad.descriptorMappings.size() == 0)
+    return;
+
+  mappings.clear();
+
+  uint32_t numEmbedded = 0;
+  for(const VulkanCreationInfo::DescriptorMapping &mapping : shad.descriptorMappings)
+  {
+    if(mapping.embeddedSampler != ResourceId())
+      numEmbedded++;
+  }
+  embeddedSamplers.resize(numEmbedded);
+  numEmbedded = 0;
+
+  for(const VulkanCreationInfo::DescriptorMapping &mapping : shad.descriptorMappings)
+  {
+    VkDescriptorSetAndBindingMappingEXT m;
+    m.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+    m.pNext = NULL;
+    m.descriptorSet = mapping.descriptorSet;
+    m.firstBinding = mapping.firstBinding;
+    m.bindingCount = mapping.bindingCount;
+    m.resourceMask = mapping.resourceMask;
+    m.source = mapping.source;
+    m.sourceData = mapping.sourceData;
+
+    if(mapping.embeddedSampler != ResourceId())
+    {
+      const VkSamplerCreateInfo **pEmbeddedSampler = NULL;
+      switch(mapping.source)
+      {
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT:
+          pEmbeddedSampler = &m.sourceData.constantOffset.pEmbeddedSampler;
+          break;
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT:
+          pEmbeddedSampler = &m.sourceData.pushIndex.pEmbeddedSampler;
+          break;
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+          pEmbeddedSampler = &m.sourceData.indirectIndex.pEmbeddedSampler;
+          break;
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+          pEmbeddedSampler = &m.sourceData.indirectIndexArray.pEmbeddedSampler;
+          break;
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_SHADER_RECORD_INDEX_EXT:
+          pEmbeddedSampler = &m.sourceData.shaderRecordIndex.pEmbeddedSampler;
+          break;
+        default: break;
+      }
+      RDCASSERT(pEmbeddedSampler != NULL);
+      embeddedSamplers[numEmbedded].Init(creationInfo.m_Sampler[mapping.embeddedSampler]);
+      *pEmbeddedSampler = &embeddedSamplers[numEmbedded].sampInfo;
+      numEmbedded++;
+    }
+
+    mappings.push_back(m);
+  }
+
+  mappingInfo.sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT;
+  mappingInfo.pMappings = mappings.data();
+  mappingInfo.mappingCount = (uint32_t)mappings.size();
+  mappingInfo.pNext = *pNext;
+  *pNext = (VkBaseInStructure *)&mappingInfo;
+}
+
 void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &pipeCreateInfo,
                                                  ResourceId pipeline)
 {
@@ -634,6 +769,9 @@ void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &p
 
   static VkPipelineShaderStageRequiredSubgroupSizeCreateInfo reqSubgroupSize[NumShaderStages] = {};
   static VkPipelineRobustnessCreateInfo shaderRobustness[NumShaderStages] = {};
+  static rdcarray<VkDescriptorSetAndBindingMappingEXT> mappings[NumShaderStages] = {};
+  static rdcarray<EmbeddedSamplerCreateInfo> embeddedSamplers[NumShaderStages] = {};
+  static VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo[NumShaderStages] = {};
 
   // reserve space for spec constants
   for(uint32_t i = 0; i < NumShaderStages; i++)
@@ -691,6 +829,9 @@ void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &p
 
         entry += specInfo[i].mapEntryCount;
       }
+
+      ChainDescriptorMappings(pipeInfo.shaders[i], m_pDriver->m_CreationInfo, mappings[i],
+                              embeddedSamplers[i], mappingInfo[i], &stages[stageCount].pNext);
 
       stageCount++;
     }
@@ -1237,6 +1378,12 @@ void VulkanShaderCache::MakeComputePipelineInfo(VkComputePipelineCreateInfo &pip
     specInfo.pData = specdata.data();
   }
 
+  static rdcarray<VkDescriptorSetAndBindingMappingEXT> mappings = {};
+  static rdcarray<EmbeddedSamplerCreateInfo> embeddedSamplers = {};
+  static VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo = {};
+  ChainDescriptorMappings(pipeInfo.shaders[i], m_pDriver->m_CreationInfo, mappings,
+                          embeddedSamplers, mappingInfo, &stage.pNext);
+
   static VkPipelineShaderStageRequiredSubgroupSizeCreateInfo reqSubgroupSize = {
       VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO,
   };
@@ -1371,6 +1518,12 @@ void VulkanShaderCache::MakeShaderObjectInfo(VkShaderCreateInfoEXT &shadCreateIn
     specInfo.dataSize = specdata.size() * sizeof(uint64_t);
     specInfo.pData = specdata.data();
   }
+
+  static rdcarray<VkDescriptorSetAndBindingMappingEXT> mappings = {};
+  static rdcarray<EmbeddedSamplerCreateInfo> embeddedSamplers = {};
+  static VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo = {};
+  ChainDescriptorMappings(shadInfo.shad, m_pDriver->m_CreationInfo, mappings, embeddedSamplers,
+                          mappingInfo, &ret.pNext);
 
   static VkCustomResolveCreateInfoEXT customResCreate = {
       VK_STRUCTURE_TYPE_CUSTOM_RESOLVE_CREATE_INFO_EXT,
