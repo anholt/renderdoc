@@ -1362,6 +1362,32 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
       }
     }
 
+    if(flags & VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT)
+    {
+      const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo =
+          (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+              &pCreateInfo->pStages[i],
+              VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+      // XXX: need this for shader objects, too?
+      if(mappingInfo)
+      {
+        for(uint32_t j = 0; j < mappingInfo->mappingCount; j++)
+        {
+          const VkDescriptorSetAndBindingMappingEXT *vkMap = &mappingInfo->pMappings[j];
+          DescriptorMapping map;
+
+          map.descriptorSet = vkMap->descriptorSet;
+          map.firstBinding = vkMap->firstBinding;
+          map.bindingCount = vkMap->bindingCount;
+          map.resourceMask = vkMap->resourceMask;
+          map.source = vkMap->source;
+          map.sourceData = vkMap->sourceData;
+
+          shad.descriptorMappings.push_back(map);
+        }
+      }
+    }
+
     ShaderModuleReflection &reflData = info.m_ShaderModule[shadid].m_Reflections[key];
 
     reflData.Init(resourceMan, info, shadid, info.m_ShaderModule[shadid].spirv, shad.entryPoint,
