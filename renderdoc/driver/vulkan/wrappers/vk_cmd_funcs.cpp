@@ -327,34 +327,40 @@ void MarkReferencesForWrites(VkResourceRecord *record, const VkWriteDescriptorSe
   }
 }
 
-void WrappedVulkan::VersionDescriptorBuffers(VkCommandBuffer cmd)
+// Sets up snapshot of a set of GPU device address ranges representing the
+// memory contents as of a draw call, for being able to decode the descriptor
+// buffer / descriptor heap references later on.
+//
+// Note that the snapshot may take place once the render pass is complete (since
+// we can't transfer while inside the render pass).  This means that it may not
+// actually match the draw's state, if the pass performed writes to the buffers
+// involved.
+//
+void WrappedVulkan::VersionMemorySnapshots(VkCommandBuffer cmd,
+                                           const rdcarray<VkDeviceAddressRangeKHR> &ranges,
+                                           MemorySnapshot &snapshot)
 {
   VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
   uint32_t &version = m_BakedCmdBufferInfo[m_LastCmdBufferID].snapshotVersionIdx;
-  rdcarray<uint64_t> &offsets = m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufOffsets;
 
-  if(renderstate.descBufs.empty())
+  if(ranges.empty())
+  {
+    snapshot.bufferIdx = ~0u;
+    snapshot.ranges.clear();
     return;
+  }
 
   uint64_t neededBytes = 0;
-
-  offsets.clear();
-  for(uint32_t i = 0; i < renderstate.descBufs.size(); i++)
+  for(const VkDeviceAddressRangeKHR &range : ranges)
   {
-    offsets.push_back(neededBytes);
-
-    ResourceId id;
-    uint64_t offs;
-    GetResIDFromAddr(renderstate.descBufs[i].address, id, offs);
-
-    neededBytes += m_CreationInfo.m_Buffer[id].size - offs;
+    neededBytes += range.size;
   }
 
   uint32_t nextUnusedVersion = (version == ~0U ? 0 : version + 1);
   version = ~0U;
-  for(uint32_t ver = nextUnusedVersion; ver < m_MemorySnapshots.size(); ver++)
+  for(uint32_t ver = nextUnusedVersion; ver < m_MemorySnapshotBuffers.size(); ver++)
   {
-    if(m_MemorySnapshots[ver].TotalSize() >= neededBytes)
+    if(m_MemorySnapshotBuffers[ver].TotalSize() >= neededBytes)
     {
       // use this version and copy into it
       version = ver;
@@ -364,36 +370,62 @@ void WrappedVulkan::VersionDescriptorBuffers(VkCommandBuffer cmd)
 
   if(version == ~0U)
   {
-    version = (uint32_t)m_MemorySnapshots.size();
-    m_MemorySnapshots.push_back(GPUBuffer());
-    m_MemorySnapshots.back().Create(this, m_Device, neededBytes, 1, GPUBuffer::eGPUBufferReadback);
+    version = (uint32_t)m_MemorySnapshotBuffers.size();
+    m_MemorySnapshotBuffers.push_back(GPUBuffer());
+    m_MemorySnapshotBuffers.back().Create(this, m_Device, neededBytes, 1,
+                                          GPUBuffer::eGPUBufferReadback);
+  }
+  snapshot.bufferIdx = version;
+  snapshot.ranges.clear();
+
+  VkDeviceSize nextOffset = 0;
+  for(const VkDeviceAddressRangeKHR &range : ranges)
+  {
+    snapshot.ranges.push_back(MemorySnapshotRange{range, nextOffset});
+    nextOffset += range.size;
   }
 
-  rdcarray<rdcpair<VkDeviceAddress, uint64_t>> copyOffsets;
-
-  for(uint32_t i = 0; i < renderstate.descBufs.size(); i++)
-    copyOffsets.push_back({renderstate.descBufs[i].address, offsets[i]});
-
   if(!renderstate.ActiveRenderPass())
-    CopyVersionedRanges(cmd, m_MemorySnapshots[version].UnwrappedBuffer(), copyOffsets);
+    CopyVersionedRanges(cmd, snapshot);
   else
-    m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.push_back(
-        {m_MemorySnapshots[version].UnwrappedBuffer(), copyOffsets});
+    m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.push_back(snapshot);
 }
 
-void WrappedVulkan::CopyVersionedRanges(VkCommandBuffer cmdBuf, VkBuffer unwrappedDstBuf,
-                                        const rdcarray<rdcpair<VkDeviceAddress, uint64_t>> &copyOffsets)
+void WrappedVulkan::VersionDescriptorBuffers(VkCommandBuffer cmd)
 {
-  for(uint32_t i = 0; i < copyOffsets.size(); i++)
+  VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
+  if(renderstate.descBufs.empty())
+    return;
+
+  rdcarray<VkDeviceAddressRangeKHR> ranges;
+  for(uint32_t i = 0; i < renderstate.descBufs.size(); i++)
   {
     ResourceId id;
     uint64_t offs;
-    GetResIDFromAddr(copyOffsets[i].first, id, offs);
+    GetResIDFromAddr(renderstate.descBufs[i].address, id, offs);
+    VkDeviceAddressRangeKHR range = {renderstate.descBufs[i].address,
+                                     m_CreationInfo.m_Buffer[id].size - offs};
+    ranges.push_back(range);
+  }
+
+  VersionMemorySnapshots(cmd, ranges, m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastHeapSnapshot);
+}
+
+void WrappedVulkan::CopyVersionedRanges(VkCommandBuffer cmdBuf, MemorySnapshot &snapshot)
+{
+  VkBuffer unwrappedDstBuf = m_MemorySnapshotBuffers[snapshot.bufferIdx].UnwrappedBuffer();
+
+  for(MemorySnapshotRange &range : snapshot.ranges)
+  {
+    ResourceId id;
+    uint64_t offs;
+    GetResIDFromAddr(range.range.address, id, offs);
 
     const VkBufferCopy region = {
         offs,
-        copyOffsets[i].second,
-        m_CreationInfo.m_Buffer[id].size - offs,
+        range.offset,
+        range.range.size,
     };
     ObjDisp(cmdBuf)->CmdCopyBuffer(Unwrap(cmdBuf),
                                    Unwrap(GetResourceManager()->GetHandle<VkBuffer>(id)),
@@ -2636,10 +2668,9 @@ bool WrappedVulkan::Serialise_vkCmdEndRenderPass(SerialiserType &ser, VkCommandB
           m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies)
         ExecuteIndirectReadback(commandBuffer, indirectcopy);
 
-      // and deferred descriptor buffer versions here
-      for(const BakedCmdBufferInfo::DeferredDescBufCopy &descVersion :
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
-        CopyVersionedRanges(commandBuffer, descVersion.unwrappedDstBuffer, descVersion.copyOffsets);
+      // and deferred descriptor buffer/heap versions here
+      for(MemorySnapshot &snapshot : m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
+        CopyVersionedRanges(commandBuffer, snapshot);
 
       m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies.clear();
       m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.clear();
@@ -3306,10 +3337,9 @@ bool WrappedVulkan::Serialise_vkCmdEndRenderPass2(SerialiserType &ser, VkCommand
           m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies)
         ExecuteIndirectReadback(commandBuffer, indirectcopy);
 
-      // and deferred descriptor buffer versions here
-      for(const BakedCmdBufferInfo::DeferredDescBufCopy &descVersion :
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
-        CopyVersionedRanges(commandBuffer, descVersion.unwrappedDstBuffer, descVersion.copyOffsets);
+      // and deferred descriptor buffer/heap versions here
+      for(MemorySnapshot &snapshot : m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
+        CopyVersionedRanges(commandBuffer, snapshot);
 
       m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies.clear();
       m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.clear();
@@ -8181,10 +8211,9 @@ bool WrappedVulkan::Serialise_vkCmdEndRendering(SerialiserType &ser, VkCommandBu
           m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies)
         ExecuteIndirectReadback(commandBuffer, indirectcopy);
 
-      // and deferred descriptor buffer versions here
-      for(const BakedCmdBufferInfo::DeferredDescBufCopy &descVersion :
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
-        CopyVersionedRanges(commandBuffer, descVersion.unwrappedDstBuffer, descVersion.copyOffsets);
+      // and deferred descriptor buffer/heap versions here
+      for(MemorySnapshot &snapshot : m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
+        CopyVersionedRanges(commandBuffer, snapshot);
 
       m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies.clear();
       m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.clear();
@@ -8466,10 +8495,9 @@ bool WrappedVulkan::Serialise_vkCmdEndRendering2EXT(SerialiserType &ser,
           m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies)
         ExecuteIndirectReadback(commandBuffer, indirectcopy);
 
-      // and deferred descriptor buffer versions here
-      for(const BakedCmdBufferInfo::DeferredDescBufCopy &descVersion :
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
-        CopyVersionedRanges(commandBuffer, descVersion.unwrappedDstBuffer, descVersion.copyOffsets);
+      // and deferred descriptor buffer/heap versions here
+      for(MemorySnapshot &snapshot : m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies)
+        CopyVersionedRanges(commandBuffer, snapshot);
 
       m_BakedCmdBufferInfo[m_LastCmdBufferID].indirectCopies.clear();
       m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufDeferredCopies.clear();
