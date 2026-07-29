@@ -3017,9 +3017,9 @@ VkResult WrappedVulkan::vkCreateImage(VkDevice device, const VkImageCreateInfo *
       VkResourceRecord *record = GetResourceManager()->AddResourceRecord(*pImage);
       record->AddChunk(chunk);
 
-      // can't differentiate whether this image will be used with descriptor buffers, must force
-      // reference all images
-      if(DescriptorBuffers())
+      // can't differentiate whether this image will be used with descriptor buffers / heaps, must
+      // force reference all images
+      if(DescriptorBuffers() || DescriptorHeap())
         AddForcedReference(record);
 
       record->resInfo = new ResourceInfo();
