@@ -240,6 +240,19 @@ struct VulkanCreationInfo
                 const rdcspv::Reflector &spv);
   };
 
+  // Record of VK_EXT_descriptor_heap's
+  // VkShaderDescriptorSetAndBindingMappingInfoEXT for the ShaderEntry
+  struct DescriptorMapping
+  {
+    uint32_t descriptorSet;
+    uint32_t firstBinding;
+    uint32_t bindingCount;
+    VkSpirvResourceTypeFlagsEXT resourceMask;
+    VkDescriptorMappingSourceEXT source;
+    VkDescriptorMappingSourceDataEXT sourceData;
+    ResourceId embeddedSampler;
+  };
+
   struct ShaderEntry
   {
     ResourceId module;
@@ -251,6 +264,7 @@ struct VulkanCreationInfo
     VkPipelineShaderStageCreateFlags flags;
 
     rdcarray<SpecConstant> specialization;
+    rdcarray<DescriptorMapping> descriptorMappings;
 
     // VkPipelineShaderStageRequiredSubgroupSizeCreateInfo
     uint32_t requiredSubgroupSize = 0;
@@ -266,6 +280,9 @@ struct VulkanCreationInfo
              uniformBufferRobustness != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DEVICE_DEFAULT ||
              imageRobustness != VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_DEVICE_DEFAULT;
     }
+
+    void InitDescriptorMappings(VulkanResourceManager *resourceMan, VulkanCreationInfo &info,
+                                const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo);
   };
 
   struct Pipeline

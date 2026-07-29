@@ -1101,6 +1101,56 @@ static void ProcessStaticDescriptorAccess(VulkanResourceManager *resourceMan,
   }
 }
 
+void VulkanCreationInfo::ShaderEntry::InitDescriptorMappings(
+    VulkanResourceManager *resourceMan, VulkanCreationInfo &info,
+    const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo)
+{
+  for(uint32_t j = 0; j < mappingInfo->mappingCount; j++)
+  {
+    const VkDescriptorSetAndBindingMappingEXT *vkMap = &mappingInfo->pMappings[j];
+    VulkanCreationInfo::DescriptorMapping map;
+
+    map.descriptorSet = vkMap->descriptorSet;
+    map.firstBinding = vkMap->firstBinding;
+    map.bindingCount = vkMap->bindingCount;
+    map.resourceMask = vkMap->resourceMask;
+    map.source = vkMap->source;
+    map.sourceData = vkMap->sourceData;
+
+    // Turn the embedded sampler creation info into data stored on a resource in
+    // VulkanCreationInfo.  Leave it NULL in sourceData so we don't have a
+    // dangling pointer.
+    const VkSamplerCreateInfo **pEmbeddedSampler = NULL;
+    switch(vkMap->source)
+    {
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT:
+        pEmbeddedSampler = &map.sourceData.constantOffset.pEmbeddedSampler;
+        break;
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT:
+        pEmbeddedSampler = &map.sourceData.pushIndex.pEmbeddedSampler;
+        break;
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+        pEmbeddedSampler = &map.sourceData.indirectIndex.pEmbeddedSampler;
+        break;
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+        pEmbeddedSampler = &map.sourceData.indirectIndexArray.pEmbeddedSampler;
+        break;
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_SHADER_RECORD_INDEX_EXT:
+        pEmbeddedSampler = &map.sourceData.shaderRecordIndex.pEmbeddedSampler;
+        break;
+      default: break;
+    }
+    if(pEmbeddedSampler)
+    {
+      map.embeddedSampler = ResourceIDGen::GetNewUniqueID();
+      info.m_Sampler[map.embeddedSampler].Init(resourceMan, info, *pEmbeddedSampler);
+      *pEmbeddedSampler = NULL;
+    }
+
+    descriptorMappings.push_back(map);
+  }
+}
+
 void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
                                             VulkanCreationInfo &info, ResourceId id,
                                             const VkShaderCreateInfoEXT *pCreateInfo)
@@ -1163,6 +1213,15 @@ void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
       virtualSpecialisationByteSize =
           RDCMAX(virtualSpecialisationByteSize, uint32_t((spec.specID + 1) * sizeof(uint64_t)));
     }
+  }
+
+  if(flags & VK_SHADER_CREATE_DESCRIPTOR_HEAP_BIT_EXT)
+  {
+    const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo =
+        (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+            pCreateInfo, VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+    if(mappingInfo)
+      shad.InitDescriptorMappings(resourceMan, info, mappingInfo);
   }
 
   const VkCustomResolveCreateInfoEXT *customResInfo =
@@ -1360,6 +1419,16 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
         virtualSpecialisationByteSize =
             RDCMAX(virtualSpecialisationByteSize, uint32_t((spec.specID + 1) * sizeof(uint64_t)));
       }
+    }
+
+    if(flags & VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT)
+    {
+      const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo =
+          (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+              &pCreateInfo->pStages[i],
+              VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+      if(mappingInfo)
+        shad.InitDescriptorMappings(resourceMan, info, mappingInfo);
     }
 
     ShaderModuleReflection &reflData = info.m_ShaderModule[shadid].m_Reflections[key];
@@ -2049,6 +2118,16 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan, Vulk
 
     shad.refl = reflData.refl;
     shad.patchData = &reflData.patchData;
+
+    if(flags & VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT)
+    {
+      const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo =
+          (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+              &pCreateInfo->stage,
+              VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+      if(mappingInfo)
+        shad.InitDescriptorMappings(resourceMan, info, mappingInfo);
+    }
   }
 
   topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
