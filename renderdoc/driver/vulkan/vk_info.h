@@ -240,6 +240,18 @@ struct VulkanCreationInfo
                 const rdcspv::Reflector &spv);
   };
 
+  // Record of VK_EXT_descriptor_heap's
+  // VkShaderDescriptorSetAndBindingMappingInfoEXT for the ShaderEntry
+  struct DescriptorMapping
+  {
+    uint32_t descriptorSet;
+    uint32_t firstBinding;
+    uint32_t bindingCount;
+    VkSpirvResourceTypeFlagsEXT resourceMask;
+    VkDescriptorMappingSourceEXT source;
+    VkDescriptorMappingSourceDataEXT sourceData;
+  };
+
   struct ShaderEntry
   {
     ResourceId module;
@@ -251,6 +263,7 @@ struct VulkanCreationInfo
     VkPipelineShaderStageCreateFlags flags;
 
     rdcarray<SpecConstant> specialization;
+    rdcarray<DescriptorMapping> descriptorMappings;
 
     // VkPipelineShaderStageRequiredSubgroupSizeCreateInfo
     uint32_t requiredSubgroupSize = 0;
