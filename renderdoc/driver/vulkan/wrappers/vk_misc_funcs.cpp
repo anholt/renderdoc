@@ -431,9 +431,9 @@ void WrappedVulkan::vkDestroyImage(VkDevice device, VkImage obj, const VkAllocat
   if(obj == VK_NULL_HANDLE)
     return;
 
-  // with descriptor buffers, extend the lifespan of images to ensure descriptors don't falsely
-  // alias
-  if(DescriptorBuffers())
+  // with descriptor buffers/heaps, extend the lifespan of images to ensure descriptors don't
+  // falsely alias
+  if(DescriptorBuffers() || DescriptorHeap())
   {
     SCOPED_READLOCK(m_CapTransitionLock);
     SCOPED_LOCK(m_DeferredDestructLock);

@@ -446,7 +446,7 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        if(DescriptorBuffers() | DescriptorHeap())
+        if(DescriptorBuffers() || DescriptorHeap())
         {
           bufInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         }
@@ -3039,9 +3039,9 @@ VkResult WrappedVulkan::vkCreateImage(VkDevice device, const VkImageCreateInfo *
       VkResourceRecord *record = GetResourceManager()->AddResourceRecord(*pImage);
       record->AddChunk(chunk);
 
-      // can't differentiate whether this image will be used with descriptor buffers, must force
-      // reference all images
-      if(DescriptorBuffers())
+      // can't differentiate whether this image will be used with descriptor buffers / heaps, must
+      // force reference all images
+      if(DescriptorBuffers() || DescriptorHeap())
         AddForcedReference(record);
 
       record->resInfo = new ResourceInfo();
