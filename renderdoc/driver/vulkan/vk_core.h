@@ -387,6 +387,7 @@ private:
   }
   void AddResourceCurChunk(ResourceDescription &descr);
   void AddResourceCurChunk(ResourceId id);
+  void AddEmbeddedSamplerResources(ResourceId id, const VulkanCreationInfo::ShaderEntry &shad);
 
   // util function to handle fetching the right eventId, calling any
   // aliases then calling PreDraw/PreDispatch.
