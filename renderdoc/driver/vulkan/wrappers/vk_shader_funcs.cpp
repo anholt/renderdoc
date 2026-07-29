@@ -508,6 +508,7 @@ bool WrappedVulkan::Serialise_vkCreateShadersEXT(SerialiserType &ser, VkDevice d
 
         m_CreationInfo.m_ShaderObject[live].Init(GetResourceManager(), m_CreationInfo, live,
                                                  &CreateInfo);
+        AddEmbeddedSamplerResources(live, m_CreationInfo.m_ShaderObject[live].shad);
       }
     }
 
@@ -690,6 +691,21 @@ VkShaderModule WrappedVulkan::CreateFakeInlineShaderModule(ResourceId id, VkDevi
   m_CreationInfo.m_ShaderModule[id].Init(GetResourceManager(), m_CreationInfo, pCreateInfo);
 
   return module;
+}
+
+// Registers our pEmbeddedSampler resources at replay time.
+void WrappedVulkan::AddEmbeddedSamplerResources(ResourceId id,
+                                                const VulkanCreationInfo::ShaderEntry &shad)
+{
+  for(auto &mapping : shad.descriptorMappings)
+  {
+    if(mapping.embeddedSampler != ResourceId())
+    {
+      AddResource(mapping.embeddedSampler, ResourceType::Sampler,
+                  "Descriptor Heap Embedded Sampler");
+      DerivedResource(id, mapping.embeddedSampler);
+    }
+  }
 }
 
 template <typename SerialiserType>
@@ -883,6 +899,9 @@ bool WrappedVulkan::Serialise_vkCreateGraphicsPipelines(
       if(OrigCreateInfo.pStages[i].module != VK_NULL_HANDLE)
         DerivedResource(OrigCreateInfo.pStages[i].module, Pipeline);
     }
+
+    for(VulkanCreationInfo::ShaderEntry &shad : pipeInfo.shaders)
+      AddEmbeddedSamplerResources(live, shad);
 
     rdcarray<Threading::JobSystem::Job *> parents;
 
@@ -1222,6 +1241,8 @@ bool WrappedVulkan::Serialise_vkCreateComputePipelines(SerialiserType &ser, VkDe
     DerivedResource(OrigCreateInfo.layout, Pipeline);
     if(OrigCreateInfo.stage.module != VK_NULL_HANDLE)
       DerivedResource(OrigCreateInfo.stage.module, Pipeline);
+    AddEmbeddedSamplerResources(
+        live, m_CreationInfo.m_Pipeline[live].shaders[(size_t)ShaderStage::Compute]);
   }
 
   return true;
@@ -1436,6 +1457,9 @@ bool WrappedVulkan::Serialise_vkCreateRayTracingPipelinesKHR(
     {
       if(OrigCreateInfo.pStages[i].module != VK_NULL_HANDLE)
         DerivedResource(OrigCreateInfo.pStages[i].module, Pipeline);
+
+      AddEmbeddedSamplerResources(live,
+                                  pipeInfo.shaders[StageIndex(OrigCreateInfo.pStages[i].stage)]);
     }
 
     rdcarray<Threading::JobSystem::Job *> parents;
