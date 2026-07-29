@@ -6369,7 +6369,7 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
 
     VulkanEventNode::DeferredResourceUsage &def = eventNode.deferredResourceUsage.back();
 
-    def.snapshotVersionIdx = m_BakedCmdBufferInfo[m_LastCmdBufferID].snapshotVersionIdx;
+    def.heapSnapshot = m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastHeapSnapshot;
     def.pipeline = pipeState.shaderObject ? ResourceId() : pipeState.pipeline;
     if(pipeState.shaderObject)
       memcpy(def.shaderObjects, state.shaderObjects, sizeof(state.shaderObjects));
@@ -6389,9 +6389,6 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
       // gaps in descriptor sets are possible
       if(desc.descBufferIdx == ~0U)
         continue;
-
-      desc.descBufferOffset +=
-          m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufOffsets[desc.descBufferIdx];
     }
 
     if(!usesPush)
@@ -6402,9 +6399,9 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
 }
 
 void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
-                                                 const VulkanEventNode::DeferredResourceUsage &def)
+                                                 VulkanEventNode::DeferredResourceUsage &def)
 {
-  if(def.snapshotVersionIdx >= m_MemorySnapshots.size())
+  if(!def.heapSnapshot.ranges.size())
   {
     RDCERR("Invalid deferred resource usage buffer reference");
     return;
@@ -6416,9 +6413,9 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
 
   rdcarray<int> shaderStages = ShaderStagesForAction(action.flags);
 
-  GPUBuffer &buf = m_MemorySnapshots[def.snapshotVersionIdx];
+  MemorySnapshot &heapSnapshot = def.heapSnapshot;
 
-  byte *descriptorBytes = (byte *)buf.Map();
+  heapSnapshot.map = (byte *)m_MemorySnapshotBuffers[def.heapSnapshot.bufferIdx].Map();
 
   for(int shad : shaderStages)
   {
@@ -6441,7 +6438,7 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
         continue;
 
       AddUsageForDescriptorBufferBind(
-          eventNode, def, descriptorBytes, DescriptorDataSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER),
+          eventNode, def, DescriptorDataSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER),
           DescriptorType::ConstantBuffer, constantBlock.fixedBindSetOrSpace,
           constantBlock.fixedBindNumber, ResourceUsage(uint32_t(ResourceUsage::VS_Constants) + shad));
     }
@@ -6449,7 +6446,7 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
     for(const ShaderResource &res : sh.refl->readOnlyResources)
     {
       AddUsageForDescriptorBufferBind(
-          eventNode, def, descriptorBytes,
+          eventNode, def,
           DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, res.isInputAttachment)),
           res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
           ResourceUsage(uint32_t(ResourceUsage::VS_Resource) + shad));
@@ -6458,25 +6455,25 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
     for(const ShaderResource &res : sh.refl->readWriteResources)
     {
       AddUsageForDescriptorBufferBind(
-          eventNode, def, descriptorBytes,
-          DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, false)), res.descriptorType,
-          res.fixedBindSetOrSpace, res.fixedBindNumber,
+          eventNode, def, DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, false)),
+          res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
           ResourceUsage(uint32_t(ResourceUsage::VS_RWResource) + shad));
     }
   }
 
-  buf.Unmap();
+  m_MemorySnapshotBuffers[def.heapSnapshot.bufferIdx].Unmap();
 }
 
 void WrappedVulkan::AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
-                                                    const VulkanEventNode::DeferredResourceUsage &def,
-                                                    byte *descriptorBytes, size_t descriptorSize,
-                                                    DescriptorType type, uint32_t bindset,
-                                                    uint32_t bind, ResourceUsage usage)
+                                                    VulkanEventNode::DeferredResourceUsage &def,
+                                                    size_t descriptorSize, DescriptorType type,
+                                                    uint32_t bindset, uint32_t bind,
+                                                    ResourceUsage usage)
 {
   static bool hugeRangeWarned = false;
 
   const rdcarray<VulkanStatePipeline::DescriptorAndOffsets> &descSets = def.descSets;
+  const MemorySnapshot &snapshot = def.heapSnapshot;
 
   VulkanCreationInfo &c = m_CreationInfo;
 
@@ -6486,13 +6483,24 @@ void WrappedVulkan::AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
   msg.source = MessageSource::IncorrectAPIUse;
   msg.severity = MessageSeverity::High;
 
-  if(bindset >= descSets.size() || !descSets[bindset].IsBound())
+  if(bindset >= descSets.size())
   {
     msg.description =
         StringFormat::Fmt("Shader referenced a descriptor set %i that was not bound", bindset);
     eventNode.debugMessages.push_back(msg);
     return;
   }
+
+  uint32_t bufIdx = descSets[bindset].descBufferIdx;
+  // VersionDescriptorBuffers() pushed ranges 1:1 with the descriptor buffers bound.
+  if(bufIdx >= snapshot.ranges.size())
+  {
+    msg.description = StringFormat::Fmt("Shader referenced a buffer %i that wasn't captured", bufIdx);
+    eventNode.debugMessages.push_back(msg);
+    return;
+  }
+  // Address of the descriptor buffer used, within the captured memory buffer.
+  byte *descriptorBytes = snapshot.map + snapshot.ranges[bufIdx].offset;
 
   // ignore push sets, these were handled normally
   if(descSets[bindset].push)

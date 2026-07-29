@@ -130,6 +130,33 @@ struct VkIndirectPatchData
   ResourceId commandBuffer;
 };
 
+struct MemorySnapshotRange
+{
+  VkDeviceAddressRangeKHR range;
+  VkDeviceSize offset;    // Offset of this range in m_MemorySnapshotBuffers[bufferIdx]
+};
+
+struct MemorySnapshot
+{
+  uint32_t bufferIdx = ~0U;    // index in m_MemorySnapshotBuffers
+  rdcarray<MemorySnapshotRange> ranges;
+  byte *map = NULL;
+  const byte *Read(VkDeviceAddress address, VkDeviceSize size) const
+  {
+    if(!map)
+      return NULL;
+
+    for(const MemorySnapshotRange &range : ranges)
+    {
+      if(range.range.address <= address && address + size <= range.range.address + range.range.size)
+      {
+        return map + range.offset + address - range.range.address;
+      }
+    }
+    return NULL;
+  }
+};
+
 struct VulkanEventNode
 {
   VulkanEventNode() = default;
@@ -146,7 +173,7 @@ struct VulkanEventNode
 
   struct DeferredResourceUsage
   {
-    uint32_t snapshotVersionIdx;
+    MemorySnapshot heapSnapshot;
     ResourceId pipeline;
     ResourceId shaderObjects[NumShaderStages];
     rdcarray<VulkanStatePipeline::DescriptorAndOffsets> descSets;
@@ -819,15 +846,10 @@ private:
 
     // the index in m_MemorySnapshots for the current GPUBuffer containing the descriptor buffer snapshot
     uint32_t snapshotVersionIdx = ~0U;
-    // when multiple buffers are bound, the offsets of each in the single GPUBuffer where they are
-    rdcarray<uint64_t> descBufOffsets;
 
-    struct DeferredDescBufCopy
-    {
-      VkBuffer unwrappedDstBuffer;
-      rdcarray<rdcpair<VkDeviceAddress, uint64_t>> copyOffsets;
-    };
-    rdcarray<DeferredDescBufCopy> descBufDeferredCopies;
+    MemorySnapshot m_LastHeapSnapshot;
+    /* MemorySnapshots that need their copies done after the renderpass. */
+    rdcarray<MemorySnapshot> descBufDeferredCopies;
   };
 
   uint64_t m_FakePushSetID = 0;
@@ -1065,10 +1087,11 @@ private:
   // immutable creation data
   VulkanCreationInfo m_CreationInfo;
 
-  rdcarray<GPUBuffer> m_MemorySnapshots;
+  rdcarray<GPUBuffer> m_MemorySnapshotBuffers;
+  void VersionMemorySnapshots(VkCommandBuffer cmd, const rdcarray<VkDeviceAddressRangeKHR> &ranges,
+                              MemorySnapshot &snapshot);
   void VersionDescriptorBuffers(VkCommandBuffer cmd);
-  void CopyVersionedRanges(VkCommandBuffer cmdBuf, VkBuffer unwrappedDstBuf,
-                           const rdcarray<rdcpair<VkDeviceAddress, uint64_t>> &copyOffsets);
+  void CopyVersionedRanges(VkCommandBuffer cmdBuf, MemorySnapshot &snapshot);
 
   std::map<ResourceId, rdcarray<EventUsage>> m_ResourceUses;
   std::map<uint32_t, EventFlags> m_EventFlags;
@@ -1272,12 +1295,11 @@ private:
   void AddUsageForDescriptorSetBind(VulkanEventNode &eventNode, uint32_t bindset, uint32_t bind,
                                     ResourceUsage usage);
   void AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
-                                    const VulkanEventNode::DeferredResourceUsage &def);
+                                    VulkanEventNode::DeferredResourceUsage &def);
   void AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
-                                       const VulkanEventNode::DeferredResourceUsage &def,
-                                       byte *descriptorBytes, size_t descriptorSize,
-                                       DescriptorType type, uint32_t bindset, uint32_t bind,
-                                       ResourceUsage usage);
+                                       VulkanEventNode::DeferredResourceUsage &def,
+                                       size_t descriptorSize, DescriptorType type, uint32_t bindset,
+                                       uint32_t bind, ResourceUsage usage);
   void AddUsageForDescriptor(VulkanEventNode &eventNode, const DescriptorSetSlot &slot,
                              ResourceUsage usage);
 
