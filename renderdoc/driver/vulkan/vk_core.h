@@ -173,10 +173,12 @@ struct VulkanEventNode
 
   struct DeferredResourceUsage
   {
-    MemorySnapshot heapSnapshot;
+    MemorySnapshot heapSnapshot, indirectSnapshot;
     ResourceId pipeline;
     ResourceId shaderObjects[NumShaderStages];
     rdcarray<VulkanStatePipeline::DescriptorAndOffsets> descSets;
+    bytebuf pushconsts;
+    VkDeviceAddress resourceHeapAddress;
   };
   rdcarray<DeferredResourceUsage> deferredResourceUsage;
 
@@ -513,6 +515,8 @@ private:
                                                   VkFormat texelFormat = VK_FORMAT_UNDEFINED);
 
   void RegisterDescriptor(const bytebuf &key, const DescriptorSetSlot &data);
+  void RegisterHeapDescriptor(const bytebuf &key, const VkResourceDescriptorInfoEXT *pResource);
+
   void LookupDescriptor(byte *descriptorBytes, size_t descriptorSize, DescriptorType type,
                         DescriptorSetSlot &data);
   ResourceId GetSamplerForDescriptor(byte *descriptorBytes, size_t descriptorSize);
@@ -844,10 +848,14 @@ private:
     uint32_t eventCount;    // how many events are in this cmd buffer, for quick skipping
     uint32_t curEventID;    // current event ID while replaying, not used during loading
 
-    // the index in m_MemorySnapshots for the current GPUBuffer containing the descriptor buffer snapshot
+    // the index in m_MemorySnapshots for the current GPUBuffer containing the last memory snapshot
     uint32_t snapshotVersionIdx = ~0U;
+    // Index in m_MemorySnapshots for the last descriptor heap/descriptor buffer snapshot;
+    uint32_t heapVersionIdx = ~0U;
+    // Index in m_MemorySnapshots for the last descriptor heap indirect data snapshot;
+    uint32_t indirectVersionIdx = ~0U;
 
-    MemorySnapshot m_LastHeapSnapshot;
+    MemorySnapshot m_LastHeapSnapshot, m_LastIndirectSnapshot;
     /* MemorySnapshots that need their copies done after the renderpass. */
     rdcarray<MemorySnapshot> descBufDeferredCopies;
   };
@@ -1091,6 +1099,8 @@ private:
   void VersionMemorySnapshots(VkCommandBuffer cmd, const rdcarray<VkDeviceAddressRangeKHR> &ranges,
                               MemorySnapshot &snapshot);
   void VersionDescriptorBuffers(VkCommandBuffer cmd);
+  void VersionDescriptorHeaps(VkCommandBuffer cmd);
+  void VersionIndirectData(VkCommandBuffer cmd, VkPipelineBindPoint pipelineBindPoint);
   void CopyVersionedRanges(VkCommandBuffer cmdBuf, MemorySnapshot &snapshot);
 
   std::map<ResourceId, rdcarray<EventUsage>> m_ResourceUses;
@@ -1300,6 +1310,11 @@ private:
                                        VulkanEventNode::DeferredResourceUsage &def,
                                        size_t descriptorSize, DescriptorType type, uint32_t bindset,
                                        uint32_t bind, ResourceUsage usage);
+  void AddUsageForDescriptorHeapBind(VulkanEventNode &actionNode,
+                                     const VulkanEventNode::DeferredResourceUsage &def,
+                                     VulkanCreationInfo::ShaderEntry &sh, DescriptorType type,
+                                     bool isInputAttachment, uint32_t bindset, uint32_t bind,
+                                     uint32_t arraySize, ResourceUsage usage);
   void AddUsageForDescriptor(VulkanEventNode &eventNode, const DescriptorSetSlot &slot,
                              ResourceUsage usage);
 

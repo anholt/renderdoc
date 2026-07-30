@@ -279,6 +279,19 @@ struct VulkanCreationInfo
              uniformBufferRobustness != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DEVICE_DEFAULT ||
              imageRobustness != VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_DEVICE_DEFAULT;
     }
+
+    const DescriptorMapping *GetDescriptorMapping(uint32_t set, uint32_t binding) const
+    {
+      for(const VulkanCreationInfo::DescriptorMapping &m : descriptorMappings)
+      {
+        if(m.descriptorSet == set && binding >= m.firstBinding &&
+           binding < m.firstBinding + m.bindingCount)
+        {
+          return &m;
+        }
+      }
+      return NULL;
+    }
   };
 
   struct Pipeline
