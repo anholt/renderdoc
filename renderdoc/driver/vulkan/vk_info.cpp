@@ -1151,6 +1151,53 @@ void VulkanCreationInfo::ShaderEntry::InitDescriptorMappings(
   }
 }
 
+const VulkanCreationInfo::DescriptorMapping *VulkanCreationInfo::ShaderEntry::GetDescriptorMapping(
+    uint32_t set, uint32_t binding, VkDescriptorType type, bool ro) const
+{
+  VkSpirvResourceTypeFlagBitsEXT resourceFlag = (VkSpirvResourceTypeFlagBitsEXT)0;
+
+  switch(type)
+  {
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+      resourceFlag = VK_SPIRV_RESOURCE_TYPE_UNIFORM_BUFFER_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_SAMPLER: resourceFlag = VK_SPIRV_RESOURCE_TYPE_SAMPLER_BIT_EXT; break;
+    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+      resourceFlag = VK_SPIRV_RESOURCE_TYPE_COMBINED_SAMPLED_IMAGE_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+      resourceFlag = VK_SPIRV_RESOURCE_TYPE_SAMPLED_IMAGE_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+      resourceFlag = VK_SPIRV_RESOURCE_TYPE_COMBINED_SAMPLED_IMAGE_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+      resourceFlag = ro ? VK_SPIRV_RESOURCE_TYPE_READ_ONLY_IMAGE_BIT_EXT
+                        : VK_SPIRV_RESOURCE_TYPE_READ_WRITE_IMAGE_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+      resourceFlag = ro ? VK_SPIRV_RESOURCE_TYPE_READ_ONLY_STORAGE_BUFFER_BIT_EXT
+                        : VK_SPIRV_RESOURCE_TYPE_READ_WRITE_STORAGE_BUFFER_BIT_EXT;
+      break;
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+      resourceFlag = VK_SPIRV_RESOURCE_TYPE_ACCELERATION_STRUCTURE_BIT_EXT;
+      break;
+    default: break;
+  }
+
+  for(const VulkanCreationInfo::DescriptorMapping &m : descriptorMappings)
+  {
+    if((m.resourceMask & resourceFlag) != 0 && m.descriptorSet == set &&
+       binding >= m.firstBinding && binding < m.firstBinding + m.bindingCount)
+    {
+      return &m;
+    }
+  }
+  return NULL;
+}
+
 void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
                                             VulkanCreationInfo &info, ResourceId id,
                                             const VkShaderCreateInfoEXT *pCreateInfo)
