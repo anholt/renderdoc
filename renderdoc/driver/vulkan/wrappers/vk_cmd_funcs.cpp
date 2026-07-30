@@ -412,6 +412,110 @@ void WrappedVulkan::VersionDescriptorBuffers(VkCommandBuffer cmd)
   VersionMemorySnapshots(cmd, ranges, m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastHeapSnapshot);
 }
 
+void WrappedVulkan::VersionDescriptorHeaps(VkCommandBuffer cmd)
+{
+  VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+
+  if(renderstate.resourceHeap.heapRange.size == 0)
+    return;
+
+  rdcarray<VkDeviceAddressRangeKHR> ranges;
+  if(renderstate.resourceHeap.heapRange.size != 0)
+    ranges.push_back(renderstate.resourceHeap.heapRange);
+  /* Ignoring the sampler heap, since there's no resource usage to track for it. */
+
+  VersionMemorySnapshots(cmd, ranges, m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastHeapSnapshot);
+}
+
+// Captures the indirect data potentially accessed by descriptor heap source
+// mappings.
+//
+// Note that we have to be careful -- the set of mappings attached to the buffer
+// may contain entries not actually statically used by the shader.  Furthermore,
+// the mappings may not be dynamically used by the shader, so we need to be
+// careful not to fault on trying to copy from the addresses they reference.  We
+// do so by checking that we know of a buffer at the address we read.
+void WrappedVulkan::VersionIndirectData(VkCommandBuffer cmd, VkPipelineBindPoint pipelineBindPoint)
+{
+  VulkanRenderState &renderstate = m_BakedCmdBufferInfo[m_LastCmdBufferID].state;
+  if(!renderstate.UsingDescHeaps())
+    return;
+
+  // Only need this data during loading when we're detecting usage.
+  if(!IsLoading(m_State))
+    return;
+
+  VulkanStatePipeline &pipeline = renderstate.GetPipeline(pipelineBindPoint);
+
+  rdcarray<VkDeviceAddressRangeKHR> ranges;
+
+  // Check that the address range resides within one buffer.
+  auto addressValid = [this](VkDeviceAddress address, VkDeviceSize size) {
+    ResourceId res, res2;
+    uint64_t offs;
+    GetResIDFromAddr(address, res, offs);
+    if(res == ResourceId())
+      return false;
+    GetResIDFromAddr(address + size - 1, res2, offs);
+    return res == res2;
+  };
+  auto pushRange = [addressValid](rdcarray<VkDeviceAddressRangeKHR> &ranges,
+                                  VkDeviceAddress address, VkDeviceSize size) {
+    if(addressValid(address, size))
+      ranges.push_back(VkDeviceAddressRangeKHR{address, size});
+  };
+
+  for(uint32_t shad = 0; shad < NumShaderStages; shad++)
+  {
+    VulkanCreationInfo::ShaderEntry *sh;
+    if(pipeline.shaderObject)
+      sh = &m_CreationInfo.m_ShaderObject[renderstate.shaderObjects[shad]].shad;
+    else
+      sh = &m_CreationInfo.m_Pipeline[pipeline.pipeline].shaders[shad];
+    if(sh->module == ResourceId())
+      continue;
+
+    for(VulkanCreationInfo::DescriptorMapping &map : sh->descriptorMappings)
+    {
+      switch(map.source)
+      {
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+          if(map.sourceData.indirectIndex.pushOffset + 8 <= renderstate.pushConstSize)
+          {
+            // Note that pushOffset is 8-byte-aligned.
+            VkDeviceAddress indirectIndex =
+                *(uint64_t *)(renderstate.pushconsts + map.sourceData.indirectIndex.pushOffset);
+            pushRange(ranges, indirectIndex + map.sourceData.indirectIndex.addressOffset, 4);
+          }
+          break;
+
+        case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+          if(map.sourceData.indirectIndexArray.pushOffset + 8 <= renderstate.pushConstSize)
+          {
+            // Note that pushOffset is 8-byte-aligned.
+            VkDeviceAddress indirectAddress =
+                *(uint64_t *)(renderstate.pushconsts + map.sourceData.indirectIndexArray.pushOffset);
+            indirectAddress += map.sourceData.indirectIndexArray.addressOffset;
+
+            // We don't get any bounds, just capture the remainder of the buffer.
+            ResourceId id;
+            uint64_t offs;
+            GetResIDFromAddr(indirectAddress, id, offs);
+            if(id != ResourceId())
+            {
+              pushRange(ranges, indirectAddress, m_CreationInfo.m_Buffer[id].size - offs);
+            }
+          }
+          break;
+
+        default: break;
+      }
+    }
+  }
+
+  VersionMemorySnapshots(cmd, ranges, m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastIndirectSnapshot);
+}
+
 void WrappedVulkan::CopyVersionedRanges(VkCommandBuffer cmdBuf, MemorySnapshot &snapshot)
 {
   VkBuffer unwrappedDstBuf = m_MemorySnapshotBuffers[snapshot.bufferIdx].UnwrappedBuffer();
@@ -4938,19 +5042,32 @@ bool WrappedVulkan::Serialise_vkCmdPipelineBarrier2(SerialiserType &ser,
       if(IsLoading(m_State))
       {
         bool descBarrier = false;
+        bool descHeapBarrier = false;
 
         for(uint32_t i = 0; i < DependencyInfo.bufferMemoryBarrierCount; i++)
+        {
           if(DependencyInfo.pBufferMemoryBarriers[i].dstAccessMask &
              VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT)
             descBarrier = true;
+          if(DependencyInfo.pBufferMemoryBarriers[i].dstAccessMask &
+             (VK_ACCESS_2_RESOURCE_HEAP_READ_BIT_EXT | VK_ACCESS_2_SAMPLER_HEAP_READ_BIT_EXT))
+            descHeapBarrier = true;
+        }
 
         for(uint32_t i = 0; i < DependencyInfo.memoryBarrierCount; i++)
+        {
           if(DependencyInfo.pMemoryBarriers[i].dstAccessMask &
              VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT)
             descBarrier = true;
+          if(DependencyInfo.pMemoryBarriers[i].dstAccessMask &
+             (VK_ACCESS_2_RESOURCE_HEAP_READ_BIT_EXT | VK_ACCESS_2_SAMPLER_HEAP_READ_BIT_EXT))
+            descHeapBarrier = true;
+        }
 
         if(descBarrier)
           VersionDescriptorBuffers(commandBuffer);
+        if(descHeapBarrier)
+          VersionDescriptorHeaps(commandBuffer);
       }
 
       GetResourceManager()->RecordBarriers(m_BakedCmdBufferInfo[m_LastCmdBufferID].imageStates,
@@ -10546,6 +10663,8 @@ bool WrappedVulkan::Serialise_vkCmdBindResourceHeapEXT(SerialiserType &ser,
         renderstate.resourceHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
 
         renderstate.InvalidateNonHeapDescriptors();
+
+        VersionDescriptorHeaps(commandBuffer);
       }
 
       ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
@@ -10629,6 +10748,8 @@ bool WrappedVulkan::Serialise_vkCmdBindSamplerHeapEXT(SerialiserType &ser,
         renderstate.samplerHeap.reservedRangeSize = pBindInfo->reservedRangeSize;
 
         renderstate.InvalidateNonHeapDescriptors();
+
+        VersionDescriptorHeaps(commandBuffer);
       }
 
       ObjDisp(commandBuffer)->CmdBindSamplerHeapEXT(Unwrap(commandBuffer), pBindInfo);
