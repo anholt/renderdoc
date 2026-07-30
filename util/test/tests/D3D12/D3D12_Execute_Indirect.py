@@ -65,6 +65,11 @@ class D3D12_Execute_Indirect(rdtest.TestCase):
         rdtest.log.success("rootConsts is as expected")
 
     def check_capture(self):
+
+        with rdtest.log.auto_section("Checking Indirect Action Names"):
+            if not self.check_indirect_action_name_consistency(self.controller):
+                raise rdtest.TestFailureException("Indirect action parameters do not match its event parameters")
+
         with rdtest.log.auto_section('EI without Root Signature'):
             action = self.find_action("EI without Root Signature");
             self.controller.SetFrameEvent(action.eventId, False)
