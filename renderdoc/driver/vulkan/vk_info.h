@@ -283,6 +283,19 @@ struct VulkanCreationInfo
 
     void InitDescriptorMappings(VulkanResourceManager *resourceMan, VulkanCreationInfo &info,
                                 const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo);
+
+    const DescriptorMapping *GetDescriptorMapping(uint32_t set, uint32_t binding) const
+    {
+      for(const VulkanCreationInfo::DescriptorMapping &m : descriptorMappings)
+      {
+        if(m.descriptorSet == set && binding >= m.firstBinding &&
+           binding < m.firstBinding + m.bindingCount)
+        {
+          return &m;
+        }
+      }
+      return NULL;
+    }
   };
 
   struct Pipeline

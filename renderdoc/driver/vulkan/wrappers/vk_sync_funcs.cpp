@@ -1333,22 +1333,35 @@ bool WrappedVulkan::Serialise_vkCmdWaitEvents2(SerialiserType &ser, VkCommandBuf
         if(IsLoading(m_State) && evIdx == 0)
         {
           bool descBarrier = false;
+          bool descHeap = false;
 
           for(uint32_t ev = 0; ev < eventCount; ev++)
           {
             for(uint32_t i = 0; i < pDependencyInfos[ev].bufferMemoryBarrierCount; i++)
+            {
               if(pDependencyInfos[ev].pBufferMemoryBarriers[i].dstAccessMask &
                  VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT)
                 descBarrier = true;
+              if(pDependencyInfos[ev].pBufferMemoryBarriers[i].dstAccessMask &
+                 (VK_ACCESS_2_RESOURCE_HEAP_READ_BIT_EXT | VK_ACCESS_2_SAMPLER_HEAP_READ_BIT_EXT))
+                descHeap = true;
+            }
 
             for(uint32_t i = 0; i < pDependencyInfos[ev].memoryBarrierCount; i++)
+            {
               if(pDependencyInfos[ev].pMemoryBarriers[i].dstAccessMask &
                  VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT)
                 descBarrier = true;
+              if(pDependencyInfos[ev].pMemoryBarriers[i].dstAccessMask &
+                 (VK_ACCESS_2_RESOURCE_HEAP_READ_BIT_EXT | VK_ACCESS_2_SAMPLER_HEAP_READ_BIT_EXT))
+                descHeap = true;
+            }
           }
 
           if(descBarrier)
             VersionDescriptorBuffers(commandBuffer);
+          if(descHeap)
+            VersionDescriptorHeaps(commandBuffer);
         }
 
         VkEventCreateInfo evInfo = {
