@@ -1203,6 +1203,9 @@ class TestCase:
             # Action: *Indirect(1) => <3,2> should have Indirect sub-command({ 3,2 }) as previous event
             if "Indirect(1) => <" in actionName:
                 event = action.events[-2]
+            # Action: [x] argY: Indirect*(<3,3>) : should have event Indirect*({ 3,3 }) as its event
+            if re.match(r"\[[0-9]+\] arg[0-9]+: Indirect.*\(", actionName):
+                event = action.events[-1]
 
             if event is not None:
                 chunkIndex = event.chunkIndex
