@@ -1407,6 +1407,92 @@ void WrappedVulkan::RegisterDescriptor(const bytebuf &key, const DescriptorSetSl
   }
 }
 
+void WrappedVulkan::RegisterHeapDescriptor(const bytebuf &key,
+                                           const VkResourceDescriptorInfoEXT *pResource)
+{
+  if(false)
+  {
+    printf("register desc (%db):\n", (int)key.size());
+    uint64_t *descriptorU64 = (uint64_t *)key.data();
+    for(uint32_t i = 0; i * 8 < key.size(); i++)
+      printf("  [%u]: %llx\n", i, (long long)descriptorU64[i]);
+  }
+
+  /* Early out if we've already seen this descriptor data.
+   *
+   * All of the vkWriteResourceDescriptor()s get serialized (do we want to do
+   * dedupe at that point instead?), but at replay time we need to avoid
+   * repeating the AddResource for image views.  We only track one resource per
+   * descriptor data, anyway, on the assumption that the create info will be the
+   * effectively the same when the descriptor bits match.
+   */
+  if(m_DescriptorLookup.fallback.contains(key))
+    return;
+
+  DescriptorSetSlot data = {};
+  data.type = convert(pResource->type);
+  switch(pResource->type)
+  {
+    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+    case VK_DESCRIPTOR_TYPE_SAMPLE_WEIGHT_IMAGE_QCOM:
+    case VK_DESCRIPTOR_TYPE_BLOCK_MATCH_IMAGE_QCOM:
+      if(pResource->data.pImage)
+      {
+        /* Create a ResourceId to store the image view create info on, even
+         * though it's not a real VkImageView.
+         */
+        data.resource = ResourceIDGen::GetNewUniqueID();
+        m_CreationInfo.m_ImageView[data.resource].Init(GetResourceManager(), m_CreationInfo,
+                                                       pResource->data.pImage->pView);
+        AddResource(data.resource, ResourceType::View, "Heap Image View");
+        DerivedResource(pResource->data.pImage->pView->image, data.resource);
+      }
+      break;
+    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+      if(pResource->data.pTexelBuffer)
+      {
+        GetResIDFromAddr(pResource->data.pTexelBuffer->addressRange.address, data.resource,
+                         data.offset);
+        data.range = pResource->data.pTexelBuffer->addressRange.size;
+        // we only expect texel buffers with the simple formats that come from vulkan base which are less than 256
+        data.imageLayoutOrFormat =
+            DescriptorSlotImageLayout(pResource->data.pTexelBuffer->format & 0xff);
+        RDCASSERT(uint32_t(pResource->data.pTexelBuffer->format) < 0xff,
+                  pResource->data.pTexelBuffer->format);
+      }
+      break;
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV:
+    case VK_DESCRIPTOR_TYPE_PARTITIONED_ACCELERATION_STRUCTURE_NV:
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+      if(pResource->data.pAddressRange)
+      {
+        GetResIDFromAddr(pResource->data.pAddressRange->address, data.resource, data.offset);
+        data.range = pResource->data.pAddressRange->size;
+      }
+      break;
+    case VK_DESCRIPTOR_TYPE_TENSOR_ARM:
+    {
+      RDCERR("VK_ARM_tensors unsupported");
+      break;
+    }
+    case VK_DESCRIPTOR_TYPE_SAMPLER:
+    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK:
+    case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
+    case VK_DESCRIPTOR_TYPE_MAX_ENUM:
+    default: RDCERR("Invalid descriptor type in VkResourceDescriptorInfoEXT"); break;
+  }
+
+  m_DescriptorLookup.fallback.insert(key, data);
+}
+
 template <>
 VkDescriptorSetLayoutCreateInfo WrappedVulkan::UnwrapInfo(const VkDescriptorSetLayoutCreateInfo *info)
 {
@@ -3753,13 +3839,8 @@ bool WrappedVulkan::Serialise_vkWriteResourceDescriptorsEXT(
         return false;
       }
 
-#if 0
-      /* XXX: register this descriptor data for the usage tracking */
-      DescriptorSetSlot descriptorData = {};
-      descriptorData.SetDescriptor(this, DescriptorInfo);
-
-      RegisterDescriptor(replayDescriptor, descriptorData);
-#endif
+      RegisterHeapDescriptor(bytebuf((const byte *)addressRange.address, curDescriptorSize),
+                             &pResources[i]);
     }
   }
 
@@ -3911,14 +3992,6 @@ bool WrappedVulkan::Serialise_vkWriteSamplerDescriptorsEXT(SerialiserType &ser, 
                          bitDifferences.c_str(), GetPhysDeviceCompatString(false, false).c_str());
         return false;
       }
-
-#if 0
-      /* XXX: register this descriptor data for the usage tracking */
-      DescriptorSetSlot descriptorData = {};
-      descriptorData.SetDescriptor(this, DescriptorInfo);
-
-      RegisterDescriptor(replayDescriptor, descriptorData);
-#endif
     }
   }
 

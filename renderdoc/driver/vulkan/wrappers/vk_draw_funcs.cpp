@@ -332,6 +332,8 @@ bool WrappedVulkan::Serialise_vkCmdDraw(SerialiserType &ser, VkCommandBuffer com
 
         uint32_t eventId = HandlePreCallback(commandBuffer);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
         ObjDisp(commandBuffer)
             ->CmdDraw(Unwrap(commandBuffer), vertexCount, instanceCount, firstVertex, firstInstance);
 
@@ -346,6 +348,8 @@ bool WrappedVulkan::Serialise_vkCmdDraw(SerialiserType &ser, VkCommandBuffer com
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
       ObjDisp(commandBuffer)
           ->CmdDraw(Unwrap(commandBuffer), vertexCount, instanceCount, firstVertex, firstInstance);
 
@@ -421,6 +425,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexed(SerialiserType &ser, VkCommandBuf
 
         uint32_t eventId = HandlePreCallback(commandBuffer);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
         ObjDisp(commandBuffer)
             ->CmdDrawIndexed(Unwrap(commandBuffer), indexCount, instanceCount, firstIndex,
                              vertexOffset, firstInstance);
@@ -436,6 +442,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexed(SerialiserType &ser, VkCommandBuf
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
       ObjDisp(commandBuffer)
           ->CmdDrawIndexed(Unwrap(commandBuffer), indexCount, instanceCount, firstIndex,
                            vertexOffset, firstInstance);
@@ -519,6 +527,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
         {
           commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+          VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
           uint32_t eventId = HandlePreCallback(commandBuffer);
 
           ObjDisp(commandBuffer)
@@ -541,6 +551,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirect(SerialiserType &ser, VkCommandBu
         if(InRerecordRange(m_LastCmdBufferID))
         {
           commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
           uint32_t curEID = m_RootEventID;
 
@@ -872,6 +884,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
         {
           commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+          VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
           uint32_t eventId = HandlePreCallback(commandBuffer);
 
           ObjDisp(commandBuffer)
@@ -895,6 +909,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirect(SerialiserType &ser,
         if(InRerecordRange(m_LastCmdBufferID))
         {
           commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+          VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
           uint32_t curEID = m_RootEventID;
 
@@ -1220,6 +1236,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatch(SerialiserType &ser, VkCommandBuffer
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::Dispatch);
 
         ObjDisp(commandBuffer)->CmdDispatch(Unwrap(commandBuffer), x, y, z);
@@ -1233,6 +1251,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatch(SerialiserType &ser, VkCommandBuffer
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
       ObjDisp(commandBuffer)->CmdDispatch(Unwrap(commandBuffer), x, y, z);
 
       {
@@ -1296,6 +1316,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatchIndirect(SerialiserType &ser,
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::Dispatch);
 
         ObjDisp(commandBuffer)->CmdDispatchIndirect(Unwrap(commandBuffer), Unwrap(buffer), offset);
@@ -1311,6 +1333,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatchIndirect(SerialiserType &ser,
     {
       VkIndirectPatchData indirectPatch =
           FetchIndirectData(VkIndirectPatchType::DispatchIndirect, commandBuffer, buffer, offset, 1);
+
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
 
       ObjDisp(commandBuffer)->CmdDispatchIndirect(Unwrap(commandBuffer), Unwrap(buffer), offset);
 
@@ -2703,6 +2727,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatchBase(SerialiserType &ser, VkCommandBu
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::Dispatch);
 
         ObjDisp(commandBuffer)
@@ -2720,6 +2746,8 @@ bool WrappedVulkan::Serialise_vkCmdDispatchBase(SerialiserType &ser, VkCommandBu
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+
       ObjDisp(commandBuffer)
           ->CmdDispatchBase(Unwrap(commandBuffer), baseGroupX, baseGroupY, baseGroupZ, groupCountX,
                             groupCountY, groupCountZ);
@@ -2807,6 +2835,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
       if(InRerecordRange(m_LastCmdBufferID))
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         uint32_t curEID = m_RootEventID;
 
@@ -2965,6 +2995,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectCount(SerialiserType &ser,
           FetchIndirectData(VkIndirectPatchType::DrawIndirectCount, commandBuffer, buffer, offset,
                             maxDrawCount, stride, countBuffer, countBufferOffset);
 
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
       ObjDisp(commandBuffer)
           ->CmdDrawIndirectCount(Unwrap(commandBuffer), Unwrap(buffer), offset, Unwrap(countBuffer),
                                  countBufferOffset, maxDrawCount, stride);
@@ -3112,6 +3144,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
       if(InRerecordRange(m_LastCmdBufferID))
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
+
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         uint32_t curEID = m_RootEventID;
 
@@ -3271,6 +3305,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndexedIndirectCount(
           FetchIndirectData(VkIndirectPatchType::DrawIndexedIndirectCount, commandBuffer, buffer,
                             offset, maxDrawCount, stride, countBuffer, countBufferOffset);
 
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
       ObjDisp(commandBuffer)
           ->CmdDrawIndexedIndirectCount(Unwrap(commandBuffer), Unwrap(buffer), offset,
                                         Unwrap(countBuffer), countBufferOffset, maxDrawCount, stride);
@@ -3414,6 +3450,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectByteCountEXT(
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
         uint32_t eventId = HandlePreCallback(commandBuffer);
 
         ObjDisp(commandBuffer)
@@ -3437,6 +3475,8 @@ bool WrappedVulkan::Serialise_vkCmdDrawIndirectByteCountEXT(
           FetchIndirectData(VkIndirectPatchType::DrawIndirectByteCount, commandBuffer,
                             counterBuffer, counterBufferOffset, 1, vertexStride);
       indirectPatch.vertexoffset = counterOffset;
+
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
       ObjDisp(commandBuffer)
           ->CmdDrawIndirectByteCountEXT(Unwrap(commandBuffer), instanceCount, firstInstance,
@@ -5046,6 +5086,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysKHR(
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::DispatchRay);
 
         ObjDisp(commandBuffer)
@@ -5066,6 +5108,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysKHR(
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
       ObjDisp(commandBuffer)
           ->CmdTraceRaysKHR(Unwrap(commandBuffer), &RaygenShaderBindingTable,
                             &MissShaderBindingTable, &HitShaderBindingTable,
@@ -5150,6 +5194,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysIndirectKHR(
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::DispatchRay);
 
         ObjDisp(commandBuffer)
@@ -5170,6 +5216,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysIndirectKHR(
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
       ObjDisp(commandBuffer)
           ->CmdTraceRaysIndirectKHR(Unwrap(commandBuffer), &RaygenShaderBindingTable,
                                     &MissShaderBindingTable, &HitShaderBindingTable,
@@ -5244,6 +5292,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysIndirect2KHR(SerialiserType &ser,
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
 
+        VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
         uint32_t eventId = HandlePreCallback(commandBuffer, ActionFlags::DispatchRay);
 
         ObjDisp(commandBuffer)->CmdTraceRaysIndirect2KHR(Unwrap(commandBuffer), indirectDeviceAddress);
@@ -5258,6 +5308,8 @@ bool WrappedVulkan::Serialise_vkCmdTraceRaysIndirect2KHR(SerialiserType &ser,
     }
     else
     {
+      VersionIndirectData(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+
       ObjDisp(commandBuffer)->CmdTraceRaysIndirect2KHR(Unwrap(commandBuffer), indirectDeviceAddress);
 
       {

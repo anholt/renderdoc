@@ -6395,7 +6395,24 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
       return;
   }
 
-  AddUsageForDescriptorSets(eventNode);
+  if(state.UsingDescHeaps())
+  {
+    eventNode.deferredResourceUsage.push_back({});
+
+    VulkanEventNode::DeferredResourceUsage &def = eventNode.deferredResourceUsage.back();
+
+    def.heapSnapshot = m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastHeapSnapshot;
+    def.indirectSnapshot = m_BakedCmdBufferInfo[m_LastCmdBufferID].m_LastIndirectSnapshot;
+    def.pipeline = pipeState.shaderObject ? ResourceId() : pipeState.pipeline;
+    if(pipeState.shaderObject)
+      memcpy(def.shaderObjects, state.shaderObjects, sizeof(state.shaderObjects));
+    def.resourceHeapAddress = state.resourceHeap.heapRange.address;
+    def.pushconsts = bytebuf(state.pushconsts, state.pushConstSize);
+  }
+  else
+  {
+    AddUsageForDescriptorSets(eventNode);
+  }
 }
 
 void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
@@ -6414,8 +6431,11 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
   rdcarray<int> shaderStages = ShaderStagesForAction(action.flags);
 
   MemorySnapshot &heapSnapshot = def.heapSnapshot;
+  MemorySnapshot &indirectSnapshot = def.indirectSnapshot;
 
   heapSnapshot.map = (byte *)m_MemorySnapshotBuffers[def.heapSnapshot.bufferIdx].Map();
+  if(indirectSnapshot.bufferIdx != ~0u)
+    indirectSnapshot.map = (byte *)m_MemorySnapshotBuffers[def.indirectSnapshot.bufferIdx].Map();
 
   for(int shad : shaderStages)
   {
@@ -6431,37 +6451,70 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
     ResourceId origPipe = pipe;
     ResourceId origShad = sh.module;
 
+    bool heap = def.resourceHeapAddress != 0;
+
     for(const ConstantBlock &constantBlock : sh.refl->constantBlocks)
     {
       // ignore push constants
       if(!constantBlock.bufferBacked)
         continue;
 
-      AddUsageForDescriptorBufferBind(
-          eventNode, def, DescriptorDataSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER),
-          DescriptorType::ConstantBuffer, constantBlock.fixedBindSetOrSpace,
-          constantBlock.fixedBindNumber, ResourceUsage(uint32_t(ResourceUsage::VS_Constants) + shad));
+      if(heap)
+      {
+        AddUsageForDescriptorHeapBind(eventNode, def, sh, DescriptorType::ConstantBuffer, false,
+                                      constantBlock.fixedBindSetOrSpace,
+                                      constantBlock.fixedBindNumber, constantBlock.bindArraySize,
+                                      ResourceUsage(uint32_t(ResourceUsage::VS_Constants) + shad));
+      }
+      else
+      {
+        AddUsageForDescriptorBufferBind(
+            eventNode, def, DescriptorDataSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER),
+            DescriptorType::ConstantBuffer, constantBlock.fixedBindSetOrSpace,
+            constantBlock.fixedBindNumber,
+            ResourceUsage(uint32_t(ResourceUsage::VS_Constants) + shad));
+      }
     }
 
     for(const ShaderResource &res : sh.refl->readOnlyResources)
     {
-      AddUsageForDescriptorBufferBind(
-          eventNode, def,
-          DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, res.isInputAttachment)),
-          res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
-          ResourceUsage(uint32_t(ResourceUsage::VS_Resource) + shad));
+      if(heap)
+      {
+        AddUsageForDescriptorHeapBind(eventNode, def, sh, res.descriptorType, res.isInputAttachment,
+                                      res.fixedBindSetOrSpace, res.fixedBindNumber, res.bindArraySize,
+                                      ResourceUsage(uint32_t(ResourceUsage::VS_Resource) + shad));
+      }
+      else
+      {
+        AddUsageForDescriptorBufferBind(
+            eventNode, def,
+            DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, res.isInputAttachment)),
+            res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
+            ResourceUsage(uint32_t(ResourceUsage::VS_Resource) + shad));
+      }
     }
 
     for(const ShaderResource &res : sh.refl->readWriteResources)
     {
-      AddUsageForDescriptorBufferBind(
-          eventNode, def, DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, false)),
-          res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
-          ResourceUsage(uint32_t(ResourceUsage::VS_RWResource) + shad));
+      if(heap)
+      {
+        AddUsageForDescriptorHeapBind(eventNode, def, sh, res.descriptorType, false,
+                                      res.fixedBindSetOrSpace, res.fixedBindNumber, res.bindArraySize,
+                                      ResourceUsage(uint32_t(ResourceUsage::VS_RWResource) + shad));
+      }
+      else
+      {
+        AddUsageForDescriptorBufferBind(
+            eventNode, def, DescriptorDataSize(MakeVkDescriptorType(res.descriptorType, false)),
+            res.descriptorType, res.fixedBindSetOrSpace, res.fixedBindNumber,
+            ResourceUsage(uint32_t(ResourceUsage::VS_RWResource) + shad));
+      }
     }
   }
 
   m_MemorySnapshotBuffers[def.heapSnapshot.bufferIdx].Unmap();
+  if(indirectSnapshot.bufferIdx != ~0u)
+    m_MemorySnapshotBuffers[def.indirectSnapshot.bufferIdx].Unmap();
 }
 
 void WrappedVulkan::AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
@@ -6533,8 +6586,8 @@ void WrappedVulkan::AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
     return;
 
   uint32_t descriptorCount = layout.bindings[bind].descriptorCount;
-  // completely skip variable size or arrayed bindings as it is too spammy to look up uninitialised
-  // descriptors and there is a chance of false positives
+  // completely skip variable size or arrayed bindings as it is too spammy to look up
+  // uninitialised descriptors and there is a chance of false positives
   if(layout.bindings[bind].variableSize || descriptorCount > 1)
     return;
 
@@ -6546,6 +6599,289 @@ void WrappedVulkan::AddUsageForDescriptorBufferBind(VulkanEventNode &eventNode,
                      descriptorSize, type, tmp);
 
     AddUsageForDescriptor(eventNode, tmp, usage);
+  }
+}
+
+void WrappedVulkan::AddUsageForDescriptorHeapBind(VulkanEventNode &eventNode,
+                                                  const VulkanEventNode::DeferredResourceUsage &def,
+                                                  VulkanCreationInfo::ShaderEntry &sh,
+                                                  DescriptorType type, bool isInputAttachment,
+                                                  uint32_t bindset, uint32_t bind,
+                                                  uint32_t arraySize, ResourceUsage usage)
+{
+  static bool hugeRangeWarned = false;
+  uint32_t eid = eventNode.action.eventId;
+
+  DebugMessage msg;
+  msg.eventId = eid;
+  msg.category = MessageCategory::Execution;
+  msg.messageID = 0;
+  msg.source = MessageSource::IncorrectAPIUse;
+  msg.severity = MessageSeverity::High;
+
+  VulkanCreationInfo::DescriptorMapping *mapping = NULL;
+  for(VulkanCreationInfo::DescriptorMapping &m : sh.descriptorMappings)
+  {
+    if(m.descriptorSet == bindset && bind >= m.firstBinding && bind < m.firstBinding + m.bindingCount)
+    {
+      mapping = &m;
+      break;
+    }
+  }
+
+  if(!mapping)
+  {
+    // XXX: add support for resources with direct bindless from the shader,
+    // rather than set/slot mappings.
+
+    msg.description = StringFormat::Fmt(
+        "Shader referenced a heap descriptor at set %d / binding %d that was not mapped", bindset,
+        bind);
+    eventNode.debugMessages.push_back(msg);
+    return;
+  }
+
+  // There's no resource usage to track for samplers, which are the only
+  // references to the sampler heap.
+  if(type == DescriptorType::Sampler)
+    return;
+
+  auto readPush = [&def, mapping, bindset, bind](uint32_t offset, auto &val,
+                                                 VulkanEventNode &eventNode, DebugMessage &msg) {
+    if(offset + sizeof(val) > def.pushconsts.size())
+    {
+      msg.description = StringFormat::Fmt(
+          "%s descriptor at set %d / binding %d read outside of push consts",
+          ToStr(mapping->source).c_str(), bindset, bind, offset, def.pushconsts.size());
+      eventNode.debugMessages.push_back(msg);
+      return false;
+    }
+    memcpy(&val, def.pushconsts.data() + offset, sizeof(val));
+    return true;
+  };
+
+  auto readBDA = [&def, mapping, bindset, bind](VkDeviceAddress addr, auto &val, bool warn) {
+    const byte *data = def.heapSnapshot.Read(addr, (VkDeviceSize)sizeof(val));
+    if(!data)
+      data = def.indirectSnapshot.Read(addr, (VkDeviceSize)sizeof(val));
+    if(!data)
+    {
+      if(warn)
+      {
+        RDCWARN("%s for set %d / binding %d accessed un-snapshotted device address 0x%016llx",
+                ToStr(mapping->source).c_str(), bindset, bind, (long long)addr);
+      }
+      return false;
+    }
+    memcpy(&val, data, sizeof(val));
+    return true;
+  };
+
+  auto addDirectUsage = [this, &eventNode, &usage, type, isInputAttachment](VkDeviceAddress address)
+
+  {
+    DescriptorSetSlot slot = {};
+    slot.type = convert(MakeVkDescriptorType(type, isInputAttachment));
+    uint64_t offs;
+    GetResIDFromAddr(address, slot.resource, offs);
+    AddUsageForDescriptor(eventNode, slot, usage);
+  };
+
+  uint32_t descriptorSize = HeapDescriptorDataSize(MakeVkDescriptorType(type, isInputAttachment));
+
+  VkDeviceSize heapOffset = 0;
+  VkDeviceSize shaderIndex = bind - mapping->firstBinding;
+  VkDeviceAddress indirectAddress =
+      0;    // for VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT
+  VkDeviceSize heapArrayStride = 0;
+  switch(mapping->source)
+  {
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT:
+      heapArrayStride = mapping->sourceData.constantOffset.heapArrayStride;
+      heapOffset = mapping->sourceData.constantOffset.heapOffset + shaderIndex * heapArrayStride;
+      break;
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT:
+    {
+      VkDescriptorMappingSourcePushIndexEXT &data = mapping->sourceData.pushIndex;
+      heapArrayStride = data.heapArrayStride;
+      uint32_t pushIndex;
+      if(!readPush(data.pushOffset, pushIndex, eventNode, msg))
+        return;
+
+      heapOffset =
+          data.heapOffset + pushIndex * data.heapIndexStride + shaderIndex * data.heapArrayStride;
+      break;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+    {
+      VkDescriptorMappingSourceIndirectIndexEXT &data = mapping->sourceData.indirectIndex;
+      heapArrayStride = data.heapArrayStride;
+      /* This would require having snapshotted the uint32_t indirectIndex
+       * pointed to by the BDA stored in the push data.
+       */
+      VkDeviceAddress address;
+      if(!readPush(data.pushOffset, address, eventNode, msg))
+        return;
+      uint32_t indirectIndex;
+      if(!readBDA(address + data.addressOffset, indirectIndex, true))
+        return;
+      heapOffset = data.heapOffset + indirectIndex * data.heapIndexStride +
+                   shaderIndex * data.heapArrayStride;
+      break;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+    {
+      VkDescriptorMappingSourceIndirectIndexArrayEXT &data = mapping->sourceData.indirectIndexArray;
+      if(!readPush(data.pushOffset, indirectAddress, eventNode, msg))
+        return;
+      indirectAddress += data.addressOffset;
+      // final heap offset will be computed per array element in the per-descriptor loop.
+      heapOffset = data.heapOffset;
+      break;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_RESOURCE_HEAP_DATA_EXT:
+      addDirectUsage(def.resourceHeapAddress);
+      return;
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_DATA_EXT:
+      /* No usage to add here: using the push data to back a constant buffer */
+      return;
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_ADDRESS_EXT:
+    {
+      VkDeviceAddress address;
+      if(!readPush(mapping->sourceData.pushAddressOffset, address, eventNode, msg))
+        return;
+
+      addDirectUsage(address);
+      return;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_INDIRECT_ADDRESS_EXT:
+    {
+      VkDescriptorMappingSourceIndirectAddressEXT &data = mapping->sourceData.indirectAddress;
+      if(!readPush(data.pushOffset, indirectAddress, eventNode, msg))
+        return;
+      VkDeviceAddress resourceAddress;
+      if(!readBDA(indirectAddress + data.addressOffset, resourceAddress, true))
+        return;
+
+      addDirectUsage(resourceAddress);
+      return;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_SHADER_RECORD_INDEX_EXT:
+    {
+      uint32_t shaderRecordIndex = 0;    // XXX: Figure out how shader records work.
+      RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+              bind);
+      heapOffset = mapping->sourceData.shaderRecordIndex.heapOffset +
+                   shaderRecordIndex * mapping->sourceData.shaderRecordIndex.heapIndexStride +
+                   shaderIndex * mapping->sourceData.shaderRecordIndex.heapArrayStride;
+      return;
+    }
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_DATA_EXT:
+      /* We could add resource usage for the shader record's VkBuffer. */
+      RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+              bind);
+      return;
+
+    case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_ADDRESS_EXT:
+      /* If we could capture the shader record (?), then we could add buffer
+       * usage for the buffer associated with the from the shader record.
+       */
+      RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+              bind);
+      return;
+
+    default:
+      RDCERR("missing support for mapping source %s", DoStringise(mapping->source).c_str());
+      break;
+  }
+
+  // Direct resource mappings returned above, everything that reaches here is
+  // accessing through a descriptor in the (resource) descriptor heap.
+  if(!def.heapSnapshot.ranges.size())
+  {
+    msg.description = StringFormat::Fmt(
+        "%s descriptor at set %d / binding %d reading with no descriptor heap bound",
+        ToStr(mapping->source).c_str(), bindset, bind);
+    eventNode.debugMessages.push_back(msg);
+    return;
+  }
+
+  if(arraySize > 1000)
+  {
+    if(!hugeRangeWarned)
+      RDCWARN("Skipping large, most likely 'bindless', descriptor range");
+    hugeRangeWarned = true;
+    return;
+  }
+
+  const byte *descriptors = NULL;
+  if(mapping->source != VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT)
+  {
+    descriptors = def.heapSnapshot.Read(def.resourceHeapAddress + heapOffset,
+                                        (arraySize - 1) * heapArrayStride + descriptorSize);
+    if(!descriptors)
+    {
+      RDCWARN("Descriptors for set %d / binding %d out of range of the memory snapshot.", bindset,
+              bind);
+      return;
+    }
+  }
+
+  for(uint32_t a = 0; a < arraySize; a++)
+  {
+    const byte *descriptor;
+    if(mapping->source == VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT)
+    {
+      // fetch the per-array-element indirect address.
+      VkDescriptorMappingSourceIndirectIndexArrayEXT &data = mapping->sourceData.indirectIndexArray;
+
+      // Don't warn on failing lookup of array descriptors, because we don't
+      // necessarily expect that all of them are populated in the heap.
+      uint32_t indirectIndex;
+      if(!readBDA(indirectAddress + a * 4, indirectIndex, arraySize == 1))
+        return;
+
+      descriptor = def.heapSnapshot.Read(
+          def.resourceHeapAddress + heapOffset + indirectIndex * data.heapIndexStride,
+          descriptorSize);
+      if(!descriptor)
+      {
+        if(arraySize != 1)
+        {
+        }
+        RDCWARN("Descriptors for set %d / binding %d out of range of the memory snapshot.", bindset,
+                bind);
+        continue;
+      }
+    }
+    else
+    {
+      descriptor = descriptors + a * descriptorSize;
+    }
+
+    DescriptorSetSlot setSlot = m_DescriptorLookup.fallback.lookup({descriptor, descriptorSize});
+
+#if ENABLED(RDOC_DEVEL)
+    if(arraySize == 1 && !m_DescriptorLookup.fallback.contains({descriptor, descriptorSize}))
+    {
+      RDCERR("Trie heap descriptor lookup failed");
+      // dump the descriptor
+      uint64_t *descriptorU64 = (uint64_t *)descriptor;
+      for(uint32_t i = 0; i * 8 < descriptorSize; i++)
+        RDCLOG("  [%u]: %llx", i, descriptorU64[i]);
+    }
+#endif
+
+    AddUsageForDescriptor(eventNode, setSlot, usage);
   }
 }
 
