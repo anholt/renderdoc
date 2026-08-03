@@ -484,9 +484,13 @@ StructSizes CalculateStructProps(uint32_t emptyStructSize, const ShaderConstant 
     }
   }
 
-  ret.scalarSize *= RDCMAX(c.type.elements, 1U);
-  ret.baseSize *= RDCMAX(c.type.elements, 1U);
-  ret.extendedSize *= RDCMAX(c.type.elements, 1U);
+  if(c.type.elements > 1)
+  {
+    const uint32_t nonFinalArraySize = (c.type.elements - 1) * c.type.arrayByteStride;
+    ret.scalarSize += nonFinalArraySize;
+    ret.baseSize += nonFinalArraySize;
+    ret.extendedSize += nonFinalArraySize;
+  }
 
   return ret;
 }
