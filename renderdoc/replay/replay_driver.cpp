@@ -424,6 +424,10 @@ void StandardFillCBufferVariable(ResourceId shader, const ShaderConstantType &de
       }
     }
   }
+  else
+  {
+    outvar.flags |= ShaderVariableFlags::Truncated;
+  }
 
   if(desc.pointerTypeID != ~0U)
     outvar.SetTypedPointer(outvar.value.u64v[0], shader, desc.pointerTypeID);
