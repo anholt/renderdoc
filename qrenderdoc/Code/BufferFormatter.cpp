@@ -1592,7 +1592,8 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       // if we have a matrix and it's not GL style, then typeAxB means A rows and B columns
       // for GL matAxB that means A columns and B rows. This is in contrast to typeA which means A
       // columns for HLSL and A columns for GLSL, hence only the swap for matrices
-      if(!match.captured(lit("mat")).isEmpty() && basetype != lit("mat"))
+      const bool glmatrix = basetype.size() <= 4 && basetype.endsWith(lit("mat"));
+      if(!match.captured(lit("mat")).isEmpty() && !glmatrix)
       {
         vecMatSizeSuffix = match.captured(lit("vec")) + match.captured(lit("mat"));
         firstDim.swap(secondDim);
@@ -1605,14 +1606,14 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       }
 
       // check for square matrix declarations like 'mat4' and 'mat3'
-      if(basetype == lit("mat") && match.captured(lit("mat")).isEmpty())
+      if(glmatrix && match.captured(lit("mat")).isEmpty())
       {
         secondDim = firstDim;
         vecMatSizeSuffix = firstDim + lit("x") + firstDim;
       }
 
       // check for square matrix declarations like 'mat4' and 'mat3'
-      if(basetype == lit("mat") && match.captured(lit("mat")).isEmpty())
+      if(glmatrix && match.captured(lit("mat")).isEmpty())
         secondDim = firstDim;
 
       // calculate format
@@ -4462,6 +4463,12 @@ TEST_CASE("Buffer format parsing", "[formatter]")
   uint_type.baseType = VarType::UInt;
   uint_type.arrayByteStride = 4;
 
+  ShaderConstantType double_type;
+  double_type.name = "double";
+  double_type.flags = ShaderVariableFlags::RowMajorMatrix;
+  double_type.baseType = VarType::Double;
+  double_type.arrayByteStride = 8;
+
   ParsedFormat parsed;
 
   BufferFormatter::Init(GraphicsAPI::Vulkan);
@@ -4931,6 +4938,138 @@ TEST_CASE("Buffer format parsing", "[formatter]")
     // these are calculated with scalar packing for now, packing rules are tested separately
     expected_type.arrayByteStride = 36;
     expected_type.matrixByteStride = 12;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("imat3x2 a;"), 0, true);
+
+    expected_type = int_type;
+    expected_type.name = "int2x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 2;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 24;
+    expected_type.matrixByteStride = 8;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("imat2x3 a;"), 0, true);
+
+    expected_type = int_type;
+    expected_type.name = "int3x2";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 2;
+    expected_type.arrayByteStride = 24;
+    expected_type.matrixByteStride = 12;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("imat3 a;"), 0, true);
+
+    expected_type = int_type;
+    expected_type.name = "int3x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 36;
+    expected_type.matrixByteStride = 12;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("umat3x2 a;"), 0, true);
+
+    expected_type = uint_type;
+    expected_type.name = "uint2x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 2;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 24;
+    expected_type.matrixByteStride = 8;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("umat2x3 a;"), 0, true);
+
+    expected_type = uint_type;
+    expected_type.name = "uint3x2";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 2;
+    expected_type.arrayByteStride = 24;
+    expected_type.matrixByteStride = 12;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("umat3 a;"), 0, true);
+
+    expected_type = uint_type;
+    expected_type.name = "uint3x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 36;
+    expected_type.matrixByteStride = 12;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("dmat3x2 a;"), 0, true);
+
+    expected_type = double_type;
+    expected_type.name = "double2x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 2;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 48;
+    expected_type.matrixByteStride = 16;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("dmat2x3 a;"), 0, true);
+
+    expected_type = double_type;
+    expected_type.name = "double3x2";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 2;
+    expected_type.arrayByteStride = 48;
+    expected_type.matrixByteStride = 24;
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 1);
+    CHECK((parsed.fixed.type.members[0].type == expected_type));
+
+    parsed = BufferFormatter::ParseFormatString(lit("dmat3 a;"), 0, true);
+
+    expected_type = double_type;
+    expected_type.name = "double3x3";
+    expected_type.flags = ShaderVariableFlags::NoFlags;
+    expected_type.rows = 3;
+    expected_type.columns = 3;
+    // these are calculated with scalar packing for now, packing rules are tested separately
+    expected_type.arrayByteStride = 72;
+    expected_type.matrixByteStride = 24;
 
     CHECK(parsed.errors.isEmpty());
     REQUIRE(parsed.fixed.type.members.size() == 1);
