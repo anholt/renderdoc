@@ -876,6 +876,21 @@ VkResult WrappedVulkan::vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo
       {
         availablePhysDeviceFunctions.insert(e.extensionName);
       }
+
+      for(uint32_t i = 0; i < modifiedCreateInfo.enabledLayerCount; i++)
+      {
+        ObjDisp(m_Instance)
+            ->EnumerateDeviceExtensionProperties(p, modifiedCreateInfo.ppEnabledLayerNames[i],
+                                                 &count, NULL);
+
+        exts.resize(count);
+        ObjDisp(m_Instance)->EnumerateDeviceExtensionProperties(p, NULL, &count, exts.data());
+
+        for(const VkExtensionProperties &e : exts)
+        {
+          availablePhysDeviceFunctions.insert(e.extensionName);
+        }
+      }
     }
     // we don't bother wrapping these, they're temporary handles
   }
@@ -892,6 +907,7 @@ VkResult WrappedVulkan::vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo
     record->instDevInfo->ext_##name = true;                                                \
   }
   CheckInstanceExts();
+  CheckDeviceExts();
 #undef CheckExt
 #define CheckExt(name, ver)                                               \
   if(!strcmp(modifiedCreateInfo.ppEnabledExtensionNames[i], "VK_" #name)) \
