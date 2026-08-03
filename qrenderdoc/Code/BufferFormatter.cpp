@@ -177,7 +177,9 @@ static QString MakeIdentifierName(const rdcstr &name)
 }
 
 void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
-                                           const ShaderConstant &constant, uint32_t knownVecAlignment)
+                                           const ShaderConstant &constant,
+                                           QSet<uint32_t> &pointerTypesProcessed,
+                                           uint32_t knownVecAlignment)
 {
   // see if this constant violates any of the packing rules we are currently checking for.
   // We can't *prove* a rule is followed just from one example, we can only see if it is never
@@ -289,24 +291,28 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
       knownVecAlignment = 1;
   }
 
-  EstimatePackingRules(pack, shader, constant.type.members, knownVecAlignment);
+  EstimatePackingRules(pack, shader, constant.type.members, pointerTypesProcessed, knownVecAlignment);
 }
 
 void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
                                            const rdcarray<ShaderConstant> &members,
+                                           QSet<uint32_t> &pointerTypesProcessed,
                                            uint32_t knownVecAlignment)
 {
   for(size_t i = 0; i < members.size(); i++)
   {
     // check this constant
-    EstimatePackingRules(pack, shader, members[i], knownVecAlignment);
+    EstimatePackingRules(pack, shader, members[i], pointerTypesProcessed, knownVecAlignment);
 
     // when pointers are in use, follow the type and estimate with those too
-    if(members[i].type.pointerTypeID != ~0U)
+    if(members[i].type.pointerTypeID != ~0U &&
+       !pointerTypesProcessed.contains(members[i].type.pointerTypeID))
     {
+      pointerTypesProcessed.insert(members[i].type.pointerTypeID);
+
       const ShaderConstantType &ptrType =
           PointerTypeRegistry::GetTypeDescriptor(shader, members[i].type.pointerTypeID);
-      EstimatePackingRules(pack, shader, ptrType.members, knownVecAlignment);
+      EstimatePackingRules(pack, shader, ptrType.members, pointerTypesProcessed, knownVecAlignment);
     }
 
     // check for trailing array/struct use
@@ -353,7 +359,8 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
     pack = Packing::std140;
 
   // without more information we must assume all vectors are naturally aligned
-  EstimatePackingRules(pack, shader, members, 16);
+  QSet<uint32_t> pointerTypesProcessed;
+  EstimatePackingRules(pack, shader, members, pointerTypesProcessed, 16);
 
   // only return a 'real' ruleset. Don't revert to individually setting rules if we can help it
   // since that's a mess. The worst case is if someone is really using a custom packing format then

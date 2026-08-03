@@ -226,10 +226,11 @@ private:
   static uint32_t GetVarSizeAndTrail(const ShaderConstant &var);
 
   static void EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
-                                   const ShaderConstant &constant, uint32_t knownVecAlignment);
+                                   const ShaderConstant &constant,
+                                   QSet<uint32_t> &pointerTypesProcessed, uint32_t knownVecAlignment);
   static void EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
                                    const rdcarray<ShaderConstant> &members,
-                                   uint32_t knownVecAlignment);
+                                   QSet<uint32_t> &pointerTypesProcessed, uint32_t knownVecAlignment);
   static QString DeclarePacking(Packing::Rules pack);
 
 public:
