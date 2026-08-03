@@ -121,6 +121,45 @@ uint32_t PointerTypeRegistry::GetTypeID(const ShaderConstantType &structDef)
   return id;
 }
 
+static void UpdatePendingPointerTypes(ShaderConstantType &constType, QMap<uint32_t, uint32_t> remap)
+{
+  if(remap.contains(constType.pointerTypeID))
+    constType.pointerTypeID = remap[constType.pointerTypeID];
+
+  for(ShaderConstant &m : constType.members)
+    UpdatePendingPointerTypes(m.type, remap);
+}
+
+QList<uint32_t> PointerTypeRegistry::ResolveTypeIDsForPointerCycle(
+    QList<QPair<ShaderConstantType *, uint32_t>> structTypes)
+{
+  QList<uint32_t> ret;
+
+  // we don't attempt to deduplicate when declaring pointer cycles, we just allocate new types. This
+  // leads to a "leak" but it's expected to be small, rare, and limited in number
+  uint32_t base = (uint32_t)typeDescriptions.size();
+
+  QMap<uint32_t, uint32_t> remap;
+
+  typeDescriptions.reserve(base + structTypes.size());
+  for(int i = 0; i < structTypes.count(); i++)
+  {
+    uint32_t id = TypeIDBit | (uint32_t)typeDescriptions.size();
+
+    typeDescriptions.push_back(*structTypes[i].first);
+    typeMapping[qMakePair(ResourceId(), id)] = id;
+
+    remap[structTypes[i].second] = id;
+
+    ret.push_back(id);
+  }
+
+  for(int i = 0; i < structTypes.count(); i++)
+    UpdatePendingPointerTypes(typeDescriptions[base + i], remap);
+
+  return ret;
+}
+
 const ShaderConstantType &PointerTypeRegistry::GetTypeDescriptor(uint32_t typeId)
 {
   return typeDescriptions[typeId & ~TypeIDBit];

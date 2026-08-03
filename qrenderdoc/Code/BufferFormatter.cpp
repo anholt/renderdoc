@@ -35,7 +35,10 @@ struct StructFormatData
   // to attach the error to it
   QList<int> lineMemberDefs;
 
-  uint32_t pointerTypeId = 0;
+  bool hasDefinition = false;
+  bool pointerTypeDeclared = false;
+  uint32_t pointerTypeID = ~0U;
+
   uint32_t offset = 0;
   uint32_t alignment = 0;
   uint32_t paddedStride = 0;
@@ -172,6 +175,98 @@ static QString MakeIdentifierName(const rdcstr &name)
     ret.prepend(QLatin1Char('_'));
 
   ret.replace(QRegularExpression(lit("[^A-Za-z0-9@_]+")), lit("_"));
+
+  return ret;
+}
+
+static void GatherPointerTypesToResolve(const ShaderConstantType &structType,
+                                        const QList<StructFormatData *> structdefs,
+                                        QSet<uint32_t> &pointerTypesToResolve)
+{
+  if(structType.baseType == VarType::GPUPointer &&
+     structType.pointerTypeID < (size_t)structdefs.size())
+    pointerTypesToResolve.insert(structType.pointerTypeID);
+
+  for(const ShaderConstant &m : structType.members)
+    GatherPointerTypesToResolve(m.type, structdefs, pointerTypesToResolve);
+}
+
+static bool RefreshPointerTypes(ShaderConstantType &structType,
+                                const QList<StructFormatData *> structdefs, bool requireResolve)
+{
+  bool errors = false;
+
+  if(structType.baseType == VarType::GPUPointer &&
+     structType.pointerTypeID < (size_t)structdefs.size())
+  {
+    StructFormatData *pointedType = structdefs[structType.pointerTypeID];
+
+    if(pointedType->pointerTypeDeclared)
+    {
+      structType.pointerTypeID = pointedType->pointerTypeID;
+    }
+    else
+    {
+      if(requireResolve)
+        errors = true;
+    }
+  }
+
+  for(ShaderConstant &m : structType.members)
+    errors |= RefreshPointerTypes(m.type, structdefs, requireResolve);
+
+  return errors;
+}
+
+static bool IsCompleteType(const ShaderConstantType &structType,
+                           const QList<StructFormatData *> structdefs)
+{
+  bool ret = true;
+
+  if(structType.baseType == VarType::GPUPointer &&
+     structType.pointerTypeID < (size_t)structdefs.size())
+  {
+    StructFormatData *pointedType = structdefs[structType.pointerTypeID];
+
+    if(!pointedType->pointerTypeDeclared)
+      ret = false;
+  }
+
+  for(const ShaderConstant &m : structType.members)
+    ret = ret && IsCompleteType(m.type, structdefs);
+
+  return ret;
+}
+
+QList<const ShaderConstantType *> GatherPointerRecursiveMembers(
+    const rdcstr &name, ResourceId shader, QMap<QString, bool> &declaredStructs,
+    const ShaderConstantType *parentStructType, const rdcarray<ShaderConstant> &members)
+{
+  QList<const ShaderConstantType *> ret;
+
+  for(const ShaderConstant &m : members)
+  {
+    if(m.type.pointerTypeID != ~0U)
+    {
+      const ShaderConstantType &pointeeType =
+          PointerTypeRegistry::GetTypeDescriptor(shader, m.type.pointerTypeID);
+
+      ret.append(GatherPointerRecursiveMembers(name, shader, declaredStructs, &pointeeType,
+                                               pointeeType.members));
+    }
+    // this is obviously impossible on the first recursion into a struct's members, but becomes
+    // possible once we have recursed through a pointer type.
+    else if(m.type.baseType == VarType::Struct && m.type.name == name)
+    {
+      Q_ASSERT(parentStructType);
+      if(parentStructType)
+      {
+        ret.push_back(parentStructType);
+        if(!declaredStructs.contains(parentStructType->name))
+          declaredStructs[parentStructType->name] = false;
+      }
+    }
+  }
 
   return ret;
 }
@@ -507,7 +602,7 @@ bool BufferFormatter::ContainsUnbounded(const ShaderConstant &structType,
 }
 
 bool BufferFormatter::CheckInvalidUnbounded(const StructFormatData &structData,
-                                            const QMap<QString, StructFormatData> &structelems,
+                                            const QMap<QString, StructFormatData *> &structlookup,
                                             QMap<int, QString> &errors)
 {
   const ShaderConstant &def = structData.structDef;
@@ -537,7 +632,9 @@ bool BufferFormatter::CheckInvalidUnbounded(const StructFormatData &structData,
       return false;
     }
 
-    if(!CheckInvalidUnbounded(structelems[def.type.members[i].type.name], structelems, errors))
+    rdcstr memberTypeName = def.type.members[i].type.name;
+    if(structlookup.contains(memberTypeName) &&
+       !CheckInvalidUnbounded(*structlookup[memberTypeName], structlookup, errors))
       return false;
   }
 
@@ -549,10 +646,13 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 {
   ParsedFormat ret;
 
-  StructFormatData root;
-  StructFormatData *cur = &root;
+  QList<StructFormatData *> structdefs;
 
-  QMap<QString, StructFormatData> structelems;
+  structdefs.push_back(new StructFormatData);
+  StructFormatData *cur = structdefs.back();
+  StructFormatData &root = *cur;
+
+  QMap<QString, StructFormatData *> structlookup;
   QString lastStruct;
 
   // regex doesn't account for trailing or preceeding whitespace, or comments
@@ -705,6 +805,8 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
     QString decl;
 
+    bool trailingSemi = false;
+
     {
       int end = 0;
       for(; end < parseText.length();)
@@ -721,9 +823,18 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         // consume c now, whatever it is, we've read it and will process it below
         end++;
 
-        // if this is a ; or , we don't bother to include it in the declaration but stop now
-        if(state == NORMAL && (c == QLatin1Char(';') || c == QLatin1Char(',')))
-          break;
+        // if this is a ; or , we don't bother to include it in the declaration but stop now and
+        // note if we saw a semi-colon
+        if(state == NORMAL)
+        {
+          if(c == QLatin1Char(';'))
+          {
+            trailingSemi = true;
+            break;
+          }
+          if(c == QLatin1Char(','))
+            break;
+        }
 
         if(c == QLatin1Char('\n'))
         {
@@ -943,8 +1054,6 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
               break;
             }
           }
-
-          cur->pointerTypeId = PointerTypeRegistry::GetTypeID(cur->structDef.type);
         }
 
         cur = &root;
@@ -961,21 +1070,63 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         QString typeName = match.captured(1);
         QString name = match.captured(2);
 
-        if(structelems.contains(name))
+        if(cur != &root)
         {
-          reportError(tr("type %1 has already been defined.").arg(name));
+          // if we've already seen a definition, that's an error
+          reportError(tr("Unexpected nested struct definition defining %1 in %2.")
+                          .arg(name)
+                          .arg(QString(cur->structDef.type.name)));
           success = false;
           break;
         }
 
-        cur = &structelems[name];
-        cur->structDef.type.name = name;
+        // seeing a new struct, create an entry for it
+        if(!structlookup.contains(name))
+        {
+          structdefs.push_back(new StructFormatData);
+
+          cur = structlookup[name] = structdefs.back();
+          cur->structDef.type.name = name;
+          cur->pointerTypeID = structdefs.count() - 1;
+          cur->pointerTypeDeclared = false;
+        }
+        else
+        {
+          // if this struct has only been predeclared grab the existing entry
+          if(!structlookup[name]->hasDefinition)
+          {
+            cur = structlookup[name];
+          }
+          else if(trailingSemi)
+          {
+            // ignore harmless re-declaration of struct that is defined
+            cur = &root;
+            continue;
+          }
+          else
+          {
+            // if we've already seen a definition, that's an error
+            reportError(tr("type %1 has already been defined.").arg(name));
+            success = false;
+            break;
+          }
+        }
+
         bitfieldCurPos = ~0U;
 
         if(typeName == lit("struct"))
         {
           lastStruct = name;
           cur->structDef.type.baseType = VarType::Struct;
+
+          // if the struct declaration ended in a ; this is a pre-declaration. Mark this and move on
+          if(trailingSemi)
+          {
+            cur->hasDefinition = false;
+            cur = &root;
+            continue;
+          }
+          cur->hasDefinition = true;
 
           for(const Annotation &annot : annotations)
           {
@@ -1028,6 +1179,14 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         else
         {
           cur->structDef.type.baseType = VarType::Enum;
+          cur->hasDefinition = true;
+
+          if(trailingSemi)
+          {
+            reportError(tr("Unsupported pre-declaration of enum '%1' ").arg(name));
+            success = false;
+            break;
+          }
 
           for(const Annotation &annot : annotations)
           {
@@ -1258,9 +1417,9 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
     bool isPointer = false;
 
     uint32_t specifiedOffset = ~0U;
-    if(structMatch.hasMatch() && structelems.contains(structMatch.captured(1)))
+    if(structMatch.hasMatch() && structlookup.contains(structMatch.captured(1)))
     {
-      StructFormatData &structContext = structelems[structMatch.captured(1)];
+      const StructFormatData &structContext = *structlookup[structMatch.captured(1)];
 
       QString pointerStars = structMatch.captured(2).trimmed();
       isPointer = !pointerStars.isEmpty();
@@ -1282,6 +1441,13 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       if(!isPointer && structContext.structDef.type.name == cur->structDef.type.name)
       {
         reportError(tr("Invalid nested struct declaration, only allowed for pointers."));
+        success = false;
+        break;
+      }
+
+      if(!isPointer && !structContext.hasDefinition)
+      {
+        reportError(tr("Can't declare struct member which is not yet defined."));
         success = false;
         break;
       }
@@ -1405,7 +1571,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
         el.name = varName;
         el.byteOffset = cur->offset;
-        el.type.pointerTypeID = structContext.pointerTypeId;
+        el.type.pointerTypeID = structContext.pointerTypeID;
         el.type.baseType = VarType::GPUPointer;
         el.type.flags |= ShaderVariableFlags::HexDisplay;
         el.type.arrayByteStride = 8;
@@ -1551,7 +1717,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         {
           problemGuess = tr("Did you need a ; between multiple declarations?");
         }
-        else if(identifiers.size() >= 1 && structelems.contains(identifiers[0]))
+        else if(identifiers.size() >= 1 && structlookup.contains(identifiers[0]))
         {
           problemGuess = tr("Invalid declaration of struct '%1'.").arg(identifiers[0]);
         }
@@ -2216,13 +2382,122 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
     bitfieldCurPos = ~0U;
   }
 
+  QSet<uint32_t> pointerTypesToResolve;
+
+  // gather the list of pointed-to structs referenced by a pointer somewhere which need to be registered
+  for(StructFormatData *s : structdefs)
+  {
+    GatherPointerTypesToResolve(s->structDef.type, structdefs, pointerTypesToResolve);
+
+    // by now all pointer members to structs must have those structs defined
+    for(size_t i = 0; i < s->structDef.type.members.size(); i++)
+    {
+      const ShaderConstantType &t = s->structDef.type.members[i].type;
+      if(t.baseType == VarType::GPUPointer && t.pointerTypeID < (uint32_t)structdefs.size() &&
+         !structdefs[t.pointerTypeID]->hasDefinition)
+      {
+        // if we hit an error, don't resolve any types
+        pointerTypesToResolve.clear();
+
+        success = false;
+        errors[s->lineMemberDefs[(int)i]] =
+            tr("Pointer declared to type %1 which has no definition.")
+                .arg(structdefs[t.pointerTypeID]->structDef.type.name);
+        break;
+      }
+    }
+  }
+
+  if(!pointerTypesToResolve.empty())
+  {
+    rdcarray<StructFormatData *> pending;
+
+    // set up the initial pending list
+    for(uint32_t i : pointerTypesToResolve)
+      pending.push_back(structdefs[i]);
+
+    // note if we made progress. Because we don't know the order of pointers, each time we
+    // successfully register a pointer type we try all other types to see if we can then register
+    // them. we only stop when we can't register anything, meaning we have a cycle left somewhere
+    //
+    // not super efficient but not a big deal for a limited number of structs and pointer members as
+    // in most cases all structs will resolve on the first pass with no complex pointer relationships
+    bool madeProgress = false;
+
+    do
+    {
+      madeProgress = false;
+
+      // for each struct currently pending
+      for(int i = 0; i < pending.count();)
+      {
+        // refresh any pointers with the latest information, but don't require them to resolve
+        RefreshPointerTypes(pending[i]->structDef.type, structdefs, false);
+
+        // if this struct doesn't use any incomplete types - meaning no pointers, or all pointers
+        // have been registered, we can now register it and remove it from the pending list
+        bool ready = IsCompleteType(pending[i]->structDef.type, structdefs);
+
+        if(ready)
+        {
+          pending[i]->pointerTypeID = PointerTypeRegistry::GetTypeID(pending[i]->structDef.type);
+          pending[i]->pointerTypeDeclared = true;
+          pending.erase(i);
+
+          // we made progress so we loop around again next time
+          madeProgress = true;
+
+          continue;
+        }
+
+        i++;
+      }
+
+      // if any struct got registered, go around again with what's left pending and try again
+      // iteratively. if nothing got registered, we stop here
+    } while(madeProgress);
+
+    // if something is left in the pending list it is a cycle so register it all at once.
+    if(!pending.empty())
+    {
+      QList<QPair<ShaderConstantType *, uint32_t>> typesToResolve;
+
+      for(int i = 0; i < pending.count(); i++)
+        typesToResolve.push_back({
+            &pending[i]->structDef.type,
+            (uint32_t)structdefs.indexOf(pending[i]),
+        });
+
+      QList<uint32_t> ids = PointerTypeRegistry::ResolveTypeIDsForPointerCycle(typesToResolve);
+
+      // update all the type IDs in a batch now
+      for(int i = 0; i < ids.count(); i++)
+      {
+        pending[i]->pointerTypeID = ids[i];
+        pending[i]->pointerTypeDeclared = true;
+      }
+    }
+
+    // now go over all the pointers and update them, these should all now resolve as we should have everything settled
+    for(StructFormatData *s : structdefs)
+    {
+      if(RefreshPointerTypes(s->structDef.type, structdefs, true))
+      {
+        success = false;
+        errors[s->lineMemberDefs.back()] =
+            tr("Failed to resolve pointer definition, possibly undefined struct.");
+        break;
+      }
+    }
+  }
+
   ShaderConstant &fixed = ret.fixed;
 
   // if we succeeded parsing but didn't get any root elements, use the last defined struct as the
   // definition
   if(success && root.structDef.type.members.isEmpty() && !lastStruct.isEmpty())
   {
-    root = structelems[lastStruct];
+    root = *structlookup[lastStruct];
 
     // only pad up to the stride, not down
     if(root.paddedStride >= root.offset)
@@ -2251,7 +2526,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
   {
     // check that unbounded arrays are only the last member of each struct. Doing this separately
     // makes the below check easier since we only have to consider last members
-    if(!CheckInvalidUnbounded(root, structelems, errors))
+    if(!CheckInvalidUnbounded(root, structlookup, errors))
       success = false;
   }
 
@@ -2311,7 +2586,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         foundInfinite = true;
 
         if(parent && parent != &fixed)
-          infiniteArrayLine = structelems[parent->type.name].lineMemberDefs.back();
+          infiniteArrayLine = structlookup[parent->type.name]->lineMemberDefs.back();
         else
           infiniteArrayLine = root.lineMemberDefs.back();
       }
@@ -2431,6 +2706,9 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       iter = &iter->type.members.back();
     }
   }
+
+  for(StructFormatData *def : structdefs)
+    delete def;
 
   return ret;
 }
@@ -2575,7 +2853,7 @@ QString BufferFormatter::GetBufferFormatString(Packing::Rules pack, ResourceId s
     if(structName.isEmpty())
       structName = lit("el");
 
-    QList<QString> declaredStructs;
+    QMap<QString, bool> declaredStructs;
     QMap<ShaderConstant, QString> anonStructs;
     format = DeclareStruct(pack, shader, declaredStructs, anonStructs, structName,
                            res.variableType.members, 0, QString());
@@ -2824,12 +3102,21 @@ uint32_t BufferFormatter::GetUnpaddedStructAdvance(Packing::Rules pack,
 }
 
 QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
-                                       QList<QString> &declaredStructs,
+                                       QMap<QString, bool> &declaredStructs,
                                        QMap<ShaderConstant, QString> &anonStructs,
                                        const QString &name, const rdcarray<ShaderConstant> &members,
                                        uint32_t requiredByteStride, QString innerSkippedPrefixString)
 {
   QString declarations;
+
+  // normally structs can't contain themselves, but they can depend on themselves if there is a
+  // pointer-link somewhere in the parent-child relationship. E.g. struct A contains a pointer to
+  // struct B and struct B contains a direct member of struct A.
+  //
+  // when we detect this in struct A we want to forward-declare B, process normally (which will not
+  // recurse into declaring B then), and add a trailing definition of B after A.
+  QList<const ShaderConstantType *> pointerRecursiveMembers =
+      GatherPointerRecursiveMembers(name, shader, declaredStructs, NULL, members);
 
   QString ret;
 
@@ -2939,10 +3226,15 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
 
         if(!declaredStructs.contains(varTypeName))
         {
-          declaredStructs.push_back(varTypeName);
+          declaredStructs[varTypeName] = false;
           declarations += DeclareStruct(pack, shader, declaredStructs, anonStructs, varTypeName,
                                         pointeeType.members, pointeeType.arrayByteStride, QString()) +
                           lit("\n");
+          declaredStructs[varTypeName] = true;
+        }
+        else if(!declaredStructs[varTypeName])
+        {
+          declarations += QFormatStr("// forward declaration\nstruct %1;\n\n").arg(varTypeName);
         }
       }
 
@@ -2952,7 +3244,7 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
     {
       if(!declaredStructs.contains(varTypeName))
       {
-        declaredStructs.push_back(varTypeName);
+        declaredStructs[varTypeName] = false;
 
         const bool signedEnum = bool(members[i].type.flags & ShaderVariableFlags::SignedEnum);
         VarType enumType = signedEnum ? VarType::SInt : VarType::UInt;
@@ -2964,6 +3256,12 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
           enumType = signedEnum ? VarType::SLong : VarType::ULong;
 
         declarations += DeclareEnum(varTypeName, members[i].type.members, enumType) + lit("\n");
+
+        declaredStructs[varTypeName] = true;
+      }
+      else if(!declaredStructs[varTypeName])
+      {
+        declarations += QFormatStr("// forward declaration\nenum %1;\n\n").arg(varTypeName);
       }
     }
     else if(members[i].type.baseType == VarType::Struct)
@@ -2988,11 +3286,16 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
 
       if(!declaredStructs.contains(varTypeName))
       {
-        declaredStructs.push_back(varTypeName);
+        declaredStructs[varTypeName] = false;
         declarations +=
             DeclareStruct(pack, shader, declaredStructs, anonStructs, varTypeName,
                           members[i].type.members, members[i].type.arrayByteStride, QString()) +
             lit("\n");
+        declaredStructs[varTypeName] = true;
+      }
+      else if(!declaredStructs[varTypeName])
+      {
+        declarations += QFormatStr("// forward declaration\nstruct %1;\n\n").arg(varTypeName);
       }
     }
 
@@ -3071,6 +3374,20 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
   if(!name.isEmpty() || members.size() != 1)
     ret += lit("}\n");
 
+  // if we're about to declare pointer recursively needed members, since the declaration of this struct
+  // is now done mark that as the case so we don't unnecessarily add a forward declaration after the definition
+  if(!pointerRecursiveMembers.empty())
+    declaredStructs[name] = true;
+
+  for(const ShaderConstantType *t : pointerRecursiveMembers)
+  {
+    QString varTypeName = MakeIdentifierName(t->name);
+    ret += lit("\n");
+    ret += DeclareStruct(pack, shader, declaredStructs, anonStructs, varTypeName, t->members,
+                         t->arrayByteStride, QString());
+    declaredStructs[varTypeName] = true;
+  }
+
   return declarations + ret;
 }
 
@@ -3098,7 +3415,8 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader, c
                                        const rdcarray<ShaderConstant> &members,
                                        uint32_t requiredByteStride)
 {
-  QList<QString> declaredStructs;
+  QMap<QString, bool> declaredStructs;
+  declaredStructs[name] = false;
   QMap<ShaderConstant, QString> anonStructs;
   QString structDef = DeclareStruct(pack, shader, declaredStructs, anonStructs, name, members,
                                     requiredByteStride, QString());
@@ -5868,6 +6186,51 @@ inner *ptr;
     REQUIRE(parsed.fixed.type.arrayByteStride == 16);
   };
 
+  SECTION("pre-declared structs")
+  {
+    rdcstr def = R"(
+struct inner;
+
+// multiple pre-declarations is fine
+struct inner;
+
+// unused pre-declaration is also fine
+struct unused;
+
+inner *ptr;
+int count;
+
+struct inner
+{
+  int a;
+  float b;
+};
+
+// trailing declaration is likewise fine
+struct inner;
+)";
+
+    parsed = BufferFormatter::ParseFormatString(def, 0, true);
+
+    CHECK(parsed.errors.isEmpty());
+    REQUIRE(parsed.fixed.type.members.size() == 2);
+    CHECK(parsed.fixed.type.members[0].name == "ptr");
+    CHECK(parsed.fixed.type.members[0].type.baseType == VarType::GPUPointer);
+    CHECK(parsed.fixed.type.members[1].name == "count");
+    CHECK((parsed.fixed.type.members[1].type == int_type));
+
+    REQUIRE(parsed.fixed.type.members[0].type.pointerTypeID != ~0U);
+
+    const ShaderConstantType &ptrType =
+        PointerTypeRegistry::GetTypeDescriptor(parsed.fixed.type.members[0].type.pointerTypeID);
+
+    REQUIRE(ptrType.members.size() == 2);
+    CHECK(ptrType.members[0].name == "a");
+    CHECK((ptrType.members[0].type == int_type));
+    CHECK(ptrType.members[1].name == "b");
+    CHECK((ptrType.members[1].type == float_type));
+  };
+
   SECTION("structs")
   {
     rdcstr def = R"(
@@ -7224,6 +7587,33 @@ s data;
 )",
            4, "already been"},
           {R"(
+struct a {
+  struct b {
+    int x;
+  };
+};
+
+a data;
+)",
+           2, "nested"},
+          {R"(
+struct inner;
+
+struct outer {
+  inner i;
+};
+)",
+           4, "not yet defined"},
+          {R"(
+struct inner;
+
+struct outer {
+  int x;
+  inner *i;
+};
+)",
+           5, "has no definition"},
+          {R"(
 enum e {
   val = 1,
 };
@@ -7273,6 +7663,14 @@ e data;
 )",
            3, "value declaration"},
           {R"(
+enum e;
+)",
+           1, "pre-declaration"},
+          {R"(
+enum e : uint;
+)",
+           1, "pre-declaration"},
+          {R"(
 struct s {
   float a;
 };
@@ -7316,6 +7714,106 @@ int b;
       CHECK(parsed.errors[err.line].contains(err.error, Qt::CaseInsensitive));
     }
   };
+};
+
+TEST_CASE("Mutually recursive pointer declarations", "[formatter]")
+{
+  BufferFormatter::Init(GraphicsAPI::Vulkan);
+
+  rdcstr def = R"(#pack(scalar)
+
+struct container;
+
+struct third
+{
+    uint member;
+    container *pointerC;
+}
+
+struct second
+{
+    float member;
+    third *pointer3;
+}
+
+struct first
+{
+    int member;
+    second *pointer2;
+}
+
+// have a container in the cycle which must be declared at the end, after the cycle itself
+struct container
+{
+    first data;
+};
+
+first root;
+)";
+
+  ParsedFormat parsed = BufferFormatter::ParseFormatString(def, 0, true);
+
+  QString regenerated =
+      BufferFormatter::DeclareStruct(parsed.packing, ResourceId(), parsed.fixed.type.name,
+                                     parsed.fixed.type.members, parsed.fixed.type.arrayByteStride);
+
+  // don't require the regenerated string to be identical, but it should parse-roundtrip without errors
+  ParsedFormat reparsed = BufferFormatter::ParseFormatString(regenerated, 0, true);
+
+  CHECK(reparsed.errors.isEmpty());
+
+  ParsedFormat check;
+
+  SECTION("Check original parsed")
+  {
+    check = parsed;
+  }
+
+  SECTION("Check re-parsed")
+  {
+    check = reparsed;
+  }
+
+  CHECK(check.errors.isEmpty());
+  REQUIRE(check.fixed.type.members.size() == 1);
+
+  ShaderConstant root = check.fixed.type.members[0];
+
+  ShaderConstantType firstType = root.type;
+
+  CHECK(firstType.name == "first");
+  CHECK(firstType.members[0].name == "member");
+  CHECK(firstType.members[0].type.baseType == VarType::SInt);
+  CHECK(firstType.members[1].name == "pointer2");
+  CHECK(firstType.members[1].type.baseType == VarType::GPUPointer);
+
+  uint32_t secondTypeID = firstType.members[1].type.pointerTypeID;
+
+  ShaderConstantType secondType = PointerTypeRegistry::GetTypeDescriptor(secondTypeID);
+  REQUIRE(secondType.members.size() == 2);
+  CHECK(secondType.name == "second");
+  CHECK(secondType.members[0].name == "member");
+  CHECK(secondType.members[0].type.baseType == VarType::Float);
+  CHECK(secondType.members[1].name == "pointer3");
+  CHECK(secondType.members[1].type.baseType == VarType::GPUPointer);
+
+  uint32_t thirdTypeID = secondType.members[1].type.pointerTypeID;
+
+  ShaderConstantType thirdType = PointerTypeRegistry::GetTypeDescriptor(thirdTypeID);
+  REQUIRE(thirdType.members.size() == 2);
+  CHECK(thirdType.name == "third");
+  CHECK(thirdType.members[0].name == "member");
+  CHECK(thirdType.members[0].type.baseType == VarType::UInt);
+  CHECK(thirdType.members[1].name == "pointerC");
+  CHECK(thirdType.members[1].type.baseType == VarType::GPUPointer);
+
+  uint32_t containerTypeID = thirdType.members[1].type.pointerTypeID;
+
+  ShaderConstantType containerType = PointerTypeRegistry::GetTypeDescriptor(containerTypeID);
+  REQUIRE(containerType.members.size() == 1);
+  CHECK(containerType.name == "container");
+  CHECK(containerType.members[0].name == "data");
+  CHECK((containerType.members[0].type == firstType));
 };
 
 #endif
