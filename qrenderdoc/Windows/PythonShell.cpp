@@ -1247,6 +1247,22 @@ void PythonShell::runScript(bool debugging)
   if(debugging)
     PythonContext::PrepareDebuggerWait();
 
+  // save any changes
+  if(editor->isModified() && !editor->filename().isEmpty())
+  {
+    saveEditor(editor, editor->filename());
+  }
+  else if(editor->filename().isEmpty())
+  {
+    // write the script as a temporary file, so if we crash it will be recoverable.
+    // this only applies if editor is an unsaved file
+    QString unsavedFile = context->GetTempFilename(lit("script.py"));
+    QFile f(unsavedFile);
+    f.open(QFile::Truncate | QFile::WriteOnly);
+    f.write(script.toUtf8().data());
+    f.close();
+  }
+
   m_CurLineTimer->start();
 
   LambdaThread *thread = new LambdaThread([this, debugging, script, context, editor]() {
@@ -1254,7 +1270,7 @@ void PythonShell::runScript(bool debugging)
 
     scriptContext = context;
     runningScriptEditor = editor->scintilla();
-    context->executeString(lit("script.py"), script, debugging);
+    context->executeString(editor->filename(), script, debugging);
     scriptContext = NULL;
 
     GUIInvoke::call(this, [this, context]() {
@@ -1263,6 +1279,9 @@ void PythonShell::runScript(bool debugging)
       context->Finish();
       runningScriptEditor = NULL;
       enableButtons(true);
+
+      QString unsavedFile = context->GetTempFilename(lit("script.py"));
+      QFile::remove(unsavedFile);
     });
 
     PythonContext::RemoveDebuggableThread();

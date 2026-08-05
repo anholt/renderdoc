@@ -2381,19 +2381,7 @@ void PythonContext::LaunchDebugger(QWidget *window, PersistentConfig &config, QS
     return;
 
   if(context_location.isEmpty())
-  {
-    for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
-    {
-      QDir tmpDir(path);
-      tmpDir.mkpath(lit("pytmp"));
-      tmpDir.cd(lit("pytmp"));
-      if(tmpDir.exists())
-      {
-        context_location = tmpDir.absolutePath();
-        break;
-      }
-    }
-  }
+    return;
 
   // don't overwrite an existing file, to allow user customisation
   QDir context_dir(context_location);
