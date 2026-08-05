@@ -32,6 +32,7 @@
 class PythonContext;
 class QTextEdit;
 class RDToolTip;
+class RDLabel;
 class QTimer;
 class QCompleter;
 class FindReplace;
@@ -48,14 +49,33 @@ struct CaptureContextInvoker;
 
 class PythonShell;
 
-class EditorWrapper : public ScintillaEdit
+class EditorWrapper : public QFrame
 {
   Q_OBJECT
 
   PythonShell *m_PyShell;
 
+  ScintillaEdit *m_Scintilla;
+  RDLabel *m_Warning;
+
+  QString m_Filename;
+  bool m_Modified = false;
+
+  void updateTitle();
+
 public:
   EditorWrapper(PythonShell *parent);
+  virtual ~EditorWrapper();
+
+  ScintillaEdit *scintilla() { return m_Scintilla; }
+
+  QString filename() { return m_Filename; }
+  void setFilename(QString filename);
+
+  void setWarning(QString text);
+
+  bool isModified() { return m_Modified; }
+  void markModified(bool modified);
 
 public slots:
   bool checkAllowClose();
@@ -94,8 +114,10 @@ public:
   QVariant persistData();
   void setPersistData(const QVariant &persistData);
 
-  bool saveEditorAs(ScintillaEdit *editor);
-  bool saveEditor(ScintillaEdit *editor, QString filename);
+  bool saveEditorAs(EditorWrapper *editor);
+  bool saveEditor(EditorWrapper *editor, QString filename);
+
+  void removeEditor(EditorWrapper *editor);
 
 private slots:
   // automatic slots
@@ -183,14 +205,15 @@ private:
   size_t lastDisplayedLine = 0;
 
   QList<ScintillaEdit *> m_Scintillas;
+  QList<EditorWrapper *> m_Editors;
 
   FindReplace *m_FindReplace;
   ScintillaEdit *m_FindResults = NULL;
 
   void setupTabs();
 
-  ScintillaEdit *curEditor();
-  ScintillaEdit *makeEditor(rdcstr filename);
+  EditorWrapper *curEditor();
+  void makeEditor(rdcstr filename, rdcstr text);
 
   void updateEditorCloseButton();
 
