@@ -1758,7 +1758,7 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
     // if this is the root node of a UI extension, add options to filter output/reload
     if(item->parent() == m_UIExtensions)
     {
-      QString itemPath = item->data(0, Qt::UserRole + 1).toString();
+      rdcstr itemPath = item->data(0, Qt::UserRole + 1).toString();
 
       contextMenu.insertAction(contextMenu.actions()[0], &reloadExtension);
       contextMenu.insertSeparator(contextMenu.actions()[1]);
@@ -1782,6 +1782,18 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
 
       QObject::connect(&reloadExtension, &QAction::triggered,
                        [this, itemPath]() { m_Ctx.Extensions().LoadExtension(itemPath); });
+
+      if(!m_Ctx.Config().AlwaysLoad_Extensions.contains(itemPath))
+      {
+        reloadExtension.setEnabled(true);
+        reloadExtension.setText(tr("Enable extension"));
+        reloadExtension.setIcon(Icons::add());
+
+        QObject::connect(&reloadExtension, &QAction::triggered, [this, itemPath]() {
+          m_Ctx.Config().AlwaysLoad_Extensions.push_back(itemPath);
+          m_Ctx.Config().Save();
+        });
+      }
 
       QObject::connect(&explorerOpen, &QAction::triggered,
                        [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });

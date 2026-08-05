@@ -45,11 +45,11 @@ To configure installed extensions, open the extension manager by opening the :gu
 
 	Extension Manager: Configures installed extensions.
 
-From here a list of all installed extensions is presented. By default extensions are not loaded, to load an extension either select it and press :guilabel:`Load` or else tick the box in the :guilabel:`Loaded` column in the list. As with python modules, once loaded an extension cannot be unloaded until the program is restarted.
+From here a list of all installed extensions is presented. By default extensions are not enabled or loaded, to load an extension you tick the box in the :guilabel:`Enabled` column.
 
-Once an extension is loaded to enable it permanently, tick the :guilabel:`Always Load` checkbox when the extension is selected. Once enabled this means the extension will always load when the UI starts without any user interaction. Extensions must be loaded first to ensure they can load without errors or crashes before enabling them to load at startup.
+Once an extension is enabled it will be loaded each time RenderDoc starts, and as normal for python modules, once loaded an extension cannot be unloaded. To disable an extension uncheck the :guilabel:`Enabled` checkbox and the extension will be disabled the next time you restart RenderDoc.
 
-A loaded extension can be reloaded by pressing the :guilabel:`Reload` button which will attempt to unload and load the extension again to refresh the code. This may break so if you encounter any problems it's recommended that you restart the program to ensure a clean reload.
+A loaded extension can be reloaded if the files have changed on disk from the :doc:`python scripting <../window/python_scripting>` window. This may break especially in the presence of callbacks, open UI, registered handlers or other persistent pieces of code. If you encounter any problems it's recommended that you restart RenderDoc to ensure a clean reload.
 
 Writing extensions
 ------------------

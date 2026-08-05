@@ -20,17 +20,10 @@ From the dialog that appears enter a package name such as ``tutorialext``. This 
 
 For more information about the registration of python extensions see :doc:`../how/how_python_extension`
 
-Loading the extension
----------------------
+Enabling the extension
+----------------------
 
-To load the extension, select it in the list in the extension manager and click the :guilabel:`Load` button. Python modules can't be unloaded but they can be reloaded if changes are made to the files on disk, so the button changes to :guilabel:`Reload`.
-
-When the extension is loaded a ``register()`` function is called, which at the moment for us just prints a message. This message can be viewed in the output panel of the :doc:`python scripting <../window/python_scripting>` window, which you can jump to by clicking :guilabel:`View Output`. You can filter the output with the drop-down above the output text.
-
-.. note::
-	The output this will not show any messages from before the window was opened - you can click :guilabel:`Reload` after opening the python scripting window to see some new messages.
-
-To avoid bugs in extensions from making the UI unusable easily, python extensions are not loaded by default. Once you've loaded an extension if you wish to have it automatically load on startup, you can do so by enabling :guilabel:`Always Load`.
+To load the extension, tick the :guilabel:`Enable` checkbox for its entry the extension manager. Python modules can't be unloaded but they can be reloaded if changes are made to the files on disk, which can be done from the :doc:`python scripting <../window/python_scripting>` window or the status bar.
 
 Editing your extension
 ----------------------

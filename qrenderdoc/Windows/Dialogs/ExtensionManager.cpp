@@ -48,7 +48,7 @@ ExtensionManager::ExtensionManager(ICaptureContext &ctx)
     RDHeaderView *header = new RDHeaderView(Qt::Horizontal, this);
     ui->extensions->setHeader(header);
 
-    ui->extensions->setColumns({tr("Package"), tr("Name"), tr("Loaded")});
+    ui->extensions->setColumns({tr("Package"), tr("Name"), tr("Enabled")});
     header->setColumnStretchHints({1, 4, -1});
   }
 
@@ -56,7 +56,7 @@ ExtensionManager::ExtensionManager(ICaptureContext &ctx)
   ui->version->setText(lit("---"));
   ui->author->setText(lit("---"));
   ui->URL->setText(lit("---"));
-  ui->alwaysLoad->setEnabled(false);
+  ui->status->setText(lit("---"));
 
   QObject::connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
 
@@ -89,7 +89,7 @@ void ExtensionManager::PopulateExtensionList()
       RDTreeWidgetItem *item = new RDTreeWidgetItem({e.package, e.name, QString()});
 
       item->setCheckState(
-          2, m_Ctx.Extensions().IsExtensionLoaded(e.package) ? Qt::Checked : Qt::Unchecked);
+          2, m_Ctx.Config().AlwaysLoad_Extensions.contains(e.package) ? Qt::Checked : Qt::Unchecked);
 
       ui->extensions->addTopLevelItem(item);
     }
@@ -114,13 +114,8 @@ void ExtensionManager::loadExtension(RDTreeWidgetItem *item)
     {
       // if the load succeeds, set us as checked. Otherwise, unchecked
       QString errors = m_Ctx.Extensions().LoadExtension(e.package);
-      if(errors.isEmpty())
+      if(!errors.isEmpty())
       {
-        item->setCheckState(2, Qt::Checked);
-      }
-      else
-      {
-        item->setCheckState(2, Qt::Unchecked);
         RDDialog::critical(this, tr("Failed to load extension"),
                            tr("Failed to load extension '%1':\n"
                               "%2")
@@ -129,28 +124,6 @@ void ExtensionManager::loadExtension(RDTreeWidgetItem *item)
       }
 
       update_currentItem(item);
-    }
-  }
-}
-
-void ExtensionManager::on_alwaysLoad_toggled(bool checked)
-{
-  RDTreeWidgetItem *item = ui->extensions->currentItem();
-  if(!item)
-    return;
-
-  int idx = ui->extensions->indexOfTopLevelItem(item);
-
-  if(idx >= 0 && idx < m_Extensions.count())
-  {
-    const ExtensionMetadata &e = m_Extensions[idx];
-    if(!e.name.isEmpty())
-    {
-      m_Ctx.Config().AlwaysLoad_Extensions.removeOne(e.package);
-      if(checked)
-        m_Ctx.Config().AlwaysLoad_Extensions.push_back(e.package);
-
-      m_Ctx.Config().Save();
     }
   }
 }
@@ -166,22 +139,25 @@ void ExtensionManager::on_extensions_itemChanged(RDTreeWidgetItem *item, int col
   {
     ui->extensions->setCurrentItem(item);
 
-    bool loaded = m_Ctx.Extensions().IsExtensionLoaded(item->text(0));
+    QString package = item->text(0);
 
-    // if the extension is loaded, don't allow unchecking
-    if(loaded && item->checkState(2) != Qt::Checked)
+    bool loaded = m_Ctx.Extensions().IsExtensionLoaded(package);
+    bool enabled = (item->checkState(2) == Qt::Checked);
+
+    // if the extension is unloaded and the user just enabled it, try to load it.
+    if(!loaded && enabled)
     {
-      item->setCheckState(2, Qt::Checked);
-      return;
+      loadExtension(item);
     }
 
-    // if the extension is unloaded, if we're now checked then try to load it. If
-    // we're unchecked allow that (it is a code-change after we failed to load)
-    if(!loaded)
-    {
-      if(item->checkState(2) == Qt::Checked)
-        loadExtension(item);
-    }
+    // update the config after, in case the extension immediately has crahed
+    m_Ctx.Config().AlwaysLoad_Extensions.removeOne(package);
+    if(enabled)
+      m_Ctx.Config().AlwaysLoad_Extensions.push_back(package);
+
+    m_Ctx.Config().Save();
+
+    update_currentItem(item);
   }
 }
 
@@ -218,10 +194,17 @@ void ExtensionManager::update_currentItem(RDTreeWidgetItem *item)
       else
         ui->author->setText(e.author);
 
-      bool loaded = item->checkState(2) == Qt::Checked;
-      ui->alwaysLoad->setEnabled(loaded);
+      const bool enabled = m_Ctx.Config().AlwaysLoad_Extensions.contains(e.package);
+      const bool loaded = m_Ctx.Extensions().IsExtensionLoaded(e.package);
 
-      ui->alwaysLoad->setChecked(m_Ctx.Config().AlwaysLoad_Extensions.contains(e.package));
+      if(loaded && enabled)
+        ui->status->setText(tr("Loaded (Enabled at startup)"));
+      else if(loaded && !enabled)
+        ui->status->setText(tr("Loaded (Restart required to disable)"));
+      else if(!loaded && enabled)
+        ui->status->setText(tr("Failed to load (Enabled at startup)"));
+      else if(!loaded && !enabled)
+        ui->status->setText(tr("Disabled"));
     }
   }
 }

@@ -48,7 +48,6 @@ public:
 
 private slots:
   // automatic slots
-  void on_alwaysLoad_toggled(bool checked);
   void on_extensions_currentItemChanged(RDTreeWidgetItem *item, RDTreeWidgetItem *);
   void on_extensions_itemChanged(RDTreeWidgetItem *item, int col);
 
