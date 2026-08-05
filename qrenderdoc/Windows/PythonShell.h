@@ -61,6 +61,8 @@ class EditorWrapper : public QFrame
   QString m_Filename;
   bool m_Modified = false;
 
+  bool m_UIExt = false;
+
   void updateTitle();
 
 public:
@@ -76,6 +78,9 @@ public:
 
   bool isModified() { return m_Modified; }
   void markModified(bool modified);
+
+  bool isUIExtension() { return m_UIExt; }
+  void setUIExtension(bool uiext) { m_UIExt = uiext; }
 
 public slots:
   bool checkAllowClose();

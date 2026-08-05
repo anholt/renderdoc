@@ -514,6 +514,8 @@ void PythonShell::editorTab_Changed(int index)
   EditorWrapper *editor = curEditor();
 
   ui->saveScript->setEnabled(editor && editor->filename() != QString());
+
+  enableButtons(ui->newScript->isEnabled());
 }
 
 void PythonShell::openFileModified(const QString &path)
@@ -1398,6 +1400,15 @@ void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int c
     if(filename.isEmpty())
       return;
 
+    bool isExt = false;
+    RDTreeWidgetItem *parent = item;
+    while(parent)
+    {
+      if(parent == m_UIExtensions)
+        isExt = true;
+      parent = parent->parent();
+    }
+
     for(EditorWrapper *edit : m_Editors)
     {
       if(edit->filename() == filename)
@@ -1427,6 +1438,11 @@ void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int c
     }
 
     LoadScriptFromFilename(filename);
+
+    if(isExt)
+      m_Editors.back()->setUIExtension(true);
+
+    editorTab_Changed(-1);
 
     QString unsavedFile = interactiveContext->GetTempFilename(lit("script.py"));
     if(filename == unsavedFile)
@@ -1842,6 +1858,19 @@ void PythonShell::enableButtons(bool enable)
   ui->runScript->setEnabled(enable);
   ui->abortRun->setEnabled(!enable);
   ui->debugScript->setEnabled(enable);
+
+  EditorWrapper *editor = curEditor();
+
+  ui->runScript->setToolTip(QString());
+
+  if(editor)
+  {
+    if(editor->isUIExtension())
+    {
+      ui->runScript->setEnabled(false);
+      ui->runScript->setToolTip(tr("UI Extension files can't be run"));
+    }
+  }
 
   if(enable && !m_Ctx.Config().Python_DebugEnabled)
   {
