@@ -968,7 +968,7 @@ public:
   {
     if(section < totalColumnCount && orientation == Qt::Horizontal)
     {
-      if(role == Qt::DisplayRole || role == columnGroupRole)
+      if(role == Qt::DisplayRole || role == Qt::ToolTipRole || role == columnGroupRole)
       {
         if(section == 0)
         {
@@ -982,7 +982,7 @@ public:
         {
           const ShaderConstant &el = elementForColumn(section);
 
-          if(el.type.columns == 1 || role == columnGroupRole)
+          if(el.type.columns == 1 || role == Qt::ToolTipRole || role == columnGroupRole)
             return el.name;
 
           QChar comps[] = {QLatin1Char('x'), QLatin1Char('y'), QLatin1Char('z'), QLatin1Char('w')};
@@ -2941,6 +2941,10 @@ void BufferViewer::SetupMeshView()
   ui->inTable->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->out1Table->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->out2Table->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+
+  ui->inTable->horizontalHeader()->setTextElideMode(Qt::ElideMiddle);
+  ui->out1Table->horizontalHeader()->setTextElideMode(Qt::ElideMiddle);
+  ui->out2Table->horizontalHeader()->setTextElideMode(Qt::ElideMiddle);
 
   ui->inTable->setPinnedColumns(2);
   ui->out1Table->setPinnedColumns(2);
