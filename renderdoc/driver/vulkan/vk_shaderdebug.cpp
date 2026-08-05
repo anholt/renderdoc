@@ -53,6 +53,20 @@ struct hash<ShaderBuiltin>
 };
 }
 
+struct HitStorage
+{
+  uint32_t hit_count;
+  uint32_t total_count;
+  uint32_t dummy;
+  uint32_t padding;
+
+  // extra padding so the offset of LaneData is 8-byte aligned in case we have user 8-byte inputs
+  Vec4u paddingForDoubles;
+
+  // dummy entry, used only for offsets of LaneData hits[];
+  byte hits;
+};
+
 // should match the descriptor set layout created in ShaderDebugData::Init()
 enum class ShaderDebugBind
 {
@@ -3907,6 +3921,9 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
   rdcspv::MemoryAccessAndParamDatas alignedAccess;
   alignedAccess.setAligned(sizeof(uint32_t));
 
+  rdcspv::MemoryAccessAndParamDatas aligned8Access;
+  alignedAccess.setAligned(sizeof(uint64_t));
+
   rdcspv::Id uint32Type = editor.DeclareType(rdcspv::scalar<uint32_t>());
   rdcspv::Id sint32Type = editor.DeclareType(rdcspv::scalar<int32_t>());
   rdcspv::Id floatType = editor.DeclareType(rdcspv::scalar<float>());
@@ -4254,7 +4271,9 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
       }
       editor.SetName(value.base, StringFormat::Fmt("__rd_base_%zu_%s", i, param.varName.c_str()));
       // non-float inputs are considered flat
-      value.flat = VarTypeCompType(param.varType) != CompType::Float;
+      // doubles are also flat
+      value.flat =
+          VarTypeCompType(param.varType) != CompType::Float || param.varType == VarType::Double;
 
       // mark this as non-flat so we still derive it for helper lanes as it will vary
       if(param.systemValue == ShaderBuiltin::IndexInSubgroup ||
@@ -4271,7 +4290,7 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
 
       // align offset conservatively, to 16-byte aligned. We do this with explicit uints so we can
       // preview with spirv-cross (and because it doesn't cost anything particularly)
-      uint32_t paddingWords = ((paramAlign - (offset % 16)) / 4) % 4;
+      uint32_t paddingWords = ((paramAlign - (offset % paramAlign)) / 4) % (paramAlign / 4);
       for(uint32_t p = 0; p < paddingWords; p++)
       {
         structMembers.push_back({uint32Type, "__pad", offset});
@@ -4367,7 +4386,7 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
 
     const uint32_t dataStart = (uint32_t)AlignUp(sizeof(rdcspv::ResultDataBase), sizeof(Vec4f));
 
-    RDCASSERT((structStride % sizeof(Vec4f)) == 0);
+    RDCASSERT((structStride % paramAlign) == 0);
 
     rdcspv::Id LaneDataArray = editor.AddType(rdcspv::OpTypeArray(
         editor.MakeId(), LaneDataStruct, editor.AddConstantImmediate<uint32_t>(numLanes)));
@@ -4382,19 +4401,19 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
   rdcspv::Id ResultDataRTArray =
       editor.AddType(rdcspv::OpTypeRuntimeArray(editor.MakeId(), ResultDataBaseType));
 
+  const uint32_t resultStride = structStride * numLanes + sizeof(rdcspv::ResultDataBase);
   editor.AddDecoration(rdcspv::OpDecorate(
-      ResultDataRTArray, rdcspv::DecorationParam<rdcspv::Decoration::ArrayStride>(
-                             structStride * numLanes + sizeof(rdcspv::ResultDataBase))));
+      ResultDataRTArray, rdcspv::DecorationParam<rdcspv::Decoration::ArrayStride>(resultStride)));
 
-  rdcspv::Id bufBase =
-      editor.DeclareStructType("__rd_HitStorage", {
-                                                      {uint32Type, "hit_count", 0},
-                                                      {uint32Type, "total_count", sizeof(uint32_t)},
-                                                      {uint32Type, "dummy", sizeof(uint32_t) * 2},
-                                                      // uint padding
+  RDCASSERT((resultStride % paramAlign) == 0);
 
-                                                      {ResultDataRTArray, "hits", sizeof(Vec4f)},
-                                                  });
+  rdcspv::Id bufBase = editor.DeclareStructType(
+      "__rd_HitStorage", {
+                             {uint32Type, "hit_count", offsetof(HitStorage, hit_count)},
+                             {uint32Type, "total_count", offsetof(HitStorage, total_count)},
+                             {uint32Type, "dummy", offsetof(HitStorage, dummy)},
+                             {ResultDataRTArray, "hits", offsetof(HitStorage, hits)},
+                         });
 
   rdcspv::StorageClass bufferClass = editor.PrepareAddedBufferAccess();
 
@@ -5254,22 +5273,27 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
                 ptrType, editor.MakeId(), outputPtr,
                 {editor.AddConstantImmediate<uint32_t>((uint32_t)val.structIndex)}));
 
+            const rdcspv::DataType &dataType = editor.GetDataType(val.type);
+            rdcspv::MemoryAccessAndParamDatas access = alignedAccess;
+            if(dataType.scalar().width == 8)
+              access = aligned8Access;
+
             if(val.base == isHelper)
             {
-              ops.add(rdcspv::OpStore(valPtr, isHelperPerQuad[q], alignedAccess));
+              ops.add(rdcspv::OpStore(valPtr, isHelperPerQuad[q], access));
             }
             else if(val.base == quadLaneIndex)
             {
-              ops.add(rdcspv::OpStore(valPtr, quadIdxConst[q], alignedAccess));
+              ops.add(rdcspv::OpStore(valPtr, quadIdxConst[q], access));
             }
             else if(val.flat)
             {
-              ops.add(rdcspv::OpStore(valPtr, val.base, alignedAccess));
+              ops.add(rdcspv::OpStore(valPtr, val.base, access));
             }
             else
             {
               RDCASSERT(!val.quadSwizzledData.empty());
-              ops.add(rdcspv::OpStore(valPtr, val.quadSwizzledData[q], alignedAccess));
+              ops.add(rdcspv::OpStore(valPtr, val.quadSwizzledData[q], access));
             }
           }
 
@@ -5305,7 +5329,12 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
               ptrType, editor.MakeId(), outputPtr,
               {editor.AddConstantImmediate<uint32_t>((uint32_t)val.structIndex)}));
 
-          ops.add(rdcspv::OpStore(valPtr, val.base, alignedAccess));
+          const rdcspv::DataType &dataType = editor.GetDataType(val.type);
+          rdcspv::MemoryAccessAndParamDatas access = alignedAccess;
+          if(dataType.scalar().width == 8)
+            access = aligned8Access;
+
+          ops.add(rdcspv::OpStore(valPtr, val.base, access));
         }
       }
 
@@ -5730,7 +5759,7 @@ ShaderDebugTrace *VulkanReplay::DebugVertex(uint32_t eventId, uint32_t vertid, u
 
     RDCASSERTMSG("Should only get one hit for vertex shaders", hit_count == 1, hit_count);
 
-    base += sizeof(Vec4f);
+    base += offsetof(HitStorage, hits);
 
     rdcspv::ResultDataBase *winner = (rdcspv::ResultDataBase *)base;
 
@@ -6315,7 +6344,7 @@ ShaderDebugTrace *VulkanReplay::DebugPixel(uint32_t eventId, uint32_t x, uint32_
     hit_count = overdrawLevels;
   }
 
-  base += sizeof(Vec4f);
+  base += offsetof(HitStorage, hits);
 
   rdcspv::ResultDataBase *winner = NULL;
 
@@ -6871,7 +6900,7 @@ ShaderDebugTrace *VulkanReplay::DebugComputeCommon(ShaderStage stage, uint32_t e
       hit_count = maxHits;
     }
 
-    base += sizeof(Vec4f);
+    base += offsetof(HitStorage, hits);
 
     rdcspv::ResultDataBase *winner = (rdcspv::ResultDataBase *)base;
 

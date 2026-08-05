@@ -186,6 +186,9 @@ struct ResultDataBase
   uint32_t shadRate;
   uint32_t padding[2];
 
+  // padding so overall struct size is 8-byte aligned for if LaneData contains 8-byte data
+  uint32_t paddingForDoubles[4];
+
   // LaneData lanes[N]
   // each LaneData is prefixed by the subgroup struct below if needed, and then the stage struct unconditionally
 };
