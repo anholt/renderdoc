@@ -148,6 +148,7 @@ PyObject *PythonContext::main_dict = NULL;
 PyObject *PythonContext::m_DebugPy = NULL;
 PyObject *PythonContext::m_CallWrapper = NULL;
 PyObject *PythonContext::m_Reflector = NULL;
+QAtomicInt PythonContext::m_DeferredInit = 0;
 PyObject *PythonContext::m_CallWrapperGlobals = NULL;
 PythonContext *PythonContext::m_ExtensionContext = NULL;
 QMap<rdcstr, PyObject *> PythonContext::extensions;
@@ -516,19 +517,8 @@ void PythonContext::GlobalInit(PersistantConfig &config)
   // which then indicates they need to forward to a global object
 
   // import sys
-  PyDict_SetItemString(main_dict, "sys", PyImport_ImportModule("sys"));
-
-  PyObject *rlcompleter = PyImport_ImportModule("rlcompleter");
-
-  if(rlcompleter)
-  {
-    // leak a reference so it stays loaded
-  }
-  else
-  {
-    // ignore a failed import
-    PyErr_Clear();
-  }
+  PyObject *sysobj = PyImport_ImportModule("sys");
+  PyDict_SetItemString(main_dict, "sys", sysobj);
 
   // try to import threading library to make debuggers happier
   if(!PyImport_ImportModule("threading"))
@@ -536,9 +526,6 @@ void PythonContext::GlobalInit(PersistantConfig &config)
     // ignore a failed import
     PyErr_Clear();
   }
-
-  // sysobj = sys
-  PyObject *sysobj = PyDict_GetItemString(main_dict, "sys");
 
   // sysobj.stdout = renderdoc_output_redirector()
   // sysobj.stderr = renderdoc_output_redirector()
@@ -1003,6 +990,8 @@ except:
         qCritical() << "Couldn't find valid stubs path";
     }
 
+    m_DeferredInit = 1;
+
     PyGILState_Release(gil);
   });
 
@@ -1045,40 +1034,6 @@ PythonContext::PythonContext(bool extensionContext, QObject *parent) : QObject(p
     output->selfDeleting = !extensionContext;
     output->block = false;
     Py_DECREF(redirector);
-  }
-
-  PyObject *rlcompleter = PyImport_ImportModule("rlcompleter");
-
-  if(rlcompleter)
-  {
-    PyObject *Completer = PyObject_SafeGetAttrString(rlcompleter, "Completer");
-
-    if(Completer)
-    {
-      // create a completer for our context's namespace
-      m_Completer = PyObject_CallFunction(Completer, "O", context_namespace);
-
-      if(!m_Completer)
-      {
-        QString typeStr;
-        QString valueStr;
-        int finalLine = -1;
-        QList<QString> frames;
-        FetchException(typeStr, valueStr, finalLine, frames);
-
-        // failure is not fatal
-        qWarning() << "Couldn't create completion object. " << typeStr << ": " << valueStr;
-        PyErr_Clear();
-      }
-
-      Py_DecRef(Completer);
-    }
-
-    Py_DecRef(rlcompleter);
-  }
-  else
-  {
-    m_Completer = NULL;
   }
 
   // release the GIL again
@@ -1766,74 +1721,195 @@ QWidget *PythonContext::QWidgetFromPy(PyObject *widget)
 #endif
 }
 
-QStringList PythonContext::completionOptions(QString base)
+void PythonContext::reflectSource(QString src)
 {
-  QStringList ret;
+  if(!m_Reflector)
+  {
+    for(int i = 0; i < 50 && m_DeferredInit == 0; i++)
+      QThread::msleep(20);
+    m_DeferredInit = 1;
 
-  if(!m_Completer)
-    return ret;
-
-  QByteArray bytes = base.toUtf8();
-  const char *input = (const char *)bytes.data();
+    if(!m_Reflector)
+      return;
+  }
 
   PyGILState_STATE gil = PyGILState_Ensure();
 
-  PyObject *completeFunction = PyObject_SafeGetAttrString(m_Completer, "complete");
+  PyObject *refl = PyObject_CallFunction(m_Reflector, "sOO", (const char *)src.toUtf8().data(),
+                                         context_namespace, Py_False);
 
-  if(!completeFunction)
+  if(refl)
+  {
+    PyDict_SetItemString(context_namespace, "_renderdoc_refl", refl);
+
+    Py_XDECREF(refl);
+  }
+  else
+  {
+    HandleException(NULL);
+  }
+
+  PyGILState_Release(gil);
+}
+
+QString PythonContext::tooltipForLoc(int line, int col)
+{
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *refl = PyDict_GetItemString(context_namespace, "_renderdoc_refl");
+
+  if(!refl)
+  {
+    PyGILState_Release(gil);
+    return QString();
+  }
+
+  PyObject *tooltip = PyObject_CallMethod(refl, "get_location_tooltip", "ii", line, col);
+
+  QString ret;
+  if(tooltip)
+  {
+    ret = ToQStr(tooltip);
+
+    Py_XDECREF(tooltip);
+  }
+  else
+  {
+    HandleException(NULL);
+  }
+
+  PyGILState_Release(gil);
+
+  return ret;
+}
+
+QString PythonContext::typenameForLoc(int line, int col)
+{
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *refl = PyDict_GetItemString(context_namespace, "_renderdoc_refl");
+
+  if(!refl)
+  {
+    PyGILState_Release(gil);
+    return QString();
+  }
+
+  PyObject *typeObj = PyObject_CallMethod(refl, "get_location_type", "ii", line, col);
+
+  if(typeObj)
+  {
+    PyObject *typing = PyImport_ImportModule("typing");
+    PyObject *Any = PyObject_SafeGetAttrString(typing, "Any");
+
+    if(typeObj == Any)
+    {
+      Py_XDECREF(typeObj);
+      typeObj = NULL;
+    }
+
+    Py_XDECREF(Any);
+    Py_XDECREF(typing);
+  }
+  else
+  {
+    HandleException(NULL);
+  }
+
+  QString ret;
+
+  if(typeObj)
+  {
+    PyObject *name = PyObject_CallMethod(refl, "get_name", "O", typeObj);
+
+    if(name)
+    {
+      ret = ToQStr(name);
+
+      Py_XDECREF(typeObj);
+      Py_XDECREF(name);
+    }
+    else
+    {
+      HandleException(NULL);
+    }
+  }
+
+  PyGILState_Release(gil);
+
+  return ret;
+}
+
+QStringList PythonContext::completionOptions(int line, QString expr, int &prefix_len)
+{
+  QStringList ret;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *refl = PyDict_GetItemString(context_namespace, "_renderdoc_refl");
+
+  if(!refl)
+  {
+    PyGILState_Release(gil);
     return ret;
-
-  int idx = 0;
-  PyObject *opt = NULL;
-  do
-  {
-    opt = PyObject_CallFunction(completeFunction, "si", input, idx);
-
-    if(opt && !Py_IsNone(opt))
-    {
-      QString optstr = ToQStr(opt);
-
-      bool add = true;
-
-      // little hack, remove some of the ugly swig template instantiations that we can't avoid.
-      if(optstr.contains(lit("renderdoc.rdcarray")) || optstr.contains(lit("renderdoc.rdcstr")) ||
-         optstr.contains(lit("renderdoc.bytebuf")))
-        add = false;
-
-      if(add)
-        ret << optstr;
-    }
-
-    idx++;
-  } while(opt && !Py_IsNone(opt));
-
-  // extra hack, remove the swig object functions/data but ONLY if we find a sure-fire identifier
-  // (thisown) since otherwise we could remove append from a list object
-  bool containsSwigInternals = false;
-  for(const QString &optstr : ret)
-  {
-    if(optstr.contains(lit(".thisown")))
-    {
-      containsSwigInternals = true;
-      break;
-    }
   }
 
-  if(containsSwigInternals)
+  PyObject *completions = PyObject_CallMethod(refl, "get_autocompletion", "is", line,
+                                              (const char *)expr.toUtf8().data());
+
+  prefix_len = 0;
+
+  if(completions)
   {
-    for(int i = 0; i < ret.count();)
+    PyObject *comp_list = PyTuple_GetItem(completions, 0);
+    prefix_len = PyLong_AsLong(PyTuple_GetItem(completions, 1));
+
+    if(comp_list)
     {
-      if(ret[i].endsWith(lit(".acquire(")) || ret[i].endsWith(lit(".append(")) ||
-         ret[i].endsWith(lit(".disown(")) || ret[i].endsWith(lit(".next(")) ||
-         ret[i].endsWith(lit(".own(")) || ret[i].endsWith(lit(".this")) ||
-         ret[i].endsWith(lit(".thisown")))
-        ret.removeAt(i);
-      else
-        i++;
+      for(Py_ssize_t i = 0, len = PyList_Size(comp_list); i < len; i++)
+      {
+        ret << ToQStr(PyList_GetItem(comp_list, i));
+      }
     }
   }
+  else
+  {
+    HandleException(NULL);
+  }
 
-  Py_DecRef(completeFunction);
+  Py_XDECREF(completions);
+
+  PyGILState_Release(gil);
+
+  return ret;
+}
+
+QString PythonContext::tryFunctionCompletion(int line, QString expr)
+{
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *refl = PyDict_GetItemString(context_namespace, "_renderdoc_refl");
+
+  if(!refl)
+  {
+    PyGILState_Release(gil);
+    return QString();
+  }
+
+  PyObject *funcComp = PyObject_CallMethod(refl, "get_funccompletion", "is", line,
+                                           (const char *)expr.toUtf8().data());
+
+  QString ret;
+  if(funcComp)
+  {
+    ret = ToQStr(PyTuple_GetItem(funcComp, 2));
+
+    Py_XDECREF(funcComp);
+  }
+  else
+  {
+    HandleException(NULL);
+  }
 
   PyGILState_Release(gil);
 

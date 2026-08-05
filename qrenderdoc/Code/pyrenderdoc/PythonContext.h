@@ -116,7 +116,11 @@ public:
   static PyObject *QWidgetToPy(QWidget *widget) { return QtObjectToPython("QWidget", widget); }
   static QWidget *QWidgetFromPy(PyObject *widget);
 
-  QStringList completionOptions(QString base);
+  void reflectSource(QString src);
+  QString tooltipForLoc(int line, int col);
+  QStringList completionOptions(int line, QString expr, int &prefix_len);
+  QString tryFunctionCompletion(int line, QString expr);
+  QString typenameForLoc(int line, int col);
 
   void FlushOutput() { outputTick(); }
 
@@ -159,6 +163,7 @@ private:
 
   // the PyReflector from parse_reflection
   static PyObject *m_Reflector;
+  static QAtomicInt m_DeferredInit;
 
   // a statically created PythonContext for extension events/output.
   // each extension has its own dictionary but this is used so that users can connect to it and receieve events

@@ -1050,6 +1050,8 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   QObject::connect(ui->lineInput, &RDLineEdit::keyPress, this, &PythonShell::interactive_keypress);
   QObject::connect(ui->helpSearch, &RDLineEdit::keyPress, this, &PythonShell::helpSearch_keypress);
 
+  QObject::connect(ui->lineInput, &RDLineEdit::leave, [this]() { hideFunccompleteTooltip(); });
+
   ui->lineInput->setFont(Formatter::FixedFont());
   ui->interactiveOutput->setFont(Formatter::FixedFont());
   ui->scriptOutput->setFont(Formatter::FixedFont());
@@ -1061,6 +1063,23 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   ui->lineInput->setAcceptTabCharacters(true);
 
+  // don't repeatedly re-parse for errors. Have a reasonable timeout
+  m_SyntaxCheckTimer = new QTimer(this);
+  m_SyntaxCheckTimer->setSingleShot(true);
+  m_SyntaxCheckTimer->setInterval(1200);
+
+  completionContext = new PythonContext();
+  setGlobals(completionContext);
+
+  // if we're help printing in the completion context, append it to the help text
+  QObject::connect(completionContext, &PythonContext::textOutput,
+                   [this](const QString &, bool isStdError, const QString &output) {
+                     if(m_HelpPrinting)
+                       appendText(ui->helpText, output);
+                   });
+
+  QObject::connect(m_SyntaxCheckTimer, &QTimer::timeout, this, &PythonShell::doSyntaxCheck);
+
   QObject::connect(ui->interactiveOutput, &RDTextEdit::keyPress, [this](QKeyEvent *e) {
     // ignore keypresses that aren't typing, but for up/down redirect that to the line input to get history
     if((e->text().isEmpty() || !e->text()[0].isPrint()) && e->key() != Qt::Key_Up &&
@@ -1069,6 +1088,36 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     ui->lineInput->setFocus(Qt::OtherFocusReason);
     QApplication::postEvent(ui->lineInput, new QKeyEvent(*e));
   });
+
+  m_ToolTip = new RDToolTip(this);
+
+  m_ToolTip->setFont(Formatter::FixedFont());
+
+  m_InteractiveCompleter = new QCompleter(this);
+  m_InteractiveCompleter->popup()->setFont(Formatter::FixedFont());
+  m_InteractiveCompleter->popup()->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
+  m_InteractiveCompleter->popup()->setTextElideMode(Qt::ElideNone);
+  m_InteractiveCompleter->setWidget(ui->lineInput);
+  m_InteractiveCompleter->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
+  m_InteractiveCompleter->setWrapAround(false);
+  m_InteractiveCompletionModel = new QStringListModel(this);
+  m_InteractiveCompleter->setModel(m_InteractiveCompletionModel);
+  m_InteractiveCompleter->setCompletionRole(Qt::DisplayRole);
+
+  QObject::connect(m_InteractiveCompleter,
+                   OverloadedSlot<const QModelIndex &>::of(&QCompleter::activated),
+                   [this](const QModelIndex &idx) {
+                     int i = idx.row();
+                     if(i >= 0 && i < m_InteractiveCompletionModel->rowCount())
+                     {
+                       QString curText = ui->lineInput->text();
+                       curText.resize(curText.size() - m_InteractiveCompletionPrefix);
+                       curText += m_InteractiveCompletionModel->stringList()[i];
+                       ui->lineInput->setText(curText);
+
+                       ui->lineInput->setCursorPosition(curText.size());
+                     }
+                   });
 
   // reset output to default
   on_clear_clicked();
@@ -1153,11 +1202,39 @@ PythonShell::~PythonShell()
   for(ScintillaEdit *edit : m_Scintillas)
     delete edit;
 
+  delete m_ToolTip;
+
+  completionContext->Finish();
   interactiveContext->Finish();
 
   delete m_ThreadCtx;
 
   delete ui;
+}
+
+void PythonShell::doSyntaxCheck()
+{
+  ScintillaEdit *editor = curEditor();
+
+  if(!editor)
+    return;
+
+  QByteArray script = editor->getText(editor->textLength() + 1);
+  PyParseError parseError = completionContext->CheckPyParse(script, "script.py");
+
+  if(parseError.lineno >= 0)
+  {
+    sptr_t end = editor->lineLength(parseError.lineno - 1);
+    sptr_t linePos = editor->positionFromLine(parseError.lineno - 1);
+    while(QChar(QLatin1Char(script[int(linePos + end - 1)])).isSpace())
+      end--;
+    editor->setIndicatorCurrent(0);
+    editor->indicatorFillRange(linePos + parseError.offset - 1, end + 1 - parseError.offset);
+
+    editor->annotationSetText(parseError.lineno - 1, parseError.errStr.c_str());
+    editor->annotationSetVisible(ANNOTATION_BOXED);
+    editor->annotationSetStyle(parseError.lineno - 1, 100);
+  }
 }
 
 void PythonShell::editorTab_Changed(int index)
@@ -1228,6 +1305,11 @@ ScintillaEdit *PythonShell::makeEditor()
     updateEditorCloseButton();
   });
 
+  QObject::connect(editor, &ScintillaEdit::autoCompleteCancelled,
+                   [this]() { m_SyntaxCheckTimer->start(); });
+  QObject::connect(editor, &ScintillaEdit::autoCompleteSelection,
+                   [this]() { m_SyntaxCheckTimer->start(); });
+
   QObject::connect(editor, &ScintillaEdit::modified,
                    [this, editor](int type, int, int, int, const QByteArray &text, int, int, int) {
                      if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
@@ -1243,8 +1325,112 @@ ScintillaEdit *PythonShell::makeEditor()
                        editor->setIndicatorCurrent(0);
                        editor->indicatorClearRange(0, editor->textLength());
                        editor->annotationClearAll();
+
+                       // we'll reparse when this timer finishes (it will be re-started on every
+                       // change, so only N ms after the last change
+                       if(!editor->autoCActive() && (!m_FuncTip || !m_ToolTip->isVisible()))
+                         m_SyntaxCheckTimer->start();
+                       else
+                         m_SyntaxCheckTimer->stop();
+                     }
+
+                     if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT))
+                     {
+                       if(!editor->autoCActive() || text.contains('\r') || text.contains('\n'))
+                       {
+                         completionContext->reflectSource(
+                             QString::fromUtf8(editor->getText(editor->textLength() + 1)));
+                       }
+                       else if(editor->autoCActive())
+                       {
+                         // delay updating the autocomplete so the current cursor position is updated
+                         GUIInvoke::defer(this, [this, editor]() {
+                           doAutocomplete(editor);
+                           m_SyntaxCheckTimer->stop();
+                         });
+                       }
                      }
                    });
+
+  QObject::connect(editor, &ScintillaEdit::dwellStart, [this, editor](int x, int y) {
+    if(editor->autoCActive())
+      return;
+
+    if(m_ToolTip->isVisible() && m_FuncTip)
+      return;
+
+    if(!editor->geometry().contains(editor->mapFromGlobal(QCursor::pos())))
+      return;
+
+    sptr_t pos = editor->positionFromPointClose(x, y);
+
+    if(pos == -1)
+      return;
+
+    sptr_t line = editor->lineFromPosition(pos);
+    sptr_t col = pos - editor->positionFromLine(line);
+
+    QString tooltip = completionContext->tooltipForLoc(line + 1, col);
+
+    if(!tooltip.isEmpty())
+    {
+      hideFunccompleteTooltip();
+
+      m_ToolTip->configureTip(this, tooltip);
+      m_ToolTip->showTipAtPos(QCursor::pos() + QPoint(5, 5));
+    }
+  });
+
+  QObject::connect(editor, &ScintillaEdit::dwellEnd, [this, editor](int, int) {
+    if(editor->autoCActive())
+      return;
+
+    if(!m_FuncTip)
+      m_ToolTip->hideTip();
+  });
+
+  QObject::connect(editor, &ScintillaEdit::charAdded, [this, editor](int ch) {
+    doAutocomplete(editor);
+    m_SyntaxCheckTimer->stop();
+  });
+
+  QObject::connect(editor, &ScintillaEdit::buttonPressed,
+                   [this, editor](QMouseEvent *ev) { hideFunccompleteTooltip(); });
+
+  QObject::connect(editor, &ScintillaEdit::keyPressed, [this, editor](QKeyEvent *ev) {
+    if(ev->key() == Qt::Key_Space && (ev->modifiers() & Qt::ControlModifier))
+    {
+      doAutocomplete(editor);
+      m_SyntaxCheckTimer->stop();
+    }
+
+    if(m_ToolTip->isVisible() && m_FuncTip)
+    {
+      if(editor->lineFromPosition(editor->currentPos()) == m_FuncTipLine)
+      {
+        doFunccomplete(editor);
+        return;
+      }
+
+      hideFunccompleteTooltip();
+    }
+
+    if(ev->key() == Qt::Key_F1)
+    {
+      sptr_t pos = editor->currentPos();
+
+      if(pos >= 0)
+      {
+        sptr_t line = editor->lineFromPosition(pos);
+        sptr_t col = pos - editor->positionFromLine(line);
+
+        QString typeName = completionContext->typenameForLoc(line + 1, col);
+
+        if(!typeName.isEmpty())
+          selectedHelp(typeName);
+      }
+    }
+  });
 
   if(m_Scintillas.empty())
   {
@@ -1277,6 +1463,36 @@ void PythonShell::updateEditorCloseButton()
 
     ui->docking->setToolWindowProperties(edit, props);
   }
+}
+
+bool PythonShell::eventFilter(QObject *watched, QEvent *event)
+{
+  if(qobject_cast<ScintillaEdit *>(watched))
+  {
+    if(event->type() == QEvent::Leave)
+    {
+      if(!m_FuncTip)
+      {
+        m_ToolTip->hideTip();
+      }
+      else if(m_FuncTip)
+      {
+        QRect geom = m_ToolTip->geometry();
+        QPoint pos = QCursor::pos();
+        QPoint pos2 = m_ToolTip->mapFromGlobal(QCursor::pos());
+        if(!geom.contains(pos))
+        {
+          hideFunccompleteTooltip();
+        }
+      }
+    }
+    else if(event->type() == QEvent::KeyPress && ((QKeyEvent *)event)->key() == Qt::Key_Escape)
+    {
+      hideFunccompleteTooltip();
+    }
+  }
+
+  return QObject::eventFilter(watched, event);
 }
 
 QVariant PythonShell::persistData()
@@ -1467,6 +1683,7 @@ void PythonShell::on_execute_clicked()
   if(command.trimmed().length() > 0)
   {
     interactiveContext->executeString(command);
+    interactiveContext->reflectSource(QString());
   }
 
   appendText(ui->interactiveOutput, lit(">> "));
@@ -1484,6 +1701,7 @@ void PythonShell::on_clear_clicked()
     interactiveContext->Finish();
 
   interactiveContext = newContext();
+  interactiveContext->reflectSource(QString());
 }
 
 void PythonShell::on_newScript_clicked()
@@ -1714,9 +1932,22 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   if(!editor)
     return;
 
+  hideFunccompleteTooltip();
+
+  m_ContextMenuVisible = true;
+
   QMenu contextMenu(this);
 
   QString typeName;
+
+  sptr_t scintillaPos = editor->positionFromPoint(pos.x(), pos.y());
+  if(scintillaPos >= 0)
+  {
+    sptr_t line = editor->lineFromPosition(scintillaPos);
+    sptr_t col = scintillaPos - editor->positionFromLine(line);
+
+    typeName = completionContext->typenameForLoc(line + 1, col);
+  }
 
   bool valid = !typeName.isEmpty();
 
@@ -1779,18 +2010,143 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   contextMenu.addAction(&selectAll);
 
   RDDialog::show(&contextMenu, editor->viewport()->mapToGlobal(pos));
+
+  m_ContextMenuVisible = false;
 }
 
 void PythonShell::selectedHelp(QString word)
 {
+  ui->helpSearch->setText(word);
+
+  refreshCurrentHelp();
 }
 
 void PythonShell::refreshCurrentHelp()
 {
+  ToolWindowManager::raiseToolWindow(ui->helpGroup);
+
+  ui->helpText->clear();
+
+  m_HelpPrinting = true;
+
+  completionContext->executeString(lit(R"(
+try:
+  import keyword
+  if keyword.iskeyword("%1"):
+    help("%1")
+  else:
+    help(%1)
+except ImportError:
+  help(%1)
+)")
+                                       .arg(ui->helpSearch->text()));
+
+  ui->helpText->verticalScrollBar()->setValue(0);
+
+  m_HelpPrinting = false;
 }
 
 void PythonShell::interactive_keypress(QKeyEvent *event)
 {
+  bool triggerCompletion = false;
+
+  if(m_InteractiveCompleter->popup()->isVisible())
+  {
+    switch(event->key())
+    {
+      // manually trigger a completion with tab
+      case Qt::Key_Tab:
+        m_InteractiveCompleter->activated(
+            m_InteractiveCompleter->popup()->selectionModel()->currentIndex());
+        m_InteractiveCompleter->popup()->hide();
+        return;
+      // if a completion is in progress ignore any events the completer will process
+      case Qt::Key_Return:
+      case Qt::Key_Enter: return;
+      // allow key scrolling
+      case Qt::Key_Up:
+      case Qt::Key_Down:
+      case Qt::Key_PageUp:
+      case Qt::Key_PageDown:
+        break;
+        // all other keys close the popup
+      default: triggerCompletion = true;
+    }
+  }
+  else
+  {
+    if(event->text() != QString() && event->text()[0].isPrint() && event->key() != Qt::Key_Return &&
+       event->key() != Qt::Key_Enter)
+      triggerCompletion = true;
+
+    if(event->key() == Qt::Key_Escape && m_FuncTip && m_ToolTip->isVisible())
+      hideFunccompleteTooltip();
+  }
+
+  if(triggerCompletion)
+  {
+    QString base = ui->lineInput->text();
+
+    QStringList completions;
+
+    if(base.trimmed() != QString())
+      completions = interactiveContext->completionOptions(0, base, m_InteractiveCompletionPrefix);
+
+    if(completions.isEmpty())
+    {
+      if(event->key() == Qt::Key_Tab)
+        ui->lineInput->insert(lit("\t"));
+      m_InteractiveCompleter->popup()->hide();
+
+      QString prompt = interactiveContext->tryFunctionCompletion(0, base);
+
+      if(!prompt.isEmpty())
+      {
+        m_ToolTip->configureTip(this, prompt);
+
+        QPoint p = ui->lineInput->fontMetrics().boundingRect(base).bottomRight();
+        p.setY(ui->lineInput->geometry().height());
+        p = ui->lineInput->mapToGlobal(p);
+        if(!m_ToolTip->isVisible())
+          m_ToolTip->showTipAtPos(p);
+        m_FuncTip = true;
+      }
+      else
+      {
+        hideFunccompleteTooltip();
+      }
+
+      return;
+    }
+
+    hideFunccompleteTooltip();
+
+    m_InteractiveCompletionModel->setStringList(completions);
+
+    QRect r = ui->lineInput->rect();
+    QFontMetrics fm = ui->lineInput->fontMetrics();
+
+#if(QT_VERSION < QT_VERSION_CHECK(5, 11, 0))
+#define horizontalAdvance width
+#endif
+
+    int longestWidth = 0;
+    for(QString &c : completions)
+    {
+      longestWidth = qMax(longestWidth, fm.horizontalAdvance(c));
+    }
+
+    base.resize(base.size() - m_InteractiveCompletionPrefix);
+
+    r.setLeft(r.left() + fm.horizontalAdvance(base));
+    r.setWidth(longestWidth + ui->lineInput->style()->pixelMetric(QStyle::PM_ScrollBarExtent) +
+               ui->lineInput->style()->pixelMetric(QStyle::PM_ButtonMargin));
+
+    m_InteractiveCompleter->complete(r);
+
+    return;
+  }
+
   if(event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
   {
     on_execute_clicked();
@@ -1866,6 +2222,63 @@ void PythonShell::enableButtons(bool enable)
   {
     ui->debugScript->setEnabled(false);
   }
+}
+
+void PythonShell::doAutocomplete(ScintillaEdit *editor)
+{
+  sptr_t pos = editor->currentPos();
+  sptr_t line = editor->lineFromPosition(pos);
+  sptr_t lineStart = editor->positionFromLine(line);
+  QByteArray lineText = editor->getLine(line);
+  lineText.resize(pos - lineStart);
+
+  int prefix_len = 0;
+  QStringList completions =
+      completionContext->completionOptions(line, QString::fromUtf8(lineText), prefix_len);
+
+  if(completions.empty())
+    return doFunccomplete(editor);
+
+  hideFunccompleteTooltip();
+  editor->autoCShow(prefix_len, completions.join(QLatin1Char(' ')).toUtf8().data());
+}
+
+void PythonShell::doFunccomplete(ScintillaEdit *editor)
+{
+  sptr_t pos = editor->currentPos();
+  sptr_t line = editor->lineFromPosition(pos);
+  sptr_t lineStart = editor->positionFromLine(line);
+  QByteArray lineText = editor->getLine(line);
+  lineText.resize(pos - lineStart);
+
+  QString prompt = completionContext->tryFunctionCompletion(line, QString::fromUtf8(lineText));
+
+  if(!prompt.isEmpty())
+  {
+    m_ToolTip->configureTip(this, prompt);
+
+    sptr_t tooltipPos = editor->positionFromLine(line + 1);
+
+    QPoint p(editor->pointXFromPosition(tooltipPos),
+             editor->pointYFromPosition(lineStart + lineText.size()) + editor->textHeight(line));
+    p = editor->mapToGlobal(p);
+    if(!m_ToolTip->isVisible())
+      m_ToolTip->showTipAtPos(p);
+    m_FuncTip = true;
+    m_FuncTipLine = line;
+  }
+  else
+  {
+    hideFunccompleteTooltip();
+  }
+}
+
+void PythonShell::hideFunccompleteTooltip()
+{
+  m_ToolTip->hideTip();
+  m_FuncTip = false;
+  // start the syntax check timer in case this naturally disappeared
+  m_SyntaxCheckTimer->start();
 }
 
 PythonContext *PythonShell::newContext()

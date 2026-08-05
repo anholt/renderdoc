@@ -32,6 +32,8 @@ class PythonContext;
 class QTextEdit;
 class RDToolTip;
 class QTimer;
+class QCompleter;
+class QStringListModel;
 
 namespace Ui
 {
@@ -117,6 +119,7 @@ private slots:
   void extensionLoaded(const QString &extension);
   void editor_contextMenu(const QPoint &pos);
   void editorTab_Changed(int index);
+  void doSyntaxCheck();
 
 private:
   Ui::PythonShell *ui;
@@ -125,9 +128,21 @@ private:
 
   ScintillaEdit *runningScriptEditor = NULL;
 
+  RDToolTip *m_ToolTip;
+  bool m_FuncTip = false;
+  intptr_t m_FuncTipLine = 0;
+  bool m_ContextMenuVisible = false;
+  bool m_HelpPrinting = false;
+
+  QTimer *m_SyntaxCheckTimer;
+
+  QCompleter *m_InteractiveCompleter;
+  QStringListModel *m_InteractiveCompletionModel;
+  int m_InteractiveCompletionPrefix = 0;
+
   static const int CURRENT_MARKER = 0;
 
-  PythonContext *interactiveContext = NULL, *scriptContext = NULL;
+  PythonContext *interactiveContext = NULL, *scriptContext = NULL, *completionContext = NULL;
 
   QList<QString> history;
   int historyidx = -1;
@@ -150,12 +165,19 @@ private:
   ScintillaEdit *makeEditor();
   void updateEditorCloseButton();
 
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
   void updateScriptOutput(bool fullRefresh);
 
   PythonContext *newContext();
   void setGlobals(PythonContext *ret);
 
   void runScript(bool debugging);
+
+  void doAutocomplete(ScintillaEdit *editor);
+  void doFunccomplete(ScintillaEdit *editor);
+
+  void hideFunccompleteTooltip();
 
   void selectedHelp(QString word);
   void refreshCurrentHelp();
