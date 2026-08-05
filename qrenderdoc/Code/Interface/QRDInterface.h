@@ -1223,13 +1223,19 @@ QWidget.
 )");
   virtual QWidget *Widget() = 0;
 
-  DOCUMENT(R"(Sets the current script in the python shell to the given string.
+  DOCUMENT(R"(Checks if there are unsaved changes to python scripts, and prompts the user about whether to
+discard them or not.
 
-:param str script: The text of the script to set.
+If it is OK to close the window (either because there are no unsaved changes, they were saved after a prompt,
+or the user chose to discard them then this function returns ``True``.
+
+:return: Whether or not it is OK to close without losing changes.
+:rtype: bool
 )");
-  virtual void SetScriptText(rdcstr script) = 0;
+  virtual bool CheckUnsavedChanges() = 0;
 
-  DOCUMENT(R"(Sets the current script in the python shell to the contents of the given file.
+  DOCUMENT(R"(Loads the given file and creates a new tab with the script contents. No tab is
+created if the file fails to load
 
 :param str filename: The filename of the script to load.
 :return: Whether or not the script was successfully loaded.
@@ -1237,7 +1243,14 @@ QWidget.
 )");
   virtual bool LoadScriptFromFilename(rdcstr filename) = 0;
 
-  DOCUMENT(R"(Returns the current script text.
+  DOCUMENT(R"(Creates a new script editor with a given name and text contents.
+
+:param str name: The name to give the editor, does not have to be a filename.
+:param str text: The contents to prefill in the script, can be blank.
+)");
+  virtual void CreateNewScriptEditor(rdcstr name, rdcstr text) = 0;
+
+  DOCUMENT(R"(Returns the text of the currently focussed script editor.
 
 :return: The current script text.
 :rtype: str
@@ -1275,12 +1288,6 @@ run from inside the python window.
 This will show output from the running script, as well as any extensions that are loaded.
 )");
   virtual void RemoveOutputFilter() = 0;
-
-  DOCUMENT(R"(Raises the script editor.
-
-This will ensure the panel containing the script editor is visible.
-)");
-  virtual void ShowScriptEditor() = 0;
 
   DOCUMENT(R"(Raises the output panel.
 

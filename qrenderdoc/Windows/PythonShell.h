@@ -26,10 +26,12 @@
 
 #include <QFrame>
 #include "Code/Interface/QRDInterface.h"
+#include "scintilla/include/qt/ScintillaEdit.h"
 
 class PythonContext;
-class ScintillaEdit;
 class QTextEdit;
+class RDToolTip;
+class QTimer;
 
 namespace Ui
 {
@@ -37,6 +39,21 @@ class PythonShell;
 }
 
 struct CaptureContextInvoker;
+
+class PythonShell;
+
+class EditorWrapper : public ScintillaEdit
+{
+  Q_OBJECT
+
+  PythonShell *m_PyShell;
+
+public:
+  EditorWrapper(PythonShell *parent);
+
+public slots:
+  bool checkAllowClose();
+};
 
 class PythonShell : public QFrame, public IPythonShell
 {
@@ -54,8 +71,9 @@ public:
 
   // IPythonShell
   QWidget *Widget() override { return this; }
-  void SetScriptText(rdcstr script) override;
+  bool CheckUnsavedChanges() override;
   bool LoadScriptFromFilename(rdcstr filename) override;
+  void CreateNewScriptEditor(rdcstr name, rdcstr text) override;
   rdcstr GetScriptText() override;
   void RunScript() override { runScript(false); }
   void DebugScript() override { runScript(true); }
@@ -63,13 +81,15 @@ public:
   void SetExtensionOutputFilter(const rdcstr &extensionName) override;
   void SetScriptOutputFilter() override;
   void RemoveOutputFilter() override;
-  void ShowScriptEditor() override;
   void ShowOutput() override;
   void ShowREPL() override;
   void ShowHelp() override;
 
   QVariant persistData();
   void setPersistData(const QVariant &persistData);
+
+  bool saveEditorAs(ScintillaEdit *editor);
+  bool saveEditor(ScintillaEdit *editor, QString filename);
 
 private slots:
   // automatic slots
@@ -78,10 +98,14 @@ private slots:
   void on_newScript_clicked();
   void on_openScript_clicked();
   void on_saveScript_clicked();
+  void on_saveAsScript_clicked();
+
   void on_runScript_clicked();
   void on_debugScript_clicked();
   void on_abortRun_clicked();
   void on_outputContext_currentIndexChanged(int idx);
+
+  bool checkAllowClose();
 
   // manual slots
   void interactive_keypress(QKeyEvent *e);
@@ -92,17 +116,18 @@ private slots:
   void textOutput(const QString &extension, bool isStdError, const QString &output);
   void extensionLoaded(const QString &extension);
   void editor_contextMenu(const QPoint &pos);
+  void editorTab_Changed(int index);
 
 private:
   Ui::PythonShell *ui;
   ICaptureContext &m_Ctx;
   CaptureContextInvoker *m_ThreadCtx = NULL;
 
-  ScintillaEdit *scriptEditor;
+  ScintillaEdit *runningScriptEditor = NULL;
 
   static const int CURRENT_MARKER = 0;
 
-  PythonContext *interactiveContext, *scriptContext;
+  PythonContext *interactiveContext = NULL, *scriptContext = NULL;
 
   QList<QString> history;
   int historyidx = -1;
@@ -119,17 +144,19 @@ private:
   rdcarray<ScriptOutputLine> scriptOutputLines;
   size_t lastDisplayedLine = 0;
 
+  QList<ScintillaEdit *> m_Scintillas;
+
+  ScintillaEdit *curEditor();
+  ScintillaEdit *makeEditor();
+  void updateEditorCloseButton();
+
   void updateScriptOutput(bool fullRefresh);
 
-  QString getDottedWordAtPoint(int scintillaPos);
-
   PythonContext *newContext();
-  PythonContext *newImportedDummyContext();
   void setGlobals(PythonContext *ret);
 
   void runScript(bool debugging);
 
-  void startAutocomplete();
   void selectedHelp(QString word);
   void refreshCurrentHelp();
 

@@ -23,16 +23,20 @@
  ******************************************************************************/
 
 #include "PythonShell.h"
+#include <QAbstractItemView>
+#include <QCompleter>
 #include <QFontDatabase>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QScrollBar>
+#include <QStringListModel>
 #include <QTimer>
 #include "Code/QRDUtils.h"
 #include "Code/ScintillaSyntax.h"
 #include "Code/pyrenderdoc/PythonContext.h"
+#include "Widgets/Extended/RDToolTip.h"
 #include "scintilla/include/SciLexer.h"
-#include "scintilla/include/qt/ScintillaEdit.h"
+#include "toolwindowmanager/ToolWindowManagerArea.h"
 #include "ui_PythonShell.h"
 
 enum
@@ -929,6 +933,113 @@ struct CaptureContextInvoker : ObjectForwarder<ICaptureContext>
   }
 };
 
+void updateEditorTitle(ScintillaEdit *editor);
+
+void setEditorFilename(ScintillaEdit *editor, QString filename)
+{
+  if(!editor)
+    return;
+
+  QObject *obj = (QObject *)editor;
+  obj->setProperty("filename", filename);
+
+  ToolWindowManager *manager = ToolWindowManager::managerOf(editor);
+
+  ToolWindowManagerArea *editorTabs = manager->areaOf(editor);
+  int idx = editorTabs->indexOf(editor);
+  if(idx >= 0)
+    editorTabs->setTabToolTip(idx, filename);
+
+  updateEditorTitle(editor);
+}
+
+QString getEditorFilename(ScintillaEdit *editor)
+{
+  if(!editor)
+    return QString();
+  QObject *obj = (QObject *)editor;
+  return obj->property("filename").toString();
+}
+
+void markEditorModified(ScintillaEdit *editor, bool modified)
+{
+  if(!editor)
+    return;
+
+  QObject *obj = (QObject *)editor;
+  obj->setProperty("modified", modified);
+
+  updateEditorTitle(editor);
+}
+
+bool isEditorModified(ScintillaEdit *editor)
+{
+  if(!editor)
+    return false;
+
+  QObject *obj = (QObject *)editor;
+  return obj->property("modified").toBool();
+}
+
+void updateEditorTitle(ScintillaEdit *editor)
+{
+  if(!editor)
+    return;
+
+  QString title;
+  QString filename = getEditorFilename(editor);
+  if(filename.isEmpty())
+  {
+    if(isEditorModified(editor))
+      editor->setWindowTitle(lit("Untitled Script *"));
+    else
+      editor->setWindowTitle(lit("Untitled Script"));
+  }
+  else
+  {
+    if(isEditorModified(editor))
+      editor->setWindowTitle(QFileInfo(filename).fileName() + lit(" *"));
+    else
+      editor->setWindowTitle(QFileInfo(filename).fileName());
+  }
+}
+
+EditorWrapper::EditorWrapper(PythonShell *parent) : ScintillaEdit(parent), m_PyShell(parent)
+{
+}
+
+bool EditorWrapper::checkAllowClose()
+{
+  if(isEditorModified(this))
+  {
+    QString filename = getEditorFilename(this);
+    bool untitled = false;
+    if(filename.isEmpty())
+    {
+      untitled = true;
+      filename = lit("Untitled Script");
+    }
+    QMessageBox::StandardButton res = RDDialog::question(this, tr("Python script is modified"),
+                                                         tr("You have unsaved changes to '%1'.\n"
+                                                            "Do you want to save them?")
+                                                             .arg(QFileInfo(filename).fileName()),
+                                                         RDDialog::YesNoCancel);
+
+    if(res == QMessageBox::Cancel)
+      return false;
+
+    if(res == QMessageBox::No)
+      return true;
+
+    if(untitled)
+      return m_PyShell->saveEditorAs(this);
+    else
+      return m_PyShell->saveEditor(this, filename);
+  }
+
+  return true;
+}
+
 PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     : QFrame(parent), ui(new Ui::PythonShell), m_Ctx(ctx)
 {
@@ -950,73 +1061,6 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   ui->lineInput->setAcceptTabCharacters(true);
 
-  scriptEditor = new ScintillaEdit(this);
-
-  // don't repeatedly re-parse for errors. Have a reasonable timeout
-  QTimer *checkTimer = new QTimer(this);
-  checkTimer->setSingleShot(true);
-  checkTimer->setInterval(1200);
-
-  QObject::connect(checkTimer, &QTimer::timeout, [this]() {
-    PythonContext *context = new PythonContext();
-
-    setGlobals(context);
-
-    QByteArray script = scriptEditor->getText(scriptEditor->textLength() + 1);
-    PyParseError parseError = context->CheckPyParse(script, "script.py");
-
-    if(parseError.lineno >= 0)
-    {
-      sptr_t end = scriptEditor->lineLength(parseError.lineno - 1);
-      sptr_t linePos = scriptEditor->positionFromLine(parseError.lineno - 1);
-      while(QChar(QLatin1Char(script[int(linePos + end - 1)])).isSpace())
-        end--;
-      scriptEditor->setIndicatorCurrent(0);
-      scriptEditor->indicatorFillRange(linePos + parseError.offset - 1, end + 1 - parseError.offset);
-
-      scriptEditor->annotationSetText(parseError.lineno - 1, parseError.errStr.c_str());
-      scriptEditor->annotationSetVisible(ANNOTATION_BOXED);
-      scriptEditor->annotationSetStyle(parseError.lineno - 1, 100);
-    }
-
-    context->Finish();
-  });
-
-  scriptEditor->indicSetFore(0, 0x0000ff);
-
-  scriptEditor->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
-  scriptEditor->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
-  scriptEditor->styleSetBack(
-      100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
-
-  scriptEditor->setMarginLeft(4.0);
-  scriptEditor->setMarginWidthN(0, 32.0);
-  scriptEditor->setMarginWidthN(1, 0.0);
-  scriptEditor->setMarginWidthN(2, 16.0);
-  scriptEditor->setObjectName(lit("scriptEditor"));
-
-  scriptEditor->markerSetBack(CURRENT_MARKER, SCINTILLA_COLOUR(240, 128, 128));
-  scriptEditor->markerSetBack(CURRENT_MARKER + 1, SCINTILLA_COLOUR(240, 128, 128));
-  scriptEditor->markerDefine(CURRENT_MARKER, SC_MARK_SHORTARROW);
-  scriptEditor->markerDefine(CURRENT_MARKER + 1, SC_MARK_BACKGROUND);
-
-  scriptEditor->autoCSetMaxHeight(10);
-
-  scriptEditor->usePopUp(SC_POPUP_NEVER);
-
-  scriptEditor->setContextMenuPolicy(Qt::CustomContextMenu);
-  QObject::connect(scriptEditor, &ScintillaEdit::customContextMenuRequested, this,
-                   &PythonShell::editor_contextMenu);
-
-  ConfigureSyntax(scriptEditor, SCLEX_PYTHON);
-
-  scriptEditor->setTabWidth(4);
-
-  scriptEditor->setScrollWidth(1);
-  scriptEditor->setScrollWidthTracking(true);
-
-  scriptEditor->colourise(0, -1);
-
   QObject::connect(ui->interactiveOutput, &RDTextEdit::keyPress, [this](QKeyEvent *e) {
     // ignore keypresses that aren't typing, but for up/down redirect that to the line input to get history
     if((e->text().isEmpty() || !e->text()[0].isPrint()) && e->key() != Qt::Key_Up &&
@@ -1026,59 +1070,19 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     QApplication::postEvent(ui->lineInput, new QKeyEvent(*e));
   });
 
-  QObject::connect(scriptEditor, &ScintillaEdit::modified,
-                   [this, checkTimer](int type, int, int, int, const QByteArray &, int, int, int) {
-                     if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
-                                SC_MOD_BEFOREDELETE))
-                     {
-                       scriptEditor->markerDeleteAll(CURRENT_MARKER);
-                       scriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
+  // reset output to default
+  on_clear_clicked();
+  on_newScript_clicked();
 
-                       // always remove errors immediately
-                       scriptEditor->setIndicatorCurrent(0);
-                       scriptEditor->indicatorClearRange(0, scriptEditor->textLength() + 1);
-                       scriptEditor->annotationClearAll();
+  ScintillaEdit *editor = m_Scintillas[0];
 
-                       // we'll reparse when this timer finishes (it will be re-started on every
-                       // change, so only N ms after the last change
-                       checkTimer->start();
-                     }
-                   });
+  ui->saveScript->setEnabled(false);
 
-  QObject::connect(scriptEditor, &ScintillaEdit::charAdded, [this](int ch) {
-    if(ch == '.')
-    {
-      startAutocomplete();
-    }
-  });
+  ToolWindowManagerArea *editorTabs = ui->docking->areaOf(editor);
+  QObject::connect(editorTabs, &QTabWidget::currentChanged, this, &PythonShell::editorTab_Changed);
 
-  QObject::connect(scriptEditor, &ScintillaEdit::keyPressed, [this](QKeyEvent *ev) {
-    if(ev->key() == Qt::Key_Space && (ev->modifiers() & Qt::ControlModifier))
-    {
-      startAutocomplete();
-    }
-
-    if(ev->key() == Qt::Key_F1)
-    {
-      QString curWord = getDottedWordAtPoint(scriptEditor->currentPos());
-
-      if(!curWord.isEmpty())
-      {
-        ui->helpSearch->setText(curWord);
-        refreshCurrentHelp();
-      }
-    }
-  });
-
-  scriptEditor->setWindowTitle(tr("Script Editor"));
-
-  ui->docking->addToolWindow(scriptEditor, ToolWindowManager::EmptySpace);
-  ui->docking->setToolWindowProperties(
-      scriptEditor, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
-
-  ui->docking->addToolWindow(
-      ui->replGroup, ToolWindowManager::AreaReference(ToolWindowManager::BottomOf,
-                                                      ui->docking->areaOf(scriptEditor), 0.3f));
+  ui->docking->addToolWindow(ui->replGroup, ToolWindowManager::AreaReference(
+                                                ToolWindowManager::BottomOf, editorTabs, 0.3f));
   ui->docking->setToolWindowProperties(
       ui->replGroup, ToolWindowManager::HideCloseButton | ToolWindowManager::DisallowFloatWindow);
 
@@ -1101,8 +1105,6 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   layout->setContentsMargins(3, 3, 3, 3);
   layout->addWidget(ui->toolbar);
   layout->addWidget(ui->docking);
-
-  interactiveContext = NULL;
 
   enableButtons(true);
 
@@ -1128,9 +1130,8 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::extensionLoaded, this,
                    &PythonShell::extensionLoaded);
 
-  // reset output to default
-  on_clear_clicked();
-  on_newScript_clicked();
+  m_Ctx.GetMainWindow()->RegisterShortcut("CTRL+S", this,
+                                          [this](QWidget *) { this->on_saveScript_clicked(); });
 
   // we defer debugging loading onto a thread so check after a delay
   QTimer::singleShot(1200, [this]() {
@@ -1147,11 +1148,135 @@ PythonShell::~PythonShell()
 {
   m_Ctx.BuiltinWindowClosed(this);
 
+  m_Ctx.GetMainWindow()->UnregisterShortcut("CTRL+S", this);
+
+  for(ScintillaEdit *edit : m_Scintillas)
+    delete edit;
+
   interactiveContext->Finish();
 
   delete m_ThreadCtx;
 
   delete ui;
+}
+
+void PythonShell::editorTab_Changed(int index)
+{
+  ScintillaEdit *editor = curEditor();
+
+  ui->saveScript->setEnabled(getEditorFilename(editor) != QString());
+}
+
+ScintillaEdit *PythonShell::curEditor()
+{
+  for(ScintillaEdit *edit : m_Scintillas)
+  {
+    if(edit->isVisible())
+      return edit;
+  }
+
+  return NULL;
+}
+
+ScintillaEdit *PythonShell::makeEditor()
+{
+  ScintillaEdit *editor = new EditorWrapper(this);
+
+  editor->indicSetFore(0, 0x0000ff);
+
+  editor->styleSetFont(STYLE_DEFAULT, Formatter::FixedFont().family().toUtf8().data());
+  editor->styleSetFont(100, Formatter::FixedFont().family().toUtf8().data());
+  editor->styleSetBack(
+      100, IsDarkTheme() ? SCINTILLA_COLOUR(175, 70, 70) : SCINTILLA_COLOUR(255, 150, 150));
+
+  editor->setMarginLeft(4.0);
+  editor->setMarginWidthN(0, 32.0);
+  editor->setMarginWidthN(1, 0.0);
+  editor->setMarginWidthN(2, 16.0);
+  editor->setObjectName(lit("scriptEditor"));
+
+  editor->markerSetBack(CURRENT_MARKER, SCINTILLA_COLOUR(240, 128, 128));
+  editor->markerSetBack(CURRENT_MARKER + 1, SCINTILLA_COLOUR(240, 128, 128));
+  editor->markerDefine(CURRENT_MARKER, SC_MARK_SHORTARROW);
+  editor->markerDefine(CURRENT_MARKER + 1, SC_MARK_BACKGROUND);
+
+  editor->usePopUp(SC_POPUP_NEVER);
+
+  editor->setContextMenuPolicy(Qt::CustomContextMenu);
+  QObject::connect(editor, &ScintillaEdit::customContextMenuRequested, this,
+                   &PythonShell::editor_contextMenu);
+
+  ConfigureSyntax(editor, SCLEX_PYTHON);
+
+  editor->setTabWidth(4);
+  editor->setUseTabs(false);
+
+  editor->setScrollWidth(1);
+  editor->setScrollWidthTracking(true);
+
+  editor->colourise(0, -1);
+
+  editor->autoCSetMaxHeight(10);
+  editor->autoCSetCancelAtStart(false);
+
+  editor->setMouseDwellTime(400);
+
+  editor->installEventFilter(this);
+
+  QObject::connect(editor, &QWidget::destroyed, [this, editor]() {
+    m_Scintillas.removeOne(editor);
+    updateEditorCloseButton();
+  });
+
+  QObject::connect(editor, &ScintillaEdit::modified,
+                   [this, editor](int type, int, int, int, const QByteArray &text, int, int, int) {
+                     if(type & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT | SC_MOD_BEFOREINSERT |
+                                SC_MOD_BEFOREDELETE))
+                     {
+                       markEditorModified(editor, true);
+                       updateEditorTitle(editor);
+
+                       editor->markerDeleteAll(CURRENT_MARKER);
+                       editor->markerDeleteAll(CURRENT_MARKER + 1);
+
+                       // always remove errors immediately
+                       editor->setIndicatorCurrent(0);
+                       editor->indicatorClearRange(0, editor->textLength());
+                       editor->annotationClearAll();
+                     }
+                   });
+
+  if(m_Scintillas.empty())
+  {
+    ui->docking->addToolWindow(editor, ToolWindowManager::EmptySpace);
+  }
+  else
+  {
+    ui->docking->addToolWindow(
+        editor, ToolWindowManager::AreaReference(ToolWindowManager::AddTo,
+                                                 ui->docking->areaOf(m_Scintillas[0])));
+  }
+
+  m_Scintillas.push_back(editor);
+
+  updateEditorCloseButton();
+
+  return editor;
+}
+
+void PythonShell::updateEditorCloseButton()
+{
+  for(ScintillaEdit *edit : m_Scintillas)
+  {
+    ToolWindowManager::ToolWindowProperty props =
+        ToolWindowManager::DisallowUserDocking | ToolWindowManager::AlwaysDisplayFullTabs;
+
+    // disallow closing last scintilla
+    if(m_Scintillas.size() == 1)
+      props = props | ToolWindowManager::HideCloseButton;
+
+    ui->docking->setToolWindowProperties(edit, props);
+  }
 }
 
 QVariant PythonShell::persistData()
@@ -1166,6 +1291,9 @@ void PythonShell::setPersistData(const QVariant &persistData)
   QVariantMap state = persistData.toMap();
 
   ui->docking->restoreState(state);
+
+  ToolWindowManagerArea *editorTabs = ui->docking->areaOf(m_Scintillas[0]);
+  QObject::connect(editorTabs, &QTabWidget::currentChanged, this, &PythonShell::editorTab_Changed);
 }
 
 PythonContext *PythonShell::GetScriptContext()
@@ -1173,9 +1301,9 @@ PythonContext *PythonShell::GetScriptContext()
   return scriptContext;
 }
 
-void PythonShell::SetScriptText(rdcstr script)
+bool PythonShell::CheckUnsavedChanges()
 {
-  scriptEditor->setText(script.c_str());
+  return checkAllowClose();
 }
 
 bool PythonShell::LoadScriptFromFilename(rdcstr filename)
@@ -1185,7 +1313,15 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
     QFile f(filename);
     if(f.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-      scriptEditor->setText(f.readAll().data());
+      ScintillaEdit *editor = makeEditor();
+
+      editor->setText(f.readAll().data());
+      editor->emptyUndoBuffer();
+
+      ui->saveScript->setEnabled(true);
+
+      setEditorFilename(editor, QString(filename));
+      markEditorModified(editor, false);
       return true;
     }
   }
@@ -1193,9 +1329,27 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
   return false;
 }
 
+void PythonShell::CreateNewScriptEditor(rdcstr name, rdcstr text)
+{
+  ScintillaEdit *editor = makeEditor();
+
+  editor->setText(text.c_str());
+  editor->emptyUndoBuffer();
+
+  ui->saveScript->setEnabled(true);
+
+  setEditorFilename(editor, QString(name));
+  markEditorModified(editor, false);
+}
+
 rdcstr PythonShell::GetScriptText()
 {
-  return scriptEditor->getText(scriptEditor->textLength() + 1).data();
+  ScintillaEdit *editor = curEditor();
+
+  if(!editor)
+    return rdcstr();
+
+  return editor->getText(editor->textLength() + 1).data();
 }
 
 void PythonShell::SetExtensionOutputFilter(const rdcstr &extensionName)
@@ -1220,11 +1374,6 @@ void PythonShell::RemoveOutputFilter()
   ui->outputContext->setCurrentIndex(AllOutputFilter);
 }
 
-void PythonShell::ShowScriptEditor()
-{
-  ToolWindowManager::raiseToolWindow(scriptEditor);
-}
-
 void PythonShell::ShowOutput()
 {
   ToolWindowManager::raiseToolWindow(ui->outputGroup);
@@ -1242,6 +1391,11 @@ void PythonShell::ShowHelp()
 
 void PythonShell::runScript(bool debugging)
 {
+  ScintillaEdit *editor = curEditor();
+
+  if(!editor)
+    return;
+
   PythonContext *context = newContext();
 
   ANALYTIC_SET(UIFeatures.PythonInterop, true);
@@ -1252,22 +1406,24 @@ void PythonShell::runScript(bool debugging)
 
   updateScriptOutput(true);
 
-  QString script = QString::fromUtf8(scriptEditor->getText(scriptEditor->textLength() + 1));
+  QString script = QString::fromUtf8(editor->getText(editor->textLength() + 1));
 
   enableButtons(false);
 
   if(debugging)
     PythonContext::PrepareDebuggerWait();
 
-  LambdaThread *thread = new LambdaThread([this, debugging, script, context]() {
+  LambdaThread *thread = new LambdaThread([this, debugging, script, context, editor]() {
     PythonContext::AddDebuggableThread();
 
     scriptContext = context;
+    runningScriptEditor = editor;
     context->executeString(lit("script.py"), script, debugging);
     scriptContext = NULL;
 
     GUIInvoke::call(this, [this, context]() {
       context->Finish();
+      runningScriptEditor = NULL;
       enableButtons(true);
     });
 
@@ -1309,7 +1465,9 @@ void PythonShell::on_execute_clicked()
   m_storedLines = QString();
 
   if(command.trimmed().length() > 0)
+  {
     interactiveContext->executeString(command);
+  }
 
   appendText(ui->interactiveOutput, lit(">> "));
 }
@@ -1336,9 +1494,13 @@ void PythonShell::on_newScript_clicked()
 
   minidocHeader = QFormatStr("# %1\n\n").arg(minidocHeader);
 
-  scriptEditor->setText(minidocHeader.toUtf8().data());
+  ScintillaEdit *editor = makeEditor();
 
-  scriptEditor->emptyUndoBuffer();
+  ui->saveScript->setEnabled(false);
+
+  editor->setText(minidocHeader.toUtf8().data());
+  editor->emptyUndoBuffer();
+  markEditorModified(editor, false);
 }
 
 void PythonShell::on_openScript_clicked()
@@ -1354,34 +1516,29 @@ void PythonShell::on_openScript_clicked()
 
 void PythonShell::on_saveScript_clicked()
 {
-  QString filename = RDDialog::getSaveFileName(this, tr("Save Python Script"), QString(),
-                                               tr("Python scripts (*.py)"));
+  ScintillaEdit *editor = curEditor();
 
-  if(!filename.isEmpty())
-  {
-    QDir dirinfo = QFileInfo(filename).dir();
-    if(dirinfo.exists())
-    {
-      QFile f(filename);
-      if(f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-      {
-        QString text = QString::fromUtf8(scriptEditor->getText(scriptEditor->textLength() + 1));
-        text.remove(QLatin1Char('\r'));
-        f.write(text.toUtf8());
-      }
-      else
-      {
-        RDDialog::critical(
-            this, tr("Error saving script"),
-            tr("Couldn't open path %1 for write.\n%2").arg(filename).arg(f.errorString()));
-      }
-    }
-    else
-    {
-      RDDialog::critical(this, tr("Invalid directory"),
-                         tr("Cannot find target directory to save to"));
-    }
-  }
+  if(!editor)
+    return;
+
+  QString filename = getEditorFilename(editor);
+
+  if(!QFileInfo(filename).isAbsolute())
+    return on_saveAsScript_clicked();
+
+  if(saveEditor(editor, filename))
+    markEditorModified(editor, false);
+}
+
+void PythonShell::on_saveAsScript_clicked()
+{
+  ScintillaEdit *editor = curEditor();
+
+  if(!editor)
+    return;
+
+  if(saveEditorAs(editor))
+    markEditorModified(editor, false);
 }
 
 void PythonShell::on_runScript_clicked()
@@ -1402,14 +1559,14 @@ void PythonShell::on_abortRun_clicked()
 
 void PythonShell::traceLine(const QString &file, int line)
 {
-  if(QObject::sender() == (QObject *)interactiveContext)
+  if(!runningScriptEditor)
     return;
 
-  scriptEditor->markerDeleteAll(CURRENT_MARKER);
-  scriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
+  runningScriptEditor->markerDeleteAll(CURRENT_MARKER);
+  runningScriptEditor->markerDeleteAll(CURRENT_MARKER + 1);
 
-  scriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER);
-  scriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER + 1);
+  runningScriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER);
+  runningScriptEditor->markerAdd(line > 0 ? line - 1 : 0, CURRENT_MARKER + 1);
 }
 
 void PythonShell::exception(const QString &extension, const QString &type, const QString &value,
@@ -1458,6 +1615,18 @@ void PythonShell::on_outputContext_currentIndexChanged(int idx)
   updateScriptOutput(true);
 }
 
+bool PythonShell::checkAllowClose()
+{
+  for(ScintillaEdit *edit : m_Scintillas)
+  {
+    EditorWrapper *wrap = (EditorWrapper *)edit;
+
+    if(!wrap->checkAllowClose())
+      return false;
+  }
+  return true;
+}
+
 void PythonShell::updateScriptOutput(bool fullRefresh)
 {
   if(fullRefresh)
@@ -1490,6 +1659,48 @@ void PythonShell::updateScriptOutput(bool fullRefresh)
   lastDisplayedLine = scriptOutputLines.size();
 }
 
+bool PythonShell::saveEditorAs(ScintillaEdit *editor)
+{
+  QString filename = RDDialog::getSaveFileName(this, tr("Save Python Script"), QString(),
+                                               tr("Python scripts (*.py)"));
+  if(filename.isEmpty())
+    return false;
+  return saveEditor(editor, filename);
+}
+
+bool PythonShell::saveEditor(ScintillaEdit *editor, QString filename)
+{
+  if(!filename.isEmpty())
+  {
+    QDir dirinfo = QFileInfo(filename).dir();
+    if(dirinfo.exists())
+    {
+      QFile f(filename);
+      if(f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+      {
+        QString text = QString::fromUtf8(editor->getText(editor->textLength() + 1));
+        text.remove(QLatin1Char('\r'));
+        f.write(text.toUtf8());
+
+        setEditorFilename(editor, filename);
+        return true;
+      }
+      else
+      {
+        RDDialog::critical(
+            this, tr("Error saving script"),
+            tr("Couldn't open path %1 for write.\n%2").arg(filename).arg(f.errorString()));
+      }
+    }
+    else
+    {
+      RDDialog::critical(this, tr("Invalid directory"),
+                         tr("Cannot find target directory to save to:\n%1").arg(filename));
+    }
+  }
+  return false;
+}
+
 void PythonShell::extensionLoaded(const QString &extension)
 {
   ui->outputContext->addItem(tr("Extension %1").arg(extension));
@@ -1498,17 +1709,20 @@ void PythonShell::extensionLoaded(const QString &extension)
 
 void PythonShell::editor_contextMenu(const QPoint &pos)
 {
-  int scintillaPos = scriptEditor->positionFromPoint(pos.x(), pos.y());
+  ScintillaEdit *editor = qobject_cast<ScintillaEdit *>(QObject::sender());
+
+  if(!editor)
+    return;
 
   QMenu contextMenu(this);
 
-  QString curWord = getDottedWordAtPoint(scintillaPos);
+  QString typeName;
 
-  bool valid = !curWord.isEmpty();
+  bool valid = !typeName.isEmpty();
 
-  QAction help(valid ? tr("Help for '%1'").arg(curWord) : tr("Help"), this);
+  QAction help(valid ? tr("Help for '%1'").arg(typeName) : tr("Help"), this);
 
-  QObject::connect(&help, &QAction::triggered, [this, curWord] { selectedHelp(curWord); });
+  QObject::connect(&help, &QAction::triggered, [this, typeName] { selectedHelp(typeName); });
 
   help.setEnabled(valid);
 
@@ -1518,11 +1732,11 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   QAction undo(tr("Undo"), this);
   QAction redo(tr("Redo"), this);
 
-  QObject::connect(&undo, &QAction::triggered, [this] { scriptEditor->undo(); });
-  QObject::connect(&redo, &QAction::triggered, [this] { scriptEditor->redo(); });
+  QObject::connect(&undo, &QAction::triggered, [this, editor] { editor->undo(); });
+  QObject::connect(&redo, &QAction::triggered, [this, editor] { editor->redo(); });
 
-  undo.setEnabled(scriptEditor->canUndo());
-  redo.setEnabled(scriptEditor->canRedo());
+  undo.setEnabled(editor->canUndo());
+  redo.setEnabled(editor->canRedo());
 
   contextMenu.addAction(&undo);
   contextMenu.addAction(&redo);
@@ -1533,16 +1747,16 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   QAction pasteText(tr("Paste"), this);
   QAction deleteText(tr("Delete"), this);
 
-  QObject::connect(&cutText, &QAction::triggered, [this] { scriptEditor->cut(); });
+  QObject::connect(&cutText, &QAction::triggered, [this, editor] { editor->cut(); });
 
-  QObject::connect(&copyText, &QAction::triggered, [this] {
-    scriptEditor->copyRange(scriptEditor->selectionStart(), scriptEditor->selectionEnd());
+  QObject::connect(&copyText, &QAction::triggered, [this, editor] {
+    editor->copyRange(editor->selectionStart(), editor->selectionEnd());
   });
 
-  QObject::connect(&pasteText, &QAction::triggered, [this] { scriptEditor->paste(); });
+  QObject::connect(&pasteText, &QAction::triggered, [this, editor] { editor->paste(); });
 
-  QObject::connect(&deleteText, &QAction::triggered, [this] {
-    scriptEditor->deleteRange(scriptEditor->selectionStart(), scriptEditor->selectionEnd());
+  QObject::connect(&deleteText, &QAction::triggered, [this, editor] {
+    editor->deleteRange(editor->selectionStart(), editor->selectionEnd());
   });
 
   contextMenu.addAction(&cutText);
@@ -1551,163 +1765,36 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   contextMenu.addAction(&deleteText);
   contextMenu.addSeparator();
 
-  if(scriptEditor->selectionEmpty())
+  if(editor->selectionEmpty())
   {
     cutText.setEnabled(false);
     copyText.setEnabled(false);
     deleteText.setEnabled(false);
   }
 
-  pasteText.setEnabled(scriptEditor->canPaste());
+  pasteText.setEnabled(editor->canPaste());
 
   QAction selectAll(tr("Select All"), this);
-  QObject::connect(&selectAll, &QAction::triggered, [this] { scriptEditor->selectAll(); });
+  QObject::connect(&selectAll, &QAction::triggered, [this, editor] { editor->selectAll(); });
   contextMenu.addAction(&selectAll);
 
-  RDDialog::show(&contextMenu, scriptEditor->viewport()->mapToGlobal(pos));
-}
-
-QString PythonShell::getDottedWordAtPoint(int scintillaPos)
-{
-  QByteArray wordChars = scriptEditor->wordChars();
-
-  QByteArray wordCharsAndDot = wordChars;
-  if(wordCharsAndDot.indexOf('.') < 0)
-    wordCharsAndDot.append('.');
-
-  scriptEditor->setWordChars(wordCharsAndDot.data());
-
-  sptr_t start = scriptEditor->wordStartPosition(scintillaPos, true);
-  sptr_t end = scriptEditor->wordEndPosition(scintillaPos, true);
-
-  scriptEditor->setWordChars(wordChars.data());
-
-  QString curWord = QString::fromUtf8(scriptEditor->textRange(start, end));
-
-  bool valid = true;
-
-  if(curWord.isEmpty() || (!curWord[0].isLetterOrNumber() && curWord[0] != QLatin1Char('_')))
-    valid = false;
-
-  for(QChar c : curWord)
-  {
-    if(!c.isLetterOrNumber() && c != QLatin1Char('_') && c != QLatin1Char('.'))
-      valid = false;
-  }
-
-  return valid ? curWord : QString();
+  RDDialog::show(&contextMenu, editor->viewport()->mapToGlobal(pos));
 }
 
 void PythonShell::selectedHelp(QString word)
 {
-  ui->helpSearch->setText(word);
-
-  refreshCurrentHelp();
 }
 
 void PythonShell::refreshCurrentHelp()
 {
-  PythonContext *context = newImportedDummyContext();
-
-  ui->helpText->clear();
-
-  QObject::connect(context, &PythonContext::textOutput,
-                   [this](const QString &, bool isStdError, const QString &output) {
-                     appendText(ui->helpText, output);
-                   });
-
-  context->executeString(lit(R"(
-try:
-  import keyword
-  if keyword.iskeyword("%1"):
-    help("%1")
-  else:
-    help(%1)
-except ImportError:
-  help(%1)
-)")
-                             .arg(ui->helpSearch->text()));
-
-  context->Finish();
 }
 
 void PythonShell::interactive_keypress(QKeyEvent *event)
 {
-  if(event->key() == Qt::Key_Tab)
-  {
-    QString base = ui->lineInput->text();
-    if(!base.isEmpty() && !base.rbegin()->isSpace())
-    {
-      // search backwards from the end for the first non dotted identifier first, and extract that
-      // substring. This is just ASCII, not unicode
-      for(int i = base.count() - 1; i >= 0; i--)
-      {
-        if(!base[i].isLetterOrNumber() && base[i] != QLatin1Char('.') && base[i] != QLatin1Char('_'))
-        {
-          base = base.right(base.count() - 1 - i);
-          break;
-        }
-      }
-
-      // skip any initial digits that got included in the coarse search above
-      while(!base.isEmpty() && base[0].isDigit())
-        base.remove(0, 1);
-
-      QStringList options = interactiveContext->completionOptions(base);
-
-      QString line = ui->lineInput->text();
-
-      if(!options.isEmpty())
-      {
-        QString commonSubstring = options[0];
-
-        for(int i = 1; i < options.count(); i++)
-        {
-          const QString &opt = options[i];
-          if(opt.count() < commonSubstring.count())
-            commonSubstring.truncate(opt.count());
-
-          for(int j = 0; j < commonSubstring.count(); j++)
-          {
-            if(commonSubstring[j] != opt[j])
-            {
-              commonSubstring.truncate(j);
-              break;
-            }
-          }
-        }
-
-        if(commonSubstring.length() > base.length())
-        {
-          line.chop(base.length());
-          line += commonSubstring;
-          ui->lineInput->setText(line);
-        }
-
-        if(options.count() > 1)
-        {
-          QString text;
-          text += line;
-          text += lit("\n");
-          for(const QString &opt : options)
-          {
-            text += opt;
-            text += lit("\n");
-          }
-          text += m_storedLines.isEmpty() ? lit(">> ") : lit(".. ");
-          appendText(ui->interactiveOutput, text);
-        }
-      }
-
-      return;
-    }
-
-    ui->lineInput->insert(lit("\t"));
-    return;
-  }
-
   if(event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+  {
     on_execute_clicked();
+  }
 
   bool moved = false;
 
@@ -1779,72 +1866,6 @@ void PythonShell::enableButtons(bool enable)
   {
     ui->debugScript->setEnabled(false);
   }
-}
-
-void PythonShell::startAutocomplete()
-{
-  sptr_t pos = scriptEditor->currentPos();
-  sptr_t line = scriptEditor->lineFromPosition(pos);
-  sptr_t lineStart = scriptEditor->positionFromLine(line);
-  QByteArray lineText = scriptEditor->getLine(line);
-
-  sptr_t end = pos - lineStart - 1;
-  sptr_t start;
-  for(start = end; start >= 0; start--)
-  {
-    char c = lineText[(int)start];
-    if(QChar::fromLatin1(c).isLetterOrNumber() || c == '.' || c == '_')
-      continue;
-
-    start++;
-    break;
-  }
-
-  QString comp = QString::fromUtf8(lineText.mid(start, end - start + 1));
-
-  PythonContext *context = newImportedDummyContext();
-
-  QStringList completions = context->completionOptions(comp);
-
-  context->Finish();
-
-  scriptEditor->autoCShow(comp.count(), completions.join(QLatin1Char(' ')).toUtf8().data());
-}
-
-PythonContext *PythonShell::newImportedDummyContext()
-{
-  sptr_t pos = scriptEditor->currentPos();
-
-  PythonContext *context = new PythonContext();
-
-  setGlobals(context);
-
-  // super hack. Try to import any modules to get completion suggestions from them.
-  // we only process imports with no indentation since they should be unconditional. We ignore
-  // imports that fail.
-  QByteArray text = scriptEditor->getText(pos + 1);
-
-  for(int offs = 0; offs < text.length();)
-  {
-    // find the next newline (may be NULL if we're at the end)
-    int newline = text.indexOf('\n', offs);
-
-    // execute the import if there is one
-    const char *c = text.data() + offs;
-    if(!strncmp(c, "import ", 7))
-    {
-      context->executeString(newline >= 0 ? QString::fromUtf8(c, newline - offs + 1)
-                                          : QString::fromUtf8(c));
-    }
-
-    if(newline < 0)
-      break;
-
-    // move to the next line
-    offs = newline + 1;
-  }
-
-  return context;
 }
 
 PythonContext *PythonShell::newContext()

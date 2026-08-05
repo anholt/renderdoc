@@ -3195,6 +3195,17 @@ void MainWindow::closeEvent(QCloseEvent *event)
     delete live;
   }
 
+  if(m_Ctx.HasPythonShell())
+  {
+    IPythonShell *shell = m_Ctx.GetPythonShell();
+
+    if(!shell->CheckUnsavedChanges())
+    {
+      event->ignore();
+      return;
+    }
+  }
+
   SaveLayout(0);
 }
 

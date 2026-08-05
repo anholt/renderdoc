@@ -213,7 +213,27 @@
     <item>
      <widget class="QToolButton" name="saveScript">
       <property name="toolTip">
-       <string>Save the current script to disk</string>
+       <string>Save the current script (Ctrl+S)</string>
+      </property>
+      <property name="text">
+       <string>Save</string>
+      </property>
+      <property name="icon">
+       <iconset resource="../Resources/resources.qrc">
+        <normaloff>:/save.png</normaloff>:/save.png</iconset>
+      </property>
+      <property name="toolButtonStyle">
+       <enum>Qt::ToolButtonTextBesideIcon</enum>
+      </property>
+      <property name="autoRaise">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QToolButton" name="saveAsScript">
+      <property name="toolTip">
+       <string>Save the current script to a new location</string>
       </property>
       <property name="text">
        <string>Save As</string>
