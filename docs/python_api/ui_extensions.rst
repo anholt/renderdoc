@@ -14,7 +14,9 @@ In any subdirectory under this path you can register an extension by creating a 
 
 	Extension Manager: Configures installed extensions.
 
-To streamline setup we will ask RenderDoc to create a new extension for us. Open the extension manager by opening the :guilabel:`Tools` menu and select :guilabel:`Manage Extensions`, then click the :guilabel:`Create New...` button and enter a package name such as ``tutorialext``. This will create the ``extension.json`` and ``__init__.py`` files in a new folder ``tutorialext`` for us.
+To streamline setup we will ask RenderDoc to create a new extension for us. Open the python scripting window from :guilabel:`Window` → :guilabel:`Python Scripting`. Then either double click the :guilabel:`Create New...` item under the :guilabel:`UI Extensions` section, or right click on the section title and select the option from the context menu.
+
+From the dialog that appears enter a package name such as ``tutorialext``. This will create the ``extension.json`` and ``__init__.py`` files in a new folder ``tutorialext`` for us.
 
 For more information about the registration of python extensions see :doc:`../how/how_python_extension`
 

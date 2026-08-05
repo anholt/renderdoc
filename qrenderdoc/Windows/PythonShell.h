@@ -155,6 +155,7 @@ private slots:
   void projectExplorer_contextMenu(const QPoint &pos);
   void editorTab_Changed(int index);
   void doSyntaxCheck();
+  void createExtension_clicked();
 
   void openFileModified(const QString &path);
   void updateExtensionProjects();
@@ -176,7 +177,7 @@ private:
 
   bool m_IgnoreRecovered = false;
 
-  RDTreeWidgetItem *m_UIExtensions, *m_Examples, *m_RecentFiles;
+  RDTreeWidgetItem *m_UIExtensions, *m_Examples, *m_RecentFiles, *m_NewExtension;
 
   QFileSystemWatcher *m_Watcher = NULL;
 

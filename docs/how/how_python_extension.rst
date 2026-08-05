@@ -8,6 +8,9 @@ Example extensions can be found at the `community contributed repository <https:
 Creating extensions
 -------------------
 
+.. tip::
+    You can ask RenderDoc to create an empty extension for you from the :doc:`python scripting <../window/python_scripting>` window.
+
 Extensions are simply python modules located in the user's RenderDoc config folder, with a json manifest. The config folder varies by platform, on Windows it's ``%APPDATA%\qrenderdoc\extensions`` and on linux it's ``~/.local/share/qrenderdoc/extensions``. Each extension is a python module subfolder under this root. You can nest subfolders, e.g. ``extensions/foo/bar/first`` would be the extension ``foo.bar.first``, and treated independently from ``extensions/foo/bar/second``.
 
 Next to each python module's ``__init__.py`` you should create a file ``extension.json`` following this template:

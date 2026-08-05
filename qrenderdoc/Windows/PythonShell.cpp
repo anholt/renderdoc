@@ -26,6 +26,7 @@
 #include <QAbstractItemView>
 #include <QCompleter>
 #include <QDesktopServices>
+#include <QDialogButtonBox>
 #include <QFileSystemWatcher>
 #include <QFontDatabase>
 #include <QKeyEvent>
@@ -400,6 +401,11 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_UIExtensions->setBold(true);
   m_UIExtensions->setIcon(0, Icons::plugin());
 
+  m_NewExtension = new RDTreeWidgetItem({tr("Create new...")});
+  m_NewExtension->setData(0, Qt::UserRole + 1, m_NewExtension->text(0));
+  m_NewExtension->setItalic(true);
+  m_NewExtension->setIcon(0, Icons::plugin_add());
+
   m_RecentFiles = new RDTreeWidgetItem({lit("Recent files")});
   m_RecentFiles->setData(0, Qt::UserRole + 1, m_UIExtensions->text(0));
   m_RecentFiles->setSelectable(false);
@@ -662,6 +668,8 @@ void PythonShell::updateExtensionProjects()
 
     m_UIExtensions->addChild(root);
   }
+
+  m_UIExtensions->addChild(m_NewExtension);
 
   ui->projectExplorer->endUpdate();
 
@@ -1418,7 +1426,11 @@ void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int c
   if(item == m_Examples || item == m_UIExtensions || item == m_RecentFiles)
     return;
 
-  if(item->parent() == m_Examples)
+  if(item == m_NewExtension)
+  {
+    createExtension_clicked();
+  }
+  else if(item->parent() == m_Examples)
   {
     QString filename = tr("Example: ") + item->text(0);
     QString text = item->data(0, Qt::UserRole).toString();
@@ -1726,6 +1738,9 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
   QAction viewOutput(tr("&View output"), this);
   viewOutput.setIcon(Icons::filter());
 
+  QAction createExtension(tr("Create &New Extension"), this);
+  createExtension.setIcon(Icons::plugin_add());
+
   QObject::connect(&expandAll, &QAction::triggered,
                    [this, item]() { ui->projectExplorer->expandAllItems(item); });
 
@@ -1795,10 +1810,194 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
                        [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });
     }
   }
+  else if(item == m_UIExtensions)
+  {
+    contextMenu.addSeparator();
+
+    contextMenu.addAction(&createExtension);
+
+    QObject::connect(&createExtension, &QAction::triggered, [this]() { createExtension_clicked(); });
+  }
 
   RDDialog::show(&contextMenu, ui->projectExplorer->viewport()->mapToGlobal(pos));
 
   m_ContextMenuVisible = false;
+}
+
+void PythonShell::createExtension_clicked()
+{
+  QDialog dialog;
+  RDLabel label;
+  RDLineEdit extensionName;
+  QDialogButtonBox buttons;
+
+  dialog.setWindowTitle(tr("Create new UI extension"));
+  dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+  label.setText(
+      tr("Create a new UI extension, with some example code.\n"
+         "\n"
+         "This will create the directory structure for the specified package name, with a default\n"
+         "extension metadata json and some simple example code to give you a starting point."));
+
+  extensionName.setPlaceholderText(tr("myname.example"));
+
+  buttons.setOrientation(Qt::Horizontal);
+  buttons.setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  buttons.setCenterButtons(true);
+
+  QObject::connect(&buttons, &QDialogButtonBox::accepted, [this, &dialog, &extensionName]() {
+    QString extName = extensionName.text().trimmed();
+
+    if(extName.isEmpty())
+    {
+      RDDialog::critical(&dialog, tr("Invalid extension name"),
+                         tr("Must specify a name for the new extension."));
+      return;
+    }
+
+    if(extName.startsWith(lit("renderdoc.")))
+    {
+      RDDialog::critical(&dialog, tr("Invalid extension name"),
+                         tr("Extension name conflicts with builtin module 'renderdoc'."));
+      return;
+    }
+
+    if(extName.contains(QLatin1Char(' ')) || extName.contains(QLatin1Char('\t')))
+    {
+      RDDialog::critical(
+          &dialog, tr("Invalid extension name"),
+          tr("Extension names should be valid python package names, note including whitespace."));
+      return;
+    }
+
+    for(const ExtensionMetadata &e : m_Ctx.Extensions().GetInstalledExtensions())
+    {
+      if(QString(e.package) == extName)
+      {
+        RDDialog::critical(&dialog, tr("Extension name in use"),
+                           tr("The extension name '%1' already exists.").arg(e.package));
+        return;
+      }
+    }
+
+    QStringList locations = PythonContext::GetApplicationExtensionsPaths();
+
+    if(!locations.empty())
+    {
+      QDir dir(locations[0]);
+
+      QStringList paths = extName.split(QLatin1Char('.'));
+
+      bool nonexist = false;
+
+      while(!paths.empty())
+      {
+        QString dirname = paths[0];
+        paths.pop_front();
+
+        if(!dir.cd(dirname))
+        {
+          nonexist = true;
+          break;
+        }
+
+        qInfo() << dir.absolutePath();
+      }
+
+      if(!nonexist && dir.exists() && !dir.isEmpty())
+      {
+        RDDialog::critical(&dialog, tr("Directory already exists"),
+                           tr("Extension directory already exists:\n%1").arg(dir.absolutePath()));
+        return;
+      }
+    }
+
+    dialog.accept();
+  });
+  QObject::connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  QVBoxLayout *layout = new QVBoxLayout(&dialog);
+  layout->addWidget(&label);
+  layout->addWidget(&extensionName);
+  layout->addWidget(&buttons);
+
+  if(!RDDialog::show(&dialog))
+    return;
+
+  if(dialog.result() == QDialog::Accepted)
+  {
+    QStringList locations = PythonContext::GetApplicationExtensionsPaths();
+    QDir dir(locations[0]);
+
+    QString extName = extensionName.text().trimmed();
+    QStringList paths = extName.split(QLatin1Char('.'));
+
+    while(!paths.empty())
+    {
+      QString dirname = paths[0];
+      paths.pop_front();
+
+      dir.mkdir(dirname);
+
+      if(!dir.cd(dirname))
+      {
+        RDDialog::critical(&dialog, tr("Couldn't create directory"),
+                           tr("Failed to create %1 in %2").arg(dirname).arg(dir.absolutePath()));
+        return;
+      }
+    }
+
+    paths = extName.split(QLatin1Char('.'));
+
+    QString metadata = lit(R"({
+	"extension_api": 1,
+	"name": "%3",
+	"version": "1.0",
+	"minimum_renderdoc": "%1.%2",
+	"description": "Template extension %4",
+	"author": "My Name <my.email@example.com>",
+	"url": "https://github.com/example/example"
+}
+)")
+                           .arg(RENDERDOC_VERSION_MAJOR)
+                           .arg(RENDERDOC_VERSION_MINOR)
+                           .arg(paths.back())
+                           .arg(extName);
+
+    {
+      QFile ext(dir.absoluteFilePath(lit("extension.json")));
+      if(ext.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+      {
+        ext.write(metadata.toUtf8());
+      }
+
+      QFile init(dir.absoluteFilePath(lit("__init__.py")));
+      if(init.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+      {
+        init.write(R"(
+# Blank RenderDoc UI extension
+
+import renderdoc as rd
+import qrenderdoc as qrd
+
+def register(version: str, pyrenderdoc: qrd.CaptureContext):
+    print(f"New UI extension loaded in RenderDoc {version}")
+
+def unregister():
+    print(f"New UI extension being unloaded")
+)");
+      }
+    }
+
+    updateExtensionProjects();
+
+    LoadScriptFromFilename(dir.absoluteFilePath(lit("__init__.py")));
+
+    m_Editors.back()->setUIExtension(true);
+
+    editorTab_Changed(-1);
+  }
 }
 
 void PythonShell::selectedHelp(QString word)

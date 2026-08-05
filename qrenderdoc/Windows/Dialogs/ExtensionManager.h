@@ -48,18 +48,14 @@ public:
 
 private slots:
   // automatic slots
-  void on_reload_clicked();
-  void on_debug_clicked();
-  void on_output_clicked();
-  void on_openLocation_clicked();
   void on_alwaysLoad_toggled(bool checked);
-  void on_createExtension_clicked();
   void on_extensions_currentItemChanged(RDTreeWidgetItem *item, RDTreeWidgetItem *);
   void on_extensions_itemChanged(RDTreeWidgetItem *item, int col);
 
 private:
   void update_currentItem(RDTreeWidgetItem *item);
 
+  void loadExtension(RDTreeWidgetItem *item);
   void PopulateExtensionList();
 
   Ui::ExtensionManager *ui;
