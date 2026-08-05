@@ -145,7 +145,7 @@ signals:
 
 public slots:
   void executeString(const QString &source);
-  void executeString(const QString &filename, const QString &source, bool debugging);
+  void executeString(const QString &filename, const QString &source);
 
   void executeFile(const QString &filename);
   void setGlobal(const char *varName, const char *typeName, void *object);

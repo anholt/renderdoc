@@ -26,7 +26,7 @@ To use it for debugging python code and with fully-featured autocomplete, here a
 #. Enable the :abbr:`Features → Tasks → Allow Automatic Tasks (task.allowAutomaticTasks)` (``@id:task.allowAutomaticTasks``) setting (optional).
 #. When actively debugging, enable ``Breakpoints →  User Uncaught Exceptions`` at the bottom of the ``Run and Debug`` sidebar.
 
-If you just installed the debugging extensions, you will have to restart the RenderDoc UI for them to be found. After this you can use the :guilabel:`Debug` buttons in the python scripting panel or the extension manager to debug python code, with full autocomplete in VS Code. In the VS Code settings JSON this looks like so:
+If you just installed the debugging extensions, you will have to restart the RenderDoc UI for them to be found. After this you can use the :guilabel:`Attach External Debugger` button in the python scripting panel to debug python code, with full autocomplete in VS Code. In the VS Code settings JSON this looks like so:
 
 .. highlight:: json
 .. code:: json
@@ -68,7 +68,7 @@ If you have just installed these extensions, you will need to restart RenderDoc 
 
 Once ``debugpy`` has been loaded, the debugger is listening on the default local port ``5678``. Within VS Code or your IDE you can configure what may be called a 'remote attach' or 'debug server attach' connecting to ``localhost`` on port ``5678``.
 
-If RenderDoc has detected your installation of VS Code it also provides convenient ways to debug UI extensions and scripts. From the extension manager or in a python script you have written you can press the :guilabel:`Debug` button. This will automatically try to launch VS Code with the necessary environment to connect a debugger. If you enable the ``Allow Automatic Tasks`` option in VS Code's settings it will automatically connect to the debugger on startup, otherwise you will have to choose to start debugging in order to connect.
+If RenderDoc has detected your installation of VS Code it also provides convenient ways to debug UI extensions and scripts. In a python script you have written you can press the :guilabel:`Attach External Debugger` button. This will automatically try to launch VS Code with the necessary environment to connect a debugger. If you enable the ``Allow Automatic Tasks`` option in VS Code's settings it will automatically connect to the debugger on startup, otherwise you will have to choose to start debugging in order to connect.
 
 .. figure:: ../imgs/python/DebuggerAttached.png
 

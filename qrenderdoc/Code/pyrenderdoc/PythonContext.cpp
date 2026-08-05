@@ -1511,7 +1511,7 @@ QString PythonContext::GetTempFilename(QString filename)
   return QString();
 }
 
-void PythonContext::executeString(const QString &filename, const QString &source, bool debugging)
+void PythonContext::executeString(const QString &filename, const QString &source)
 {
   if(!initialised())
   {
@@ -1527,24 +1527,6 @@ void PythonContext::executeString(const QString &filename, const QString &source
   {
     tempFilename = lit("<interactive.py>");
   }
-  else if(!QFile::exists(filename))
-  {
-    for(QString path : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
-    {
-      QDir tmpDir(path);
-      tmpDir.mkpath(lit("pytmp"));
-      tmpDir.cd(lit("pytmp"));
-      if(tmpDir.exists())
-      {
-        tempFilename = tmpDir.absoluteFilePath(filename);
-        QFile f(tempFilename);
-        f.open(QFile::Truncate | QFile::WriteOnly);
-        f.write(source.toUtf8().data());
-        f.close();
-        break;
-      }
-    }
-  }
 
   location.file = tempFilename;
   location.line = 1;
@@ -1557,20 +1539,13 @@ void PythonContext::executeString(const QString &filename, const QString &source
 
   bool debugAttached = false;
 
-  if(debugging)
-    debugAttached = PythonContext::WaitForDebugger();
-
   bool caughtException = false;
   QString typeStr;
   QString valueStr;
   int finalLine = -1;
   QList<QString> frames;
 
-  if(debugging && !debugAttached)
-  {
-    // don't do anything, we wanted to debug and the attaching was cancelled - don't execute
-  }
-  else if(compiled)
+  if(compiled)
   {
     PrepareDebugTracing();
 
@@ -1642,7 +1617,7 @@ void PythonContext::executeString(const QString &filename, const QString &source
 
 void PythonContext::executeString(const QString &source)
 {
-  executeString(QString(), source, false);
+  executeString(QString(), source);
 }
 
 void PythonContext::executeFile(const QString &filename)
@@ -1661,7 +1636,7 @@ void PythonContext::executeFile(const QString &filename)
   {
     QByteArray py = f.readAll();
 
-    executeString(filename, QString::fromUtf8(py), false);
+    executeString(filename, QString::fromUtf8(py));
   }
   else
   {

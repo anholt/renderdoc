@@ -305,12 +305,9 @@
      </widget>
     </item>
     <item>
-     <widget class="QToolButton" name="debugScript">
-      <property name="toolTip">
-       <string>Begin running the script in python</string>
-      </property>
+     <widget class="QToolButton" name="debugAttach">
       <property name="text">
-       <string>Debug</string>
+       <string>Attach External Debugger</string>
       </property>
       <property name="icon">
        <iconset resource="../Resources/resources.qrc">

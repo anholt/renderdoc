@@ -106,8 +106,8 @@ public:
   bool LoadScriptFromFilename(rdcstr filename) override;
   void CreateNewScriptEditor(rdcstr name, rdcstr text) override;
   rdcstr GetScriptText() override;
-  void RunScript() override { runScript(false); }
-  void DebugScript() override { runScript(true); }
+  void RunScript() override;
+  void AttachDebugger(const rdcstr &extensionName) override;
 
   void SetExtensionOutputFilter(const rdcstr &extensionName) override;
   void SetScriptOutputFilter() override;
@@ -135,7 +135,7 @@ private slots:
   void on_saveAsScript_clicked();
 
   void on_runScript_clicked();
-  void on_debugScript_clicked();
+  void on_debugAttach_clicked();
   void on_abortRun_clicked();
   void on_outputContext_currentIndexChanged(int idx);
 
@@ -227,6 +227,7 @@ private:
 
   void updateEditorCloseButton();
   void updateNonDebugWarning();
+  void updateButtonStates();
 
   void addRecentFile(rdcstr filename);
   void updateRecentFiles(bool added);
@@ -239,8 +240,6 @@ private:
 
   PythonContext *newContext();
   void setGlobals(PythonContext *ret);
-
-  void runScript(bool debugging);
 
   void doAutocomplete(ScintillaEdit *editor);
   void doFunccomplete(ScintillaEdit *editor);

@@ -351,7 +351,10 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     bool hasDebugger = PythonContext::IsDebuggerConnected();
 
     if(m_DebuggerAttached != hasDebugger)
+    {
+      updateButtonStates();
       updateNonDebugWarning();
+    }
 
     m_DebuggerAttached = hasDebugger;
   });
@@ -484,13 +487,13 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_Ctx.GetMainWindow()->RegisterShortcut("CTRL+S", this,
                                           [this](QWidget *) { this->on_saveScript_clicked(); });
 
+  updateButtonStates();
+
   // we defer debugging loading onto a thread so check after a delay
   QTimer::singleShot(1200, [this]() {
     if(!PythonContext::IsDebuggingEnabled())
     {
-      ui->debugScript->setEnabled(false);
-      ui->debugScript->setToolTip(
-          tr("Debugging not supported - check documentation for setup instructions"));
+      updateButtonStates();
     }
   });
 }
@@ -565,7 +568,8 @@ void PythonShell::editorTab_Changed(int index)
 
   ui->saveScript->setEnabled(editor && editor->filename() != QString());
 
-  enableButtons(ui->newScript->isEnabled());
+  updateButtonStates();
+
   updateNonDebugWarning();
 }
 
@@ -978,6 +982,13 @@ void PythonShell::updateNonDebugWarning()
       edit->setWarning(QString());
     }
   }
+
+  updateButtonStates();
+}
+
+void PythonShell::updateButtonStates()
+{
+  enableButtons(ui->newScript->isEnabled());
 }
 
 void PythonShell::addRecentFile(rdcstr filename)
@@ -1220,7 +1231,7 @@ void PythonShell::ShowHelp()
   ToolWindowManager::raiseToolWindow(ui->helpGroup);
 }
 
-void PythonShell::runScript(bool debugging)
+void PythonShell::RunScript()
 {
   EditorWrapper *editor = curEditor();
 
@@ -1244,9 +1255,6 @@ void PythonShell::runScript(bool debugging)
 
   enableButtons(false);
 
-  if(debugging)
-    PythonContext::PrepareDebuggerWait();
-
   // save any changes
   if(editor->isModified() && !editor->filename().isEmpty())
   {
@@ -1265,12 +1273,12 @@ void PythonShell::runScript(bool debugging)
 
   m_CurLineTimer->start();
 
-  LambdaThread *thread = new LambdaThread([this, debugging, script, context, editor]() {
+  LambdaThread *thread = new LambdaThread([this, script, context, editor]() {
     PythonContext::AddDebuggableThread();
 
     scriptContext = context;
     runningScriptEditor = editor->scintilla();
-    context->executeString(editor->filename(), script, debugging);
+    context->executeString(editor->filename(), script);
     scriptContext = NULL;
 
     GUIInvoke::call(this, [this, context]() {
@@ -1290,9 +1298,24 @@ void PythonShell::runScript(bool debugging)
   thread->setName(lit("Python script"));
   thread->selfDelete(true);
   thread->start();
+}
 
-  if(debugging)
-    PythonContext::LaunchDebugger(this, m_Ctx.Config(), QString());
+void PythonShell::AttachDebugger(const rdcstr &contextLocation)
+{
+  QString path = contextLocation;
+  for(const ExtensionMetadata &e : m_Ctx.Extensions().GetInstalledExtensions())
+  {
+    if(e.package == contextLocation)
+      path = e.filePath;
+  }
+
+  if(!QDir(path).exists())
+    return;
+
+  PythonContext::LaunchDebugger(this, m_Ctx.Config(), path);
+
+  updateButtonStates();
+  updateNonDebugWarning();
 }
 
 void PythonShell::on_findReplace_clicked()
@@ -1405,9 +1428,32 @@ void PythonShell::on_runScript_clicked()
   RunScript();
 }
 
-void PythonShell::on_debugScript_clicked()
+void PythonShell::on_debugAttach_clicked()
 {
-  DebugScript();
+  EditorWrapper *editor = curEditor();
+
+  if(!editor)
+    return;
+
+  QString filename = editor->filename();
+
+  if(editor->isUIExtension())
+  {
+    filename = QFileInfo(filename).absolutePath();
+
+    for(const ExtensionMetadata &e : m_Ctx.Extensions().GetInstalledExtensions())
+    {
+      if(filename.startsWith(QDir(e.filePath).absolutePath()))
+      {
+        AttachDebugger(e.package);
+        return;
+      }
+    }
+  }
+  else if(!filename.isEmpty())
+  {
+    AttachDebugger(QFileInfo(filename).absoluteDir().absolutePath());
+  }
 }
 
 void PythonShell::on_abortRun_clicked()
@@ -2268,11 +2314,22 @@ void PythonShell::enableButtons(bool enable)
   ui->saveScript->setEnabled(enable);
   ui->runScript->setEnabled(enable);
   ui->abortRun->setEnabled(!enable);
-  ui->debugScript->setEnabled(enable);
+  ui->debugAttach->setEnabled(enable && !m_DebuggerAttached && PythonContext::IsDebuggingEnabled());
+  ui->debugAttach->setToolTip(QString());
 
   EditorWrapper *editor = curEditor();
 
   ui->runScript->setToolTip(QString());
+
+  if(enable && m_DebuggerAttached)
+  {
+    ui->debugAttach->setToolTip(tr("Debugger is already attached"));
+  }
+  else if(enable && !PythonContext::IsDebuggingEnabled())
+  {
+    ui->debugAttach->setToolTip(
+        tr("Debugging not supported - check documentation for setup instructions"));
+  }
 
   if(editor)
   {
@@ -2283,9 +2340,10 @@ void PythonShell::enableButtons(bool enable)
     }
   }
 
-  if(enable && !m_Ctx.Config().Python_DebugEnabled)
+  if(editor == NULL || editor->filename().isEmpty())
   {
-    ui->debugScript->setEnabled(false);
+    ui->debugAttach->setEnabled(false);
+    ui->debugAttach->setToolTip(tr("Debugger requires a script saved to disk"));
   }
 }
 

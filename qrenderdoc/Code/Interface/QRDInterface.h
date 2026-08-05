@@ -1560,18 +1560,28 @@ created if the file fails to load
 )");
   virtual void RunScript() = 0;
 
-  DOCUMENT(R"(Debugs the current script in the python shell.
+  DOCUMENT(R"(Tries to launch a python debugger to attach to the current process, in the context
+of a given extension.
 
-This runs the script but waits for a debugger to connect first before beginning. The user
-will have the option to cancel, which aborts the run of the script.
+Returns immediately if a debugger is already connected, or is not supported.
+
+If the extension name is not a loaded extension, no debugger will be launched.
+
+.. note::
+  The extension name is only used if a new debugger instance is launched, it will target that
+  particular extension's source location. An attached python debugger can debug all python code
+  in the instance.
+
+:param str extensionName: The package name of the extension to use as context for launching a
+  debugger program.
 )");
-  virtual void DebugScript() = 0;
+  virtual void AttachDebugger(const rdcstr &extensionName) = 0;
 
   DOCUMENT(R"(Sets the filter on the output panel to only show output from the given extension.
 
 If the extension does not exist or is not loaded, no change will be made to the output filter.
 
-:param str extensionName: The name of the extension to show output from.
+:param str extensionName: The package name of the extension to show output from.
 )");
   virtual void SetExtensionOutputFilter(const rdcstr &extensionName) = 0;
 

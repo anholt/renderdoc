@@ -1263,7 +1263,10 @@ struct IPythonShellInvoker : UIThreadInvoker<IPythonShell>
   }
   rdcstr GetScriptText() { return InvokeRetFunction<rdcstr>(&IPythonShell::GetScriptText); }
   void RunScript() { return InvokeVoidFunction(&IPythonShell::RunScript); }
-  void DebugScript() { return InvokeVoidFunction(&IPythonShell::DebugScript); }
+  void AttachDebugger(const rdcstr &extensionName)
+  {
+    return InvokeVoidFunction(&IPythonShell::AttachDebugger, extensionName);
+  }
   void SetExtensionOutputFilter(const rdcstr &extensionName)
   {
     return InvokeVoidFunction(&IPythonShell::SetExtensionOutputFilter, extensionName);
