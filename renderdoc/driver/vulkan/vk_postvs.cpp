@@ -5861,6 +5861,21 @@ void VulkanReplay::FetchTessGSOut(uint32_t eventId, VulkanRenderState &state)
     }
   }
 
+  // remove the pixel shader
+  for(uint32_t i = 0; i < pipeCreateInfo.stageCount; i++)
+  {
+    VkPipelineShaderStageCreateInfo &stage =
+        (VkPipelineShaderStageCreateInfo &)pipeCreateInfo.pStages[i];
+
+    if(stage.stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+    {
+      if(i < pipeCreateInfo.stageCount - 1)
+        stage = pipeCreateInfo.pStages[pipeCreateInfo.stageCount - 1];
+      pipeCreateInfo.stageCount--;
+      break;
+    }
+  }
+
   // create a empty renderpass and framebuffer so we can draw
   VkFramebuffer fb = VK_NULL_HANDLE;
   VkRenderPass rp = VK_NULL_HANDLE;
