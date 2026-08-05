@@ -229,6 +229,70 @@ CaptureContext::CaptureContext(PersistentConfig &cfg) : m_Config(cfg)
 
   rdcarray<ExtensionMetadata> exts = CaptureContext::GetInstalledExtensions();
 
+  {
+    QDir sentinelSearch(ConfigFilePath(QString()));
+
+    bool questioned = false;
+
+    for(QString child : sentinelSearch.entryList(QStringList() << lit("python_load*.sentinel"),
+                                                 QDir::Files | QDir::NoDotAndDotDot))
+    {
+      QFileInfo finfo(ConfigFilePath(child));
+
+      // to avoid this being racey, we only care if we see a sentinel that's over 10 seconds old.
+      // This means if two instances are starting up and both enter this section the second one
+      // won't detect the temporary sentinel of the first as a crash
+      if(finfo.exists() && finfo.lastModified().secsTo(QDateTime::currentDateTime()) > 10)
+      {
+        QFile f(ConfigFilePath(child));
+
+        if(questioned)
+        {
+          f.remove();
+          continue;
+        }
+
+        if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+          QString extNames = QString::fromUtf8(f.readAll());
+
+          QMessageBox::StandardButton res = RDDialog::question(
+              NULL, tr("Possible python crash detected"),
+              tr("A previous instance of RenderDoc crashed while loading python extensions.\n\n"
+                 "These extensions were enabled:\n%1\n"
+                 "Would you like to disable python extensions?")
+                  .arg(extNames));
+
+          questioned = true;
+
+          if(res == QMessageBox::Yes)
+          {
+            cfg.AlwaysLoad_Extensions.clear();
+            cfg.Save();
+          }
+        }
+
+        f.remove();
+      }
+    }
+  }
+
+  QString sentinelFilename =
+      ConfigFilePath(lit("python_load%1.sentinel").arg(QCoreApplication::applicationPid()));
+
+  // create a sentinel with the list of extensions we're loading
+  {
+    QFile f(sentinelFilename);
+
+    if(f.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+      QTextStream stream(&f);
+
+      for(rdcstr ext : cfg.AlwaysLoad_Extensions)
+        stream << ext << lit("\n");
+    }
+  }
+
   for(const ExtensionMetadata &e : exts)
   {
     if(cfg.AlwaysLoad_Extensions.contains(e.package))
@@ -236,6 +300,12 @@ CaptureContext::CaptureContext(PersistentConfig &cfg) : m_Config(cfg)
       qInfo() << "Automatically loading extension" << QString(e.package);
       LoadExtension(e.package);
     }
+  }
+
+  // remove our sentinel now
+  {
+    QFile f(sentinelFilename);
+    f.remove();
   }
 }
 
