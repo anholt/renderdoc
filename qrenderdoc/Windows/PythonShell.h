@@ -182,6 +182,7 @@ private:
   QFileSystemWatcher *m_Watcher = NULL;
 
   QList<QString> m_ModifiedExtensions;
+  bool m_DebuggerAttached = false;
 
   QTimer *m_SyntaxCheckTimer;
 
@@ -225,6 +226,7 @@ private:
   void makeEditor(rdcstr filename, rdcstr text);
 
   void updateEditorCloseButton();
+  void updateNonDebugWarning();
 
   void addRecentFile(rdcstr filename);
   void updateRecentFiles(bool added);

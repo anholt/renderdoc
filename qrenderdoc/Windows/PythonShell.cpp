@@ -347,6 +347,13 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
       updateExtensionProjects();
       m_ModifiedExtensions = curModExts;
     }
+
+    bool hasDebugger = PythonContext::IsDebuggerConnected();
+
+    if(m_DebuggerAttached != hasDebugger)
+      updateNonDebugWarning();
+
+    m_DebuggerAttached = hasDebugger;
   });
 
   pyStatusTimer->setSingleShot(false);
@@ -555,6 +562,7 @@ void PythonShell::editorTab_Changed(int index)
   ui->saveScript->setEnabled(editor && editor->filename() != QString());
 
   enableButtons(ui->newScript->isEnabled());
+  updateNonDebugWarning();
 }
 
 void PythonShell::openFileModified(const QString &path)
@@ -948,6 +956,26 @@ void PythonShell::updateEditorCloseButton()
   }
 }
 
+void PythonShell::updateNonDebugWarning()
+{
+  m_DebuggerAttached = PythonContext::IsDebuggerConnected();
+
+  for(EditorWrapper *edit : m_Editors)
+  {
+    if(edit->filename().isEmpty())
+    {
+      if(m_DebuggerAttached)
+        edit->setWarning(
+            tr("External debugger will not work for unsaved files. "
+               "Save script to disk to allow debugging."));
+    }
+    else
+    {
+      edit->setWarning(QString());
+    }
+  }
+}
+
 void PythonShell::addRecentFile(rdcstr filename)
 {
   // don't add recent files from UI extensions
@@ -1135,7 +1163,8 @@ void PythonShell::CreateNewScriptEditor(rdcstr name, rdcstr text)
 {
   makeEditor(name, text);
 
-  ui->saveScript->setEnabled(true);
+  ui->saveScript->setEnabled(false);
+  updateNonDebugWarning();
 }
 
 rdcstr PythonShell::GetScriptText()
@@ -1193,6 +1222,9 @@ void PythonShell::runScript(bool debugging)
 
   if(!editor)
     return;
+
+  if(editor->isModified() && !editor->filename().isEmpty())
+    saveEditor(editor, editor->filename());
 
   PythonContext *context = newContext();
 
@@ -1304,9 +1336,7 @@ void PythonShell::on_newScript_clicked()
 
   minidocHeader = QFormatStr("# %1\n\n").arg(minidocHeader);
 
-  makeEditor("", minidocHeader);
-
-  ui->saveScript->setEnabled(false);
+  CreateNewScriptEditor("", minidocHeader);
 }
 
 void PythonShell::on_openScript_clicked()
@@ -1587,6 +1617,7 @@ bool PythonShell::saveEditor(EditorWrapper *editor, QString filename)
         QTimer::singleShot(200, [this, filename]() { m_Watcher->addPath(filename); });
 
         editor->setFilename(filename);
+        updateNonDebugWarning();
         return true;
       }
       else
