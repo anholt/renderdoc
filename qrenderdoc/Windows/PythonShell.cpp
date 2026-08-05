@@ -537,6 +537,10 @@ void PythonShell::doSyntaxCheck()
   if(sc->autoCActive() || m_FuncTip)
     return;
 
+  // also don't do it while running, as it makes no sense and also could stall the UI thread if we're debugging
+  if(runningScriptEditor)
+    return;
+
   QByteArray script = sc->getText(sc->textLength() + 1);
   PyParseError parseError = completionContext->CheckPyParse(script, "script.py");
 
