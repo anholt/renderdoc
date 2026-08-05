@@ -152,6 +152,7 @@ private slots:
   void textOutput(const QString &extension, bool isStdError, const QString &output);
   void extensionLoaded(const QString &extension);
   void editor_contextMenu(const QPoint &pos);
+  void projectExplorer_contextMenu(const QPoint &pos);
   void editorTab_Changed(int index);
   void doSyntaxCheck();
 
@@ -178,6 +179,8 @@ private:
   RDTreeWidgetItem *m_UIExtensions, *m_Examples, *m_RecentFiles;
 
   QFileSystemWatcher *m_Watcher = NULL;
+
+  QList<QString> m_ModifiedExtensions;
 
   QTimer *m_SyntaxCheckTimer;
 

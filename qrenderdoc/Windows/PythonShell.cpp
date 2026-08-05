@@ -25,6 +25,7 @@
 #include "PythonShell.h"
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QDesktopServices>
 #include <QFileSystemWatcher>
 #include <QFontDatabase>
 #include <QKeyEvent>
@@ -326,9 +327,39 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   QObject::connect(m_Watcher, &QFileSystemWatcher::directoryChanged, this,
                    &PythonShell::updateExtensionProjects);
 
+  QTimer *pyStatusTimer = new QTimer(this);
+  QObject::connect(pyStatusTimer, &QTimer::timeout, [this]() {
+    QList<QString> curModExts;
+
+    for(const ExtensionMetadata &m : m_Ctx.Extensions().GetInstalledExtensions())
+    {
+      if(m.hasChanges)
+      {
+        curModExts.push_back(m.package);
+      }
+    }
+
+    curModExts.sort();
+
+    if(curModExts != m_ModifiedExtensions)
+    {
+      updateExtensionProjects();
+      m_ModifiedExtensions = curModExts;
+    }
+  });
+
+  pyStatusTimer->setSingleShot(false);
+  pyStatusTimer->setInterval(500);
+  pyStatusTimer->start();
+
+  ui->projectExplorer->setContextMenuPolicy(Qt::CustomContextMenu);
+  QObject::connect(ui->projectExplorer, &RDTreeWidget::customContextMenuRequested, this,
+                   &PythonShell::projectExplorer_contextMenu);
+
   ui->projectExplorer->beginUpdate();
 
   m_Examples = new RDTreeWidgetItem({lit("Examples")});
+  m_Examples->setData(0, Qt::UserRole + 1, m_Examples->text(0));
   m_Examples->setSelectable(false);
   m_Examples->setBold(true);
   m_Examples->setIcon(0, Icons::help());
@@ -364,11 +395,13 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   }
 
   m_UIExtensions = new RDTreeWidgetItem({lit("UI Extensions")});
+  m_UIExtensions->setData(0, Qt::UserRole + 1, m_UIExtensions->text(0));
   m_UIExtensions->setSelectable(false);
   m_UIExtensions->setBold(true);
   m_UIExtensions->setIcon(0, Icons::plugin());
 
   m_RecentFiles = new RDTreeWidgetItem({lit("Recent files")});
+  m_RecentFiles->setData(0, Qt::UserRole + 1, m_UIExtensions->text(0));
   m_RecentFiles->setSelectable(false);
   m_RecentFiles->setBold(true);
   m_RecentFiles->setIcon(0, Icons::page_white_edit());
@@ -606,7 +639,7 @@ void PythonShell::editorTab_Menu(const QPoint &pos)
 void PythonShell::updateExtensionProjects()
 {
   RDTreeViewExpansionState expansion;
-  ui->projectExplorer->saveExpansion(expansion, 0);
+  ui->projectExplorer->saveExpansion(expansion, 0, Qt::UserRole + 1);
 
   ui->projectExplorer->beginUpdate();
 
@@ -614,7 +647,16 @@ void PythonShell::updateExtensionProjects()
 
   for(const ExtensionMetadata &ext : m_Ctx.Extensions().GetInstalledExtensions())
   {
-    RDTreeWidgetItem *root = new RDTreeWidgetItem({ext.name});
+    QString name = ext.name;
+
+    if(ext.hasChanges)
+      name += tr(" (Reload required)");
+
+    RDTreeWidgetItem *root = new RDTreeWidgetItem({name});
+    root->setData(0, Qt::UserRole + 1, ext.package);
+
+    if(ext.hasChanges)
+      root->setItalic(true);
 
     addExtensionDirItems(root, QDir(ext.filePath));
 
@@ -623,7 +665,7 @@ void PythonShell::updateExtensionProjects()
 
   ui->projectExplorer->endUpdate();
 
-  ui->projectExplorer->applyExpansion(expansion, 0);
+  ui->projectExplorer->applyExpansion(expansion, 0, Qt::UserRole + 1);
 }
 
 void PythonShell::addExtensionDirItems(RDTreeWidgetItem *root, QDir dir)
@@ -640,6 +682,7 @@ void PythonShell::addExtensionDirItems(RDTreeWidgetItem *root, QDir dir)
       continue;
 
     RDTreeWidgetItem *item = new RDTreeWidgetItem({child});
+    item->setData(0, Qt::UserRole + 1, child);
     if(fileInfo.isDir())
     {
       // ignore some directories
@@ -1654,6 +1697,110 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   m_ContextMenuVisible = false;
 }
 
+void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
+{
+  m_ContextMenuVisible = true;
+
+  RDTreeWidgetItem *item = ui->projectExplorer->itemAt(pos);
+
+  QMenu contextMenu(this);
+
+  QAction expandAll(tr("&Expand All"), this);
+  expandAll.setIcon(Icons::arrow_out());
+
+  QAction collapseAll(tr("&Collapse All"), this);
+  collapseAll.setIcon(Icons::arrow_in());
+
+  expandAll.setEnabled(item && item->childCount() > 0);
+  collapseAll.setEnabled(expandAll.isEnabled());
+
+  QAction reloadExtension(tr("&Reload Extension"), this);
+  reloadExtension.setIcon(Icons::update());
+
+  QAction explorerOpen(tr("&Open in File Explorer"), this);
+  explorerOpen.setIcon(Icons::folder());
+
+  QAction openEditor(tr("&Edit file"), this);
+  openEditor.setIcon(Icons::page_white_edit());
+
+  QAction viewOutput(tr("&View output"), this);
+  viewOutput.setIcon(Icons::filter());
+
+  QObject::connect(&expandAll, &QAction::triggered,
+                   [this, item]() { ui->projectExplorer->expandAllItems(item); });
+
+  QObject::connect(&collapseAll, &QAction::triggered,
+                   [this, item]() { ui->projectExplorer->collapseAllItems(item); });
+
+  contextMenu.addAction(&expandAll);
+  contextMenu.addAction(&collapseAll);
+
+  if(item && !(item == m_UIExtensions || item == m_Examples || item == m_RecentFiles))
+  {
+    QString diskLocation = item->data(0, Qt::UserRole).toString();
+    contextMenu.addSeparator();
+
+    // if this is the root node of a UI extension, add options to filter output/reload
+    if(item->parent() == m_UIExtensions)
+    {
+      QString itemPath = item->data(0, Qt::UserRole + 1).toString();
+
+      contextMenu.insertAction(contextMenu.actions()[0], &reloadExtension);
+      contextMenu.insertSeparator(contextMenu.actions()[1]);
+
+      contextMenu.addAction(&explorerOpen);
+      contextMenu.addAction(&viewOutput);
+
+      rdcarray<ExtensionMetadata> exts = m_Ctx.Extensions().GetInstalledExtensions();
+      for(const ExtensionMetadata &m : exts)
+      {
+        if(m.package == rdcstr(itemPath))
+        {
+          reloadExtension.setEnabled(m.hasChanges);
+          diskLocation = QFileInfo(m.filePath).absoluteFilePath();
+          break;
+        }
+      }
+
+      explorerOpen.setEnabled(!diskLocation.isEmpty());
+      viewOutput.setEnabled(m_Ctx.Extensions().IsExtensionLoaded(itemPath));
+
+      QObject::connect(&reloadExtension, &QAction::triggered,
+                       [this, itemPath]() { m_Ctx.Extensions().LoadExtension(itemPath); });
+
+      QObject::connect(&explorerOpen, &QAction::triggered,
+                       [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });
+
+      QObject::connect(&viewOutput, &QAction::triggered, [this, itemPath]() {
+        ShowOutput();
+        SetExtensionOutputFilter(itemPath);
+      });
+    }
+    else if(item->parent() != m_Examples && !diskLocation.isEmpty())
+    {
+      // real files - either recent or in UI extensions - have options to open as editors or in
+      // explorer, but we ditch the collapse/expand
+      contextMenu.clear();
+
+      // get the containing directory, not the file
+      diskLocation = QFileInfo(diskLocation).absoluteDir().absolutePath();
+
+      contextMenu.addAction(&openEditor);
+      contextMenu.addAction(&explorerOpen);
+
+      QObject::connect(&openEditor, &QAction::triggered,
+                       [this, item]() { on_projectExplorer_itemActivated(item, 0); });
+
+      QObject::connect(&explorerOpen, &QAction::triggered,
+                       [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });
+    }
+  }
+
+  RDDialog::show(&contextMenu, ui->projectExplorer->viewport()->mapToGlobal(pos));
+
+  m_ContextMenuVisible = false;
+}
+
 void PythonShell::selectedHelp(QString word)
 {
   ui->helpSearch->setText(word);
@@ -1707,9 +1854,8 @@ void PythonShell::interactive_keypress(QKeyEvent *event)
       case Qt::Key_Up:
       case Qt::Key_Down:
       case Qt::Key_PageUp:
-      case Qt::Key_PageDown:
-        break;
-        // all other keys close the popup
+      case Qt::Key_PageDown: break;
+      // all other keys close the popup
       default: triggerCompletion = true;
     }
   }
