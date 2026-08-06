@@ -902,6 +902,18 @@ sptr_t ScintillaBase::WndProc(unsigned int iMessage, uptr_t wParam, sptr_t lPara
 	case SCI_AUTOCGETMAXHEIGHT:
 		return ac.lb->GetVisibleRows();
 
+	case SCI_AUTOCGETRECTLEFT:
+		return ac.lb->GetPosition().left;
+
+	case SCI_AUTOCGETRECTRIGHT:
+		return ac.lb->GetPosition().right;
+
+	case SCI_AUTOCGETRECTTOP:
+		return ac.lb->GetPosition().top;
+
+	case SCI_AUTOCGETRECTBOTTOM:
+		return ac.lb->GetPosition().bottom;
+
 	case SCI_AUTOCSETMAXWIDTH:
 		maxListWidth = static_cast<int>(wParam);
 		break;
