@@ -30,6 +30,7 @@
 #include <QFileSystemWatcher>
 #include <QFontDatabase>
 #include <QKeyEvent>
+#include <QListWidget>
 #include <QMenu>
 #include <QScrollBar>
 #include <QStringListModel>
@@ -222,6 +223,32 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_SyntaxCheckTimer->setSingleShot(true);
   m_SyntaxCheckTimer->setInterval(1200);
 
+  m_CompletionTipTimer = new QTimer(this);
+  m_CompletionTipTimer->setSingleShot(false);
+  // this timer will only be active while auto completing so we can be aggressive with its timer
+  m_CompletionTipTimer->setInterval(10);
+  QObject::connect(m_CompletionTipTimer, &QTimer::timeout, [this]() {
+    EditorWrapper *editor = curEditor();
+
+    if(!editor || !editor->scintilla()->autoCActive())
+    {
+      m_CompletionTipTimer->stop();
+      m_CompletionTipList.clear();
+      m_CurrentCompletionTip = -1;
+
+      updateCompletionTip();
+    }
+    else
+    {
+      if(editor->scintilla()->autoCCurrent() != m_CurrentCompletionTip)
+      {
+        m_CurrentCompletionTip = editor->scintilla()->autoCCurrent();
+
+        updateCompletionTip();
+      }
+    }
+  });
+
   // only update the current line intermittently. We don't need to update every single time and if
   // there is a large number of traces this will rate limit it.
   m_CurLineTimer = new QTimer(this);
@@ -271,6 +298,9 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
 
   m_ToolTip->setFont(Formatter::FixedFont());
 
+  m_CompletionTip = new RDToolTip(this);
+  m_CompletionTip->setFont(Formatter::FixedFont());
+
   m_InteractiveCompleter = new QCompleter(this);
   m_InteractiveCompleter->popup()->setFont(Formatter::FixedFont());
   m_InteractiveCompleter->popup()->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
@@ -281,6 +311,21 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_InteractiveCompletionModel = new QStringListModel(this);
   m_InteractiveCompleter->setModel(m_InteractiveCompletionModel);
   m_InteractiveCompleter->setCompletionRole(Qt::DisplayRole);
+
+  m_InteractiveCompleter->popup()->installEventFilter(this);
+
+  QObject::connect(m_InteractiveCompleter,
+                   OverloadedSlot<const QModelIndex &>::of(&QCompleter::highlighted),
+                   [this](const QModelIndex &idx) {
+                     if(idx.isValid() && idx.row() < m_CompletionTipList.count())
+                     {
+                       if(m_CurrentCompletionTip != idx.row())
+                       {
+                         m_CurrentCompletionTip = idx.row();
+                         updateCompletionTip();
+                       }
+                     }
+                   });
 
   QObject::connect(m_InteractiveCompleter,
                    OverloadedSlot<const QModelIndex &>::of(&QCompleter::activated),
@@ -1082,6 +1127,13 @@ bool PythonShell::eventFilter(QObject *watched, QEvent *event)
     {
       hideFunccompleteTooltip();
     }
+  }
+
+  if(m_InteractiveCompleter && watched == m_InteractiveCompleter->popup() &&
+     (event->type() == QEvent::Hide || event->type() == QEvent::FocusOut))
+  {
+    m_CurrentCompletionTip = -1;
+    updateCompletionTip();
   }
 
   if(m_FuncTip && watched == m_FuncTipWidget && event->type() == QEvent::FocusOut)
@@ -2185,9 +2237,20 @@ void PythonShell::interactive_keypress(QKeyEvent *event)
     QString base = ui->lineInput->text();
 
     QStringList completions;
+    int oldCount = m_CompletionTipList.count();
+    m_CompletionTipList.clear();
 
     if(base.trimmed() != QString())
-      completions = interactiveContext->completionOptions(0, base, m_InteractiveCompletionPrefix);
+    {
+      m_CompletionTipList =
+          interactiveContext->completionOptions(0, base, m_InteractiveCompletionPrefix);
+
+      for(const QPair<QString, QString> &item : m_CompletionTipList)
+        completions << item.first;
+    }
+
+    if(oldCount != m_CompletionTipList.count())
+      m_CurrentCompletionTip = -1;
 
     if(completions.isEmpty())
     {
@@ -2241,6 +2304,8 @@ void PythonShell::interactive_keypress(QKeyEvent *event)
                ui->lineInput->style()->pixelMetric(QStyle::PM_ButtonMargin));
 
     m_InteractiveCompleter->complete(r);
+    m_InteractiveCompleter->popup()->selectionModel()->setCurrentIndex(
+        m_InteractiveCompletionModel->index(0), QItemSelectionModel::ClearAndSelect);
 
     return;
   }
@@ -2355,18 +2420,33 @@ void PythonShell::doAutocomplete(ScintillaEdit *editor)
   QByteArray lineText = editor->getLine(line);
   lineText.resize(pos - lineStart);
 
+  int oldCount = m_CompletionTipList.count();
+
   int prefix_len = 0;
-  QStringList completions =
+  m_CompletionTipList =
       completionContext->completionOptions(line, QString::fromUtf8(lineText), prefix_len);
 
-  if(completions.empty())
+  if(m_CompletionTipList.empty())
   {
     doFunccomplete(editor);
     return;
   }
 
+  QString completion_merged;
+  for(const QPair<QString, QString> &item : m_CompletionTipList)
+  {
+    completion_merged += item.first;
+    completion_merged += QLatin1Char(' ');
+  }
+  completion_merged.remove(completion_merged.count() - 1, 1);
+
+  if(oldCount != m_CompletionTipList.count())
+    m_CurrentCompletionTip = -1;
+
   hideFunccompleteTooltip();
-  editor->autoCShow(prefix_len, completions.join(QLatin1Char(' ')).toUtf8().data());
+  editor->autoCShow(prefix_len, completion_merged.toUtf8().data());
+  // scintilla doesn't give us a callback/event when an item is highlighted, so we query in a timer
+  m_CompletionTipTimer->start();
 }
 
 void PythonShell::doFunccomplete(ScintillaEdit *editor)
@@ -2407,6 +2487,39 @@ void PythonShell::hideFunccompleteTooltip()
   m_FuncTipWidget = NULL;
   // start the syntax check timer in case this naturally disappeared
   m_SyntaxCheckTimer->start();
+}
+
+void PythonShell::updateCompletionTip()
+{
+  if(m_CompletionTipList.empty() || m_CurrentCompletionTip < 0 ||
+     m_CurrentCompletionTip >= m_CompletionTipList.count())
+  {
+    m_CurrentCompletionTip = -1;
+    m_CompletionTip->hideTip();
+    return;
+  }
+
+  m_CompletionTip->configureTip(this, m_CompletionTipList[m_CurrentCompletionTip].second);
+  {
+    QPoint pos;
+    if(m_InteractiveCompleter->popup()->isVisible())
+    {
+      pos = m_InteractiveCompleter->popup()->mapToGlobal(
+          m_InteractiveCompleter->popup()->rect().topRight());
+    }
+    else
+    {
+      EditorWrapper *editor = curEditor();
+
+      if(editor)
+      {
+        pos = QPoint(editor->scintilla()->autoCRectRight(), editor->scintilla()->autoCRectTop());
+      }
+    }
+
+    if(pos != QPoint())
+      m_CompletionTip->showTipAtPos(pos);
+  }
 }
 
 PythonContext *PythonShell::newContext()

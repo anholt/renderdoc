@@ -1809,18 +1809,19 @@ class PyReflector:
 
         try:
             expr = self._get_atom_expr(self.module, line, col)
-            if expr is not None:
-                loctype = self._get_type(self.scopes[line], expr)
-            else:
+            if expr is None:
                 return ""
         except:
             return ""
 
-        if loctype is Any:
-            return ""
+        return self._get_tooltip_for_node(expr, line)
+
+    def _get_tooltip_for_node(self, expr: ast.AST, line: int) -> str:
+        loctype = self._get_type(self.scopes[line], expr)
 
         if (
-            callable(loctype)
+            loctype is not Any
+            and callable(loctype)
             and not inspect.isclass(loctype)
             and not _is_generic(List, loctype)
             and not _is_generic(Tuple, loctype)
@@ -1848,7 +1849,10 @@ class PyReflector:
         else:
             ret = "expression: "
 
-        ret += self.get_name(loctype)
+        if loctype is Any:
+            ret += "Unknown Type"
+        else:
+            ret += self.get_name(loctype)
 
         if docappend != "":
             ret += "\n\n"
@@ -1860,6 +1864,9 @@ class PyReflector:
         ret = ""
 
         if _is_generic(Callable, functype):
+            if not hasattr(functype, "__args__"):
+                return "Callable()"
+
             args = functype.__args__
 
             retType = args[-1]
@@ -1983,11 +1990,13 @@ class PyReflector:
             ret = ret.replace("  ", "&nbsp;&nbsp;")
         return ret.strip()
 
-    def get_autocompletion(self, line: int, expr: str) -> Tuple[List[str], int]:
+    def get_autocompletion(
+        self, line: int, expr: str
+    ) -> Tuple[List[str], int, List[str]]:
         expr = _get_trailing_expr(expr).strip()
 
         if expr == "":
-            return [], 0
+            return [], 0, []
 
         trailing_dot = expr[-1] == "."
         if trailing_dot:
@@ -1999,10 +2008,10 @@ class PyReflector:
         try:
             node = ast.parse(src)
             if not isinstance(node, ast.Module):
-                return [], 0
+                return [], 0, []
             node = node.body[0]
             if not isinstance(node, ast.Expr):
-                return [], 0
+                return [], 0, []
             node = node.value
 
             curscope = self.scopes[min(len(self.scopes) - 1, line)]
@@ -2010,32 +2019,43 @@ class PyReflector:
             ret: List[str] = []
             prefix_filter = ""
 
+            def get_member_tooltip(member_name: str):
+                if isinstance(node, ast.Attribute):
+                    node.attr = member_name
+                    return self._get_tooltip_for_node(node, line)
+                elif isinstance(node, ast.Name):
+                    node.id = member_name
+                    return self._get_tooltip_for_node(node, line)
+                else:
+                    raise RuntimeError("Unexpected node type getting member tooltip")
+
             # for just a name, filter the identifiers at this point if there was no trailing dot
             if isinstance(node, ast.Name) and not trailing_dot:
-                idents = []
+                prefix_filter = node.id
                 while curscope is not None:
                     for k, v in curscope.identifiers.items():
                         if any([x.line <= line for x in v]):
-                            idents.append(k)
+                            ret.append(k)
                     curscope = curscope.parent
-                ret = idents
-                prefix_filter = node.id
             else:
                 # we provide completion for attribute access, which can either look like just a
                 # name (if there was a trailing dot so we didn't hit the case above)
                 base_type = Any
                 prefix_filter = ""
+
                 if isinstance(node, ast.Name) or trailing_dot:
                     base_type = self._get_type(curscope, node)
+
+                    node = ast.Attribute(node, "", lineno=node.lineno)
                 elif isinstance(node, ast.Attribute):
                     base_type = self._get_type(curscope, node.value)
                     prefix_filter = node.attr
                 else:
-                    return [], 0
+                    return [], 0, []
 
                 # if the base type is unknown in some fashion, nothing to do
                 if base_type is Any or base_type is None:
-                    return [], 0
+                    return [], 0, []
 
                 # if this is a user type, look up its identifiers from our list
                 if isinstance(base_type, TypeVar):
@@ -2044,7 +2064,7 @@ class PyReflector:
                         base_scope = self.scopes[base_ident.line]
                         ret = list(base_scope.identifiers.keys())
                     else:
-                        return [], 0
+                        return [], 0, []
                 else:
                     # pre-python 3.8 Dict, List etc are not the real types, substitute here
                     if sys.version_info < (3, 9):
@@ -2072,11 +2092,11 @@ class PyReflector:
             # sort alphabetically, case-insensitively
             ret = sorted(ret, key=lambda x: x.upper())
 
-            return ret, len(prefix_filter)
+            return ret, len(prefix_filter), [get_member_tooltip(x) for x in ret]
 
         except:
             pass
-        return [], 0
+        return [], 0, []
 
     def get_funccompletion(self, line: int, expr: str) -> Tuple[str, str, str]:
         func, argidx = _get_func_arg(_get_trailing_expr(expr + ")"))
@@ -2151,6 +2171,8 @@ class PyReflector:
         ]
         for g, n in generics:
             if _is_generic(g, obj):
+                if not hasattr(obj, "__args__"):
+                    return n
                 args = ", ".join([self.get_name(a) for a in obj.__args__])
                 return f"{n}[{args}]"
 
@@ -2410,7 +2432,7 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
             if "# AUTOCOMPLETE TEST" in line_text and not "#exclude" in line_text:
                 line = i + 1
 
-                completions, prefix_len = refl.get_autocompletion(line, entry)
+                completions, prefix_len, tooltips = refl.get_autocompletion(line, entry)
 
                 if expected_prefix_len != prefix_len:
                     raise RuntimeError(

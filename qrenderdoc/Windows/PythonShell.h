@@ -186,9 +186,14 @@ private:
 
   QTimer *m_SyntaxCheckTimer;
 
-  QCompleter *m_InteractiveCompleter;
+  QCompleter *m_InteractiveCompleter = NULL;
   QStringListModel *m_InteractiveCompletionModel;
   int m_InteractiveCompletionPrefix = 0;
+
+  RDToolTip *m_CompletionTip;
+  QList<QPair<QString, QString>> m_CompletionTipList;
+  sptr_t m_CurrentCompletionTip = -1;
+  QTimer *m_CompletionTipTimer;
 
   static const int CURRENT_MARKER = 0;
   static const int STYLE_ERROR = 100;
@@ -245,6 +250,7 @@ private:
   void doFunccomplete(ScintillaEdit *editor);
 
   void hideFunccompleteTooltip();
+  void updateCompletionTip();
 
   void selectedHelp(QString word);
   void refreshCurrentHelp();

@@ -1841,9 +1841,10 @@ QString PythonContext::typenameForLoc(int line, int col)
   return ret;
 }
 
-QStringList PythonContext::completionOptions(int line, QString expr, int &prefix_len)
+QList<QPair<QString, QString>> PythonContext::completionOptions(int line, QString expr,
+                                                                int &prefix_len)
 {
-  QStringList ret;
+  QList<QPair<QString, QString>> ret;
 
   PyGILState_STATE gil = PyGILState_Ensure();
 
@@ -1864,12 +1865,17 @@ QStringList PythonContext::completionOptions(int line, QString expr, int &prefix
   {
     PyObject *comp_list = PyTuple_GetItem(completions, 0);
     prefix_len = PyLong_AsLong(PyTuple_GetItem(completions, 1));
+    PyObject *tip_list = PyTuple_GetItem(completions, 2);
 
     if(comp_list)
     {
       for(Py_ssize_t i = 0, len = PyList_Size(comp_list); i < len; i++)
       {
-        ret << ToQStr(PyList_GetItem(comp_list, i));
+        QPair<QString, QString> item;
+        item.first = ToQStr(PyList_GetItem(comp_list, i));
+        if(tip_list)
+          item.second = ToQStr(PyList_GetItem(tip_list, i));
+        ret << item;
       }
     }
   }

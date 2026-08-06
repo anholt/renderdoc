@@ -118,7 +118,7 @@ public:
 
   void reflectSource(QString src);
   QString tooltipForLoc(int line, int col);
-  QStringList completionOptions(int line, QString expr, int &prefix_len);
+  QList<QPair<QString, QString>> completionOptions(int line, QString expr, int &prefix_len);
   QString tryFunctionCompletion(int line, QString expr);
   QString typenameForLoc(int line, int col);
 
