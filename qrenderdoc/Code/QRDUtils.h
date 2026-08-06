@@ -240,6 +240,7 @@ public:
   static ParsedFormat ParseFormatString(const QString &formatString, uint64_t maxLen, bool cbuffer);
   static uint32_t GetVarAdvance(const Packing::Rules &pack, const ShaderConstant &var);
 
+  static Packing::Rules EstimatePackingRules(ResourceId shader, const ShaderConstantType &baseType);
   static Packing::Rules EstimatePackingRules(ResourceId shader,
                                              const rdcarray<ShaderConstant> &members);
 

@@ -440,6 +440,15 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
 Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
                                                      const rdcarray<ShaderConstant> &members)
 {
+  ShaderConstantType base;
+  base.members = members;
+
+  return EstimatePackingRules(shader, base);
+}
+
+Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
+                                                     const ShaderConstantType &baseType)
+{
   Packing::Rules pack;
 
   // start from the most conservative ruleset. We will iteratively turn off any rules which are
@@ -455,7 +464,9 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
 
   // without more information we must assume all vectors are naturally aligned
   QSet<uint32_t> pointerTypesProcessed;
-  EstimatePackingRules(pack, shader, members, pointerTypesProcessed, 16);
+  ShaderConstant base;
+  base.type = baseType;
+  EstimatePackingRules(pack, shader, base, pointerTypesProcessed, 16);
 
   // only return a 'real' ruleset. Don't revert to individually setting rules if we can help it
   // since that's a mess. The worst case is if someone is really using a custom packing format then
