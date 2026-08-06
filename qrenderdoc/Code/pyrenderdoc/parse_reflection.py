@@ -2196,12 +2196,17 @@ class PyReflector:
             mod = obj.__module__
 
             if mod in sys.modules:
+                is_typing = mod == "typing"
+
                 mod = sys.modules[mod]
 
                 qualname = getattr(obj, "__qualname__", "")
 
                 if _lookup_attrpath(mod, qualname) != obj:
-                    membernames = [x for x in dir(mod) if getattr(mod, x) == obj]
+                    names = dir(mod)
+                    if is_typing:
+                        names = filter(lambda x: x[0] != "_", names)
+                    membernames = [x for x in names if getattr(mod, x) == obj]
 
                     if len(membernames) != 1:
                         qualname = ""
