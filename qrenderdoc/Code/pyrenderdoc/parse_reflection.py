@@ -4,7 +4,7 @@ import sys
 import enum
 import struct
 import builtins
-from typing import List, Dict, Any, Tuple, Set, Union, Callable, TypeVar, Optional
+from typing import List, Dict, Any, Tuple, Set, Union, Callable, Optional
 
 
 # return whether an object is a specialisation of the given generic,
@@ -438,6 +438,8 @@ class Ident:
     # for lazy evaluation to obtain a guessed return type.
     # We do it this way as we normally process in declaration order but
     lazy_node: Optional[ast.AST] = None
+    # Any user documentation from a string following the definition
+    user_doc: str = ""
 
 
 # a scope - either a module, class or function
@@ -457,6 +459,9 @@ class Scope:
     # whether this scope is a class or not (for finding `self`)
     is_class: bool = False
 
+    # the last identifier added
+    _last_ident_added: str = ""
+
     def __init__(self):
         self.identifiers = {}
 
@@ -464,6 +469,13 @@ class Scope:
         if name not in self.identifiers:
             self.identifiers[name] = []
         self.identifiers[name] += [ident]
+        self._last_ident_added = name
+
+    def set_ident_docs(self, docs: str):
+        if self._last_ident_added == "":
+            self.type_obj.user_doc = docs
+        else:
+            self.identifiers[self._last_ident_added][-1].user_doc = docs
 
     # look up the version of an identifier on a given line, in our parents,
     # or in the builtins
@@ -506,6 +518,41 @@ class Scope:
         return f"<Scope '{self.full_name()}'>"
 
 
+class UserClass:
+    # name of the class
+    name: str = ""
+    # Any user documentation from a string immediately as the first member
+    user_doc: str = ""
+    # the class's Ident
+    ident: Ident
+    # the class's Scope
+    scope: Scope
+
+    def __init__(self, n: str, i: Ident, s: Scope):
+        self.name = n
+        self.ident = i
+        self.scope = s
+
+    # this is hack, we want to look callable so that instances of UserClass
+    # can be treated as types in generics like List[], but nothing should
+    # actually call us :)
+    def __call__(self):
+        raise RuntimeError("we shouldn't call this!")
+
+
+class UserFunc:
+    # name of the function, if it's a member function
+    name: str = ""
+    # the callable type, for introspection
+    callable_type: Any = Callable[..., Any]
+    # Any user documentation from a string as the first definition
+    user_doc: str = ""
+
+    def __init__(self, n: str, t: Any):
+        self.name = n
+        self.callable_type = t
+
+
 # Main class, reflects a given source text (if it can) and allows
 # lookups of the types of expressions as well as auto-completion
 # of partial expressions
@@ -519,7 +566,7 @@ class PyReflector:
         self.module: Optional[ast.Module]
 
         # for tests - a lookup to retrieve the actual typevar since they can't be compared by name
-        self.user_types: Dict[str, TypeVar] = {}
+        self.user_types: Dict[str, UserClass] = {}
 
         # the text that was actually parsed, including any truncation/commenting needed
         # to get it to compile
@@ -845,9 +892,9 @@ class PyReflector:
             if not hasattr(base, parsed.attr):
                 # if the base is a typevar, it's a user defined type let's
                 # see if this is a member we know about
-                if isinstance(base, TypeVar):
+                if isinstance(base, UserClass):
                     base_ident = scope.get_ident(
-                        base.__name__, parsed.value.lineno, parsed.value.col_offset
+                        base.name, parsed.value.lineno, parsed.value.col_offset
                     )
                     if base_ident is not None:
                         base_scope = self.scopes[base_ident.line]
@@ -954,6 +1001,9 @@ class PyReflector:
             if func is struct.unpack or func is struct.unpack_from:
                 return Tuple[Any, ...]
 
+            if isinstance(func, UserFunc):
+                func = func.callable_type
+
             if _is_generic(Callable, func):
                 ret = func.__args__[-1]
                 if ret == type(None):
@@ -966,7 +1016,7 @@ class PyReflector:
                 if _is_generic(List, seq_type):
                     return seq_type
 
-            if type(func) is type or type(func) is TypeVar:
+            if type(func) is type or type(func) is UserClass:
                 return func
 
             if func is None:
@@ -1102,8 +1152,9 @@ class PyReflector:
             else:
                 funcscope = self.scopes[parsed.lineno].ident
                 if funcscope is not None:
-                    call: Any = funcscope.type_obj
-                    ret = call.__args__[-1]
+                    ret = funcscope.type_obj.callable_type.__args__[-1]
+
+            userfunc = UserFunc(parsed.name, Callable[..., Any])
 
             # don't generate args for 'complex' functions
             args = parsed.args
@@ -1112,10 +1163,12 @@ class PyReflector:
                 or args.vararg is not None
                 or len(args.kwonlyargs) > 0
             ):
-                return Callable[(..., ret)]
+                userfunc.callable_type = Callable[(..., ret)]
+                return userfunc
 
             if "posonlyargs" in args._fields and len(args.posonlyargs) > 0:
-                return Callable[(..., ret)]
+                userfunc.callable_type = Callable[(..., ret)]
+                return userfunc
 
             # Callable isn't designed for methods, drop the self argument
             first = 0
@@ -1130,12 +1183,14 @@ class PyReflector:
                 else:
                     arg_list += [self._get_type(scope, annot, tmp_types)]
 
-            return Callable[
+            userfunc.callable_type = Callable[
                 (
                     [a for a in arg_list],
                     ret,
                 )
             ]
+
+            return userfunc
 
         if isinstance(parsed, ast.Constant):
             if parsed.value is None:
@@ -1212,10 +1267,12 @@ class PyReflector:
         # scopes, but push them onto the pending list and continue processing.
         if isinstance(parsed, ast.ClassDef):
             classscope = Scope()
+            id = Ident()
+
             classscope.name = f"class {parsed.name}"
             classscope.parent = parent
             classscope.parsed = parsed
-            classscope.type_obj = TypeVar(parsed.name)  # type: ignore
+            classscope.type_obj = UserClass(parsed.name, id, classscope)  # type: ignore
             self.user_types[parsed.name] = classscope.type_obj
             classscope.is_class = True
 
@@ -1224,7 +1281,6 @@ class PyReflector:
             for line in range(r[0], r[1] + 1):
                 self.scopes[line] = classscope
 
-            id = Ident()
             id.line = parsed.lineno
             id.type_obj = classscope.type_obj
             classscope.ident = id
@@ -1533,8 +1589,18 @@ class PyReflector:
         # node is a module, class, or function. Process all the identifiers in it
         # and add any nested classes or functions to the pending list
         if _is_scope_node(node):
-            for st in getattr(node, "body"):
+            for i, st in enumerate(getattr(node, "body")):
                 self._process_stmt(scope, st)
+
+                if (
+                    isinstance(st, ast.Expr)
+                    and isinstance(st.value, ast.Constant)
+                    and isinstance(st.value.value, str)
+                ):
+                    if isinstance(node, ast.ClassDef):
+                        scope.set_ident_docs(st.value.value)
+                    elif isinstance(node, ast.FunctionDef) and i == 0:
+                        scope.ident.type_obj.user_doc = st.value.value
 
             # for functions that want guessed return types (lazy_node is not None)
             # do that now
@@ -1544,22 +1610,31 @@ class PyReflector:
                 and scope.ident.lazy_node is not None
             ):
                 if scope.ident.type_obj is not None:
-                    args = scope.ident.type_obj.__args__[0:-1]
+                    callable = scope.ident.type_obj
+                    if isinstance(scope.ident.type_obj, UserFunc):
+                        callable = callable.callable_type
+                    args = callable.__args__[0:-1]
                     ret_type = self._guess_return_value(scope, scope.ident.lazy_node)
 
                     # if this function was a property, don't make a callable just set
                     # the return type
+                    new_type = callable
                     if isinstance(scope.ident.lazy_node, ast.FunctionDef) and any(
                         [
                             isinstance(a, ast.Name) and a.id == "property"
                             for a in scope.ident.lazy_node.decorator_list
                         ]
                     ):
-                        scope.ident.type_obj = ret_type
+                        scope.ident.type_obj = new_type = ret_type
                     elif len(args) == 1 and args[0] == ...:
-                        scope.ident.type_obj = Callable[(..., ret_type)]
+                        new_type = Callable[(..., ret_type)]
                     else:
-                        scope.ident.type_obj = Callable[[a for a in args], ret_type]
+                        new_type = Callable[[a for a in args], ret_type]
+
+                    if isinstance(scope.ident.type_obj, UserFunc):
+                        scope.ident.type_obj.callable_type = new_type
+                    else:
+                        scope.ident.type_obj = new_type
                 scope.ident.lazy_node = None
                 pass
         else:
@@ -1821,7 +1896,8 @@ class PyReflector:
 
         if (
             loctype is not Any
-            and callable(loctype)
+            and (callable(loctype) or isinstance(loctype, UserFunc))
+            and not isinstance(loctype, UserClass)
             and not inspect.isclass(loctype)
             and not _is_generic(List, loctype)
             and not _is_generic(Tuple, loctype)
@@ -1835,15 +1911,26 @@ class PyReflector:
         ret = ""
         if isinstance(expr, ast.Name):
             ret = f"{expr.id}: "
+
+            if isinstance(loctype, UserClass):
+                docappend = _remove_space_prefix(loctype.user_doc, 20)
+            elif isinstance(loctype, UserFunc):
+                docappend = _remove_space_prefix(loctype.user_doc, 20)
         elif isinstance(expr, ast.Attribute):
             ret = f"{expr.attr}: "
 
             try:
-                partype = self._get_type(self.scopes[line], expr.value)
-                ret = f"{self.get_name(partype)}.{expr.attr}: "
-                docappend = _remove_space_prefix(
-                    getattr(getattr(partype, expr.attr), "__doc__", ""), 20
-                )
+                parent_type = self._get_type(self.scopes[line], expr.value)
+                ret = f"{self.get_name(parent_type)}.{expr.attr}: "
+
+                if isinstance(parent_type, UserClass):
+                    member = parent_type.scope.get_ident(expr.attr, line, -1)
+
+                    docappend = _remove_space_prefix(member.user_doc, 20)
+                else:
+                    docappend = _remove_space_prefix(
+                        getattr(getattr(parent_type, expr.attr), "__doc__", ""), 20
+                    )
             except:
                 pass
         else:
@@ -1851,6 +1938,10 @@ class PyReflector:
 
         if loctype is Any:
             ret += "Unknown Type"
+        elif isinstance(loctype, UserClass):
+            ret += "class"
+        elif isinstance(loctype, UserFunc):
+            ret += self.get_name(loctype.callable_type)
         else:
             ret += self.get_name(loctype)
 
@@ -1863,9 +1954,16 @@ class PyReflector:
     def _make_func_tooltip(self, functype: Any, arg_highlight: int = -1):
         ret = ""
 
+        callname = "Callable"
+        calldoc = ""
+        if isinstance(functype, UserFunc):
+            callname = functype.name
+            calldoc = functype.user_doc
+            functype = functype.callable_type
+
         if _is_generic(Callable, functype):
             if not hasattr(functype, "__args__"):
-                return "Callable()"
+                return f"{callname}()"
 
             args = functype.__args__
 
@@ -1873,7 +1971,7 @@ class PyReflector:
             if retType == type(None):
                 retType = None
 
-            ret = "Callable(\n"
+            ret = f"{callname}(\n"
             indent = " " * 4
             for idx, arg in enumerate(args[0:-1]):
                 argtext = f"arg{idx+1}"
@@ -1894,7 +1992,11 @@ class PyReflector:
             if arg_highlight >= 0:
                 ret = ret.replace("\n", "<br>\n")
                 ret = ret.replace("  ", "&nbsp;&nbsp;")
-            # no docs, we're done here
+
+            if calldoc != "":
+                ret += "\n\n"
+                ret += _remove_space_prefix(calldoc, 20)
+
             return ret
 
         if isinstance(functype, ast.FunctionDef):
@@ -2058,8 +2160,8 @@ class PyReflector:
                     return [], 0, []
 
                 # if this is a user type, look up its identifiers from our list
-                if isinstance(base_type, TypeVar):
-                    base_ident = curscope.get_ident(base_type.__name__, line, -1)
+                if isinstance(base_type, UserClass):
+                    base_ident = base_type.ident
                     if base_ident is not None:
                         base_scope = self.scopes[base_ident.line]
                         ret = list(base_scope.identifiers.keys())
@@ -2117,7 +2219,9 @@ class PyReflector:
             if func_type == Any:
                 return "", "", ""
 
-            if _is_generic(Callable, func_type) and self._last_ident is not None:
+            if (
+                _is_generic(Callable, func_type) or isinstance(func_type, UserFunc)
+            ) and self._last_ident is not None:
                 func_scope = self.scopes[self._last_ident.line]
                 # skip invisible self, when looking at methods
                 if func_scope.parent is not None and func_scope.parent.is_class:
@@ -2142,7 +2246,10 @@ class PyReflector:
                     self._make_func_tooltip(func_type, argidx),
                 )
 
-            sig = inspect.signature(func_type)
+            if isinstance(func_type, UserFunc):
+                sig = inspect.signature(func_type.callable_type)
+            else:
+                sig = inspect.signature(func_type)
 
             params = list(sig.parameters)
             # skip invisible self, when looking at methods
@@ -2160,6 +2267,9 @@ class PyReflector:
     def get_name(self, obj: Any) -> str:
         if isinstance(obj, str):
             return obj
+
+        if isinstance(obj, UserFunc) or isinstance(obj, UserClass):
+            return obj.name
 
         name = ""
 
@@ -2304,7 +2414,7 @@ class PyReflector:
 # self-testing by parsing this file (or any file on the command line)
 # TEST BEGIN
 import sys, re
-from typing import List, Dict, Any, Tuple, Callable, TypeVar, Optional, cast
+from typing import List, Dict, Any, Tuple, Callable, Optional, cast
 
 error_code = """
 def func_with_error(self):
@@ -2397,10 +2507,19 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
 
                 expect_text = line_text[line_text.index("TYPE: ") + 6 :]
                 expect = eval(expect_text)
-                if actual == expect or (
-                    isinstance(expect, TypeVar)
-                    and isinstance(actual, TypeVar)
-                    and expect.__name__ == actual.__name__
+                if (
+                    actual == expect
+                    or (
+                        isinstance(expect, UserClass)
+                        and isinstance(actual, UserClass)
+                        and expect.name == actual.name
+                    )
+                    or (
+                        isinstance(expect, UserFunc)
+                        and isinstance(actual, UserFunc)
+                        and expect.name == actual.name
+                        and expect.callable_type == actual.callable_type
+                    )
                 ):
                     passed += 1  # types match
                 else:
@@ -2417,7 +2536,12 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
 
             # for autocomplete, results we expect and must not see
             if "# RESULT" in line_text and not "#exclude" in line_text:
-                expected_results.append(line_text[line_text.index("RESULT: ") + 8 :])
+                text = line_text[line_text.index("RESULT: ") + 8 :]
+                if "#" in text:
+                    result = text.split("#")
+                else:
+                    result = (text, "")
+                expected_results.append(result)
             if "# MISSING" in line_text and not "#exclude" in line_text:
                 expected_missing.append(line_text[line_text.index("MISSING: ") + 9 :])
             if "# PREFIX" in line_text and not "#exclude" in line_text:
@@ -2439,10 +2563,16 @@ if __name__ == "__main__" and sys.version_info >= (3, 8):
                         f"{file}:{line} expected prefix length of '{expected_prefix_len}' for '{entry}', got '{prefix_len}'"
                     )
 
-                for r in expected_results:
-                    if r not in completions:
+                for res, tooltip in expected_results:
+                    if res not in completions:
                         raise RuntimeError(
-                            f"{file}:{line} expected entry '{r}' in autocompletion for '{entry}'"
+                            f"{file}:{line} expected entry '{res}' in autocompletion for '{entry}'"
+                        )
+                    idx = completions.index(res)
+                    if tooltip not in tooltips[idx]:
+                        raise RuntimeError(
+                            f"{file}:{line} expected entry '{res}' tooltip '{tooltips[idx]}' "
+                            + f"to contain {tooltip} in autocompletion for '{entry}'"
                         )
                     passed += 1
 
@@ -2866,7 +2996,7 @@ if __name__ == "impossible":
     ## functions and calls
 
     def annot_function(arg1: str, arg2: int) -> bool:
-        #            ^    # TYPE: Callable[[str, int], bool]
+        #            ^    # TYPE: UserFunc("annot_function", Callable[[str, int], bool])
         return len(arg1) < arg2
 
     val = annot_function("foobar", 4)
@@ -2874,7 +3004,7 @@ if __name__ == "impossible":
 
     # function returns can be guessed if all returns are the same type
     def guess_function(arg1, arg2):
-        #            ^    # TYPE: Callable[[Any, Any], float]
+        #            ^    # TYPE: UserFunc("guess_function", Callable[[Any, Any], float])
         if len(arg1) < arg2:
             return 4.4
         return 5.5
@@ -2911,7 +3041,7 @@ if __name__ == "impossible":
 
     complex = (func1(a, b) + func2(c, d)) * math.sqrt(len([g * f[0] for g in e]))
     #   ^                                                                         # TYPE: float
-    #                          ^                                                  # TYPE: Callable[[Any, Any], float]
+    #                          ^                                                  # TYPE: UserFunc("func2", Callable[[Any, Any], float])
     #                              ^                                              # TYPE: Inner
     #                                                                        ^    # TYPE: List[float]
 
@@ -2920,8 +3050,8 @@ if __name__ == "impossible":
     bbb = b
 
     func3(a, bbb, c, d, e[0], f[1])
-    #   ^                                 # TYPE: Callable[[Any] * 6, bool]
-    #    ^                                # TYPE: Callable[[Any] * 6, bool]
+    #   ^                                 # TYPE: UserFunc("func3", Callable[[Any] * 6, bool])
+    #    ^                                # TYPE: UserFunc("func3", Callable[[Any] * 6, bool])
     #     ^                               # TYPE: int
     #      ^                              # TYPE: int
     #       ^                             # TYPE: int
@@ -2993,11 +3123,11 @@ if __name__ == "impossible":
             #                                   ^     # TYPE: float
 
         def make_value(self) -> float:
-            #      ^  # TYPE: Callable[[Any], float]
+            #      ^  # TYPE: UserFunc("make_value", Callable[[Any], float])
             ...
 
         def make_other(self, val: float):
-            #      ^  # TYPE: Callable[[Any, float], float]
+            #      ^  # TYPE: UserFunc("make_other", Callable[[Any, float], float])
             if val > 0.0:
                 return 1.0
             if val < 0.0:
@@ -3033,6 +3163,12 @@ if __name__ == "impossible":
             #  ^  # TYPE: Dict[str, int]
             key = self.prop2
             # ^  # TYPE: str
+
+            """
+            random string that is not a docstring and should cause
+            no problems
+            """
+
             if key in lookup:
                 return 4.321
 
@@ -3120,7 +3256,20 @@ if __name__ == "impossible":
     def auto_function(param1, foobar, blah) -> bool: ...
 
     class FooClass:
-        def method(self, param1, foobar, blah): ...
+        """
+        docs of class
+        """
+
+        def method(self, param1: int, foobar: float, blah: str) -> bool:
+            """
+            docs of method
+            """
+            ...
+
+        member: int = 5
+        """
+        docs of member
+        """
 
     foo = FooClass()
 
@@ -3183,3 +3332,18 @@ if __name__ == "impossible":
     # CALLTYPE: foo.method
     # PARAM: foobar
     # FUNCCOMPLETE TEST
+
+    # ENTRY: FooCl
+    # RESULT: FooClass#docs of class
+    # PREFIX: 5
+    # AUTOCOMPLETE TEST
+
+    # ENTRY: foo.
+    # RESULT: member#docs of member
+    # RESULT: method#docs of method
+    # RESULT: method#arg1: int
+    # RESULT: method#arg2: float
+    # RESULT: method#arg3: str
+    # RESULT: method#-> bool
+    # PREFIX: 0
+    # AUTOCOMPLETE TEST
