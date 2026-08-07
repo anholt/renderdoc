@@ -3309,6 +3309,7 @@ void VulkanReplay::FetchMeshOut(uint32_t eventId, VulkanRenderState &state)
       shaderCreateInfo.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT;
       shaderCreateInfo.codeSize = taskSpirv.size() * sizeof(uint32_t);
       shaderCreateInfo.pCode = taskSpirv.data();
+      shaderCreateInfo.pSpecializationInfo = &taskSpecInfo;
 
       vkr = m_pDriver->vkCreateShadersEXT(m_Device, 1, &shaderCreateInfo, NULL, &taskShader);
 
