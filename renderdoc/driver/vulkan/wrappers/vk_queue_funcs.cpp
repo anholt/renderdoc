@@ -276,6 +276,8 @@ WrappedVulkan::CommandBufferNode *WrappedVulkan::BuildSubmitTree(ResourceId cmdI
 
 void WrappedVulkan::ReplayQueueSubmit(VkQueue queue, VkSubmitInfo2 submitInfo, rdcstr basename)
 {
+  m_HasSubmit = true;
+
   if(IsLoading(m_State))
   {
     AddEvent();

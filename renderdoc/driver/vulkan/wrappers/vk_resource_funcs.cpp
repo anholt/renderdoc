@@ -1491,6 +1491,12 @@ bool WrappedVulkan::Serialise_vkFlushMappedMemoryRanges(SerialiserType &ser, VkD
 
       it++;
     }
+
+    if(m_HasSubmit)
+    {
+      FlushQ();
+      m_HasSubmit = false;
+    }
   }
 
   if(directStream)

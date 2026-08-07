@@ -1207,6 +1207,8 @@ private:
   uint32_t m_FirstEventID, m_LastEventID;
   VulkanChunk m_LastChunk;
 
+  bool m_HasSubmit = false;
+
   ResourceId m_LastPresentedImage;
 
   std::set<ResourceId> m_SparseBindResources;
