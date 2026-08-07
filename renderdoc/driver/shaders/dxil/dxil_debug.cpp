@@ -9374,6 +9374,8 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *apiWrapper, uint32_t eve
     ref.type = DebugVariableType::Sampler;
     ref.name = shaderVar.name;
     sourceVar.variables.push_back(ref);
+
+    ret->sourceVars.push_back(sourceVar);
   }
 
   m_LiveGlobals.resize(maxSSAId);
