@@ -3069,9 +3069,9 @@ QString ShaderViewer::samplerRep(const ShaderSampler &samp, uint32_t arrayElemen
     }
 
     if(arrayElement == ~0U || samp.bindArraySize == 1)
-      contents += QString::number(samp.fixedBindNumber);
+      contents += QFormatStr("bind %1").arg(samp.fixedBindNumber);
     else
-      contents += QFormatStr("%1[%2]").arg(samp.fixedBindNumber).arg(arrayElement);
+      contents += QFormatStr("bind %1[%2]").arg(samp.fixedBindNumber).arg(arrayElement);
 
     return contents;
   }
