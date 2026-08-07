@@ -3244,6 +3244,10 @@ QString ShaderViewer::getRegNames(const RDTreeWidgetItem *item, uint32_t swizzle
 
     const ShaderVariable *reg = GetDebugVariable(debugVar);
 
+    // expect to find the variable
+    if(!reg)
+      return QString();
+
     return reg->name;
   }
 
@@ -3289,6 +3293,10 @@ QString ShaderViewer::getRegNames(const RDTreeWidgetItem *item, uint32_t swizzle
 
     const ShaderVariable *reg = GetDebugVariable(mapping.variables[0]);
 
+    // expect to find the variable
+    if(!reg)
+      return lit("-");
+
     // return the base name with the suffix/tail that we have
     ret = reg->name + itemTag.absoluteRefPath.substr(tag.absoluteRefPath.size());
 
@@ -3302,6 +3310,10 @@ QString ShaderViewer::getRegNames(const RDTreeWidgetItem *item, uint32_t swizzle
      mapping.type == VarType::ReadWriteResource)
   {
     const ShaderVariable *reg = GetDebugVariable(mapping.variables[0]);
+
+    // expect to find the variable
+    if(!reg)
+      return lit("-");
 
     ret = reg->name;
 
@@ -5387,24 +5399,25 @@ uint32_t ShaderViewer::CalcUpdateID(uint32_t prevID, rdcstr debugVarName) const
 // this function is a bit messy, we want a base recursion container of either QList or rdcarray
 // but further recursion is always rdcarray because of ShaderVariable::members
 template <typename Container>
-const ShaderVariable *GetShaderDebugVariable(rdcstr path, const Container &vars)
+const ShaderVariable *GetShaderDebugVariable(const rdcstr &path, const Container &vars)
 {
+  rdcstr base = path;
   rdcstr elem;
 
   // pick out the next element in the path
   // if this is an array index, grab that
-  if(path[0] == '[')
+  if(base[0] == '[')
   {
     int idx = path.indexOf(']');
     if(idx < 0)
       return NULL;
-    elem = path.substr(0, idx + 1);
+    base = path.substr(0, idx + 1);
 
     // skip past any .s
     if(path[idx + 1] == '.')
       idx++;
 
-    path = path.substr(idx + 1);
+    elem = path.substr(idx + 1);
   }
   else
   {
@@ -5412,32 +5425,34 @@ const ShaderVariable *GetShaderDebugVariable(rdcstr path, const Container &vars)
     int idx = path.find_first_of("[.");
     if(idx < 0)
     {
-      // no results means that all that's left of the path is an identifier
-      elem.swap(path);
+      // no results means we want an exact match
     }
     else
     {
-      elem = path.substr(0, idx);
+      base = path.substr(0, idx);
 
       // skip past any .s
       if(path[idx] == '.')
         idx++;
 
-      path = path.substr(idx);
+      elem = path.substr(idx);
     }
   }
 
   // look in our current set of vars for a matching variable
   for(int i = 0; i < vars.count(); i++)
   {
-    if(vars[i].name == elem)
+    if(vars[i].name == path)
+      return &vars[i];
+
+    if(vars[i].name == base)
     {
-      // If there's no more path, we've found the exact match, otherwise continue
-      if(path.empty())
+      // If there's no more, we've found the exact match, otherwise continue
+      if(elem.empty())
         return &vars[i];
 
       // otherwise recurse
-      return GetShaderDebugVariable(path, vars[i].members);
+      return GetShaderDebugVariable(elem, vars[i].members);
     }
   }
 
