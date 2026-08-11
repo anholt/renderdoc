@@ -53,20 +53,6 @@ struct hash<ShaderBuiltin>
 };
 }
 
-struct HitStorage
-{
-  uint32_t hit_count;
-  uint32_t total_count;
-  uint32_t dummy;
-  uint32_t padding;
-
-  // extra padding so the offset of LaneData is 8-byte aligned in case we have user 8-byte inputs
-  Vec4u paddingForDoubles;
-
-  // dummy entry, used only for offsets of LaneData hits[];
-  byte hits;
-};
-
 // should match the descriptor set layout created in ShaderDebugData::Init()
 enum class ShaderDebugBind
 {
@@ -4408,12 +4394,13 @@ static void CreateInputFetcher(rdcarray<uint32_t> &spv, const rdcarray<SpecConst
   RDCASSERT((resultStride % paramAlign) == 0);
 
   rdcspv::Id bufBase = editor.DeclareStructType(
-      "__rd_HitStorage", {
-                             {uint32Type, "hit_count", offsetof(HitStorage, hit_count)},
-                             {uint32Type, "total_count", offsetof(HitStorage, total_count)},
-                             {uint32Type, "dummy", offsetof(HitStorage, dummy)},
-                             {ResultDataRTArray, "hits", offsetof(HitStorage, hits)},
-                         });
+      "__rd_ResultBaseBuffer",
+      {
+          {uint32Type, "hit_count", offsetof(rdcspv::ResultBaseBuffer, hit_count)},
+          {uint32Type, "total_count", offsetof(rdcspv::ResultBaseBuffer, total_count)},
+          {uint32Type, "dummy", offsetof(rdcspv::ResultBaseBuffer, dummy)},
+          {ResultDataRTArray, "hits", offsetof(rdcspv::ResultBaseBuffer, hits)},
+      });
 
   rdcspv::StorageClass bufferClass = editor.PrepareAddedBufferAccess();
 
@@ -5759,7 +5746,7 @@ ShaderDebugTrace *VulkanReplay::DebugVertex(uint32_t eventId, uint32_t vertid, u
 
     RDCASSERTMSG("Should only get one hit for vertex shaders", hit_count == 1, hit_count);
 
-    base += offsetof(HitStorage, hits);
+    base += offsetof(rdcspv::ResultBaseBuffer, hits);
 
     rdcspv::ResultDataBase *winner = (rdcspv::ResultDataBase *)base;
 
@@ -6344,7 +6331,7 @@ ShaderDebugTrace *VulkanReplay::DebugPixel(uint32_t eventId, uint32_t x, uint32_
     hit_count = overdrawLevels;
   }
 
-  base += offsetof(HitStorage, hits);
+  base += offsetof(rdcspv::ResultBaseBuffer, hits);
 
   rdcspv::ResultDataBase *winner = NULL;
 
@@ -6900,7 +6887,7 @@ ShaderDebugTrace *VulkanReplay::DebugComputeCommon(ShaderStage stage, uint32_t e
       hit_count = maxHits;
     }
 
-    base += offsetof(HitStorage, hits);
+    base += offsetof(rdcspv::ResultBaseBuffer, hits);
 
     rdcspv::ResultDataBase *winner = (rdcspv::ResultDataBase *)base;
 
