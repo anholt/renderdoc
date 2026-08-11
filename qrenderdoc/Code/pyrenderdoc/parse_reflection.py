@@ -2182,6 +2182,17 @@ class PyReflector:
                     # otherwise filter dir()
                     ret = dir(base_type)
 
+                    # remove any typing types that might be in dir() of module stubs for type hints
+                    import typing
+
+                    if inspect.ismodule(base_type):
+                        ret = [
+                            x
+                            for x in ret
+                            if not hasattr(typing, x)
+                            or (getattr(typing, x) != getattr(base_type, x))
+                        ]
+
             # apply the prefix filter
             ret = list(
                 filter(lambda x: x.upper().startswith(prefix_filter.upper()), ret)
