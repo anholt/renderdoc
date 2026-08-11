@@ -934,6 +934,13 @@ class PyReflector:
             if isinstance(ret, property) and ret.fget is not None:
                 try:
                     ret = inspect.signature(ret.fget).return_annotation
+
+                    if isinstance(ret, str) and hasattr(base, "__module__"):
+                        mod: str = getattr(base, "__module__")
+                        if mod in sys.modules and hasattr(sys.modules[mod], ret):
+                            ret = getattr(sys.modules[mod], ret)
+
+                    ret = self._handle_aliases(ret)
                 except:
                     return self._type_failure(
                         f"Failed to inspect property {parsed.attr}"
@@ -1657,7 +1664,7 @@ class PyReflector:
                     continue
                 id = Ident()
                 id.line = 0
-                id.type_obj = v
+                id.type_obj = self._handle_aliases(v)
                 modscope.set_ident(k, id)
 
             # modules don't have line ranges, so go to the last entry in the body
