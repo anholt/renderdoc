@@ -172,6 +172,7 @@ def check_function(parent_name, objname, obj, source, global_func, typelist):
         default_val = p[2].lstrip()
         if len(default_val) > 0 and default_val[0] == '=':
             default_val = make_c_typeval(default_val[1:].strip(), False, typelist)
+            default_val = default_val.replace('(', '\\(').replace(')', '\\)')
 
         funcargs[0] += make_c_typeval(p[0], True, typelist) + ' ?' + p[1]
         funcargs[1] += make_c_typeval(p[0], False, typelist) + ' ' + p[1]
@@ -262,8 +263,15 @@ for mod_name in check_mods:
     if args.verbose:
         print("===== Checks for {} =====".format(mod_name))
     for objname in dir(mod):
-        if re.search('__|SWIG|ResourceId_Null|rdcarray_of|Structured.*List', objname):
+        if re.search('__|SWIG|rdcarray_of|Structured.*List', objname):
             continue
+
+        if "_" in objname:
+            segments = objname.split("_")
+            if hasattr(mod, segments[0]) and inspect.isclass(
+                getattr(mod, segments[0])
+            ):
+                continue
 
         # skip some functions that have special bindings and won't be easily found
         if objname in ['CreateRemoteServerConnection', 'DumpObject', 'GetSupportedDeviceProtocols']:
@@ -380,7 +388,7 @@ for mod_name in check_mods:
                         print("Skipping {}.{}".format(objname, member_name))
                     continue
 
-                if callable(member):
+                if callable(member) or inspect.ismethoddescriptor(member):
                     used_types = []
 
                     check_function(qualname, member_name, member, source, False, used_types)

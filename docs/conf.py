@@ -24,6 +24,7 @@ import datetime
 #sys.path.insert(0, os.path.abspath('.'))
 
 import struct
+import inspect
 
 # path to module libraries for windows
 if struct.calcsize("P") == 8:
@@ -481,10 +482,17 @@ def build_finished(app, exception):
         module = sys.modules[module_name]
         entries = dir(module)
         for item in dir(module):
+            if '_' in item:
+                segments = item.split("_")
+                if hasattr(module, segments[0]) and inspect.isclass(
+                    getattr(module, segments[0])
+                ):
+                    continue
+
             if 'INTERNAL:' not in str(module.__dict__[item].__doc__):
                 items.append('{}.{}'.format(module_name, item))
 
-    items = set(filter(lambda i: re.search('__|SWIG|ResourceId_Null|rdcfixedarray_of|rdcarray_of|Structured.*List', i) is None, items))
+    items = set(filter(lambda i: re.search('__|SWIG|rdcfixedarray_of|rdcarray_of|Structured.*List', i) is None, items))
 
     # Remove any documented/indexed python objects
     items -= set(objs.keys())

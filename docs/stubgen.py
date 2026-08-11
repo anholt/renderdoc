@@ -113,7 +113,7 @@ def process_annotation(context: Any, deps: Optional[List[str]], annot: str) -> s
     locals.update(sys.modules)
     while True:
         try:
-            from typing import ForwardRef, evaluate_forward_ref # type: ignore
+            from typing import ForwardRef, evaluate_forward_ref  # type: ignore
 
             dep_type = evaluate_forward_ref(
                 ForwardRef(annot), globals=globals(), locals=locals
@@ -527,7 +527,9 @@ def gen_class(file: Stream, class_obj: Type):
             elif inspect.isgetsetdescriptor(item):
                 doc = TYPE_PATTERN.search(item.__doc__)
                 if doc is None:
-                    raise ValueError("Didn't find type pattern in docstring")
+                    raise ValueError(
+                        f"Didn't find type pattern in docstring for {item.__name__}"
+                    )
                 type_str = doc[1]
 
                 if type_str != class_obj.__name__:
@@ -620,6 +622,13 @@ def gen(module: types.ModuleType, destpath: str):
         if shouldskip(item_name):
             continue
 
+        if "_" in item_name:
+            segments = item_name.split("_")
+            if hasattr(module, segments[0]) and inspect.isclass(
+                getattr(module, segments[0])
+            ):
+                continue
+
         item = getattr(module, item_name)
 
         if inspect.isclass(item):
@@ -651,7 +660,7 @@ def gen(module: types.ModuleType, destpath: str):
 
                 deps = []
 
-                match: re.Match[str] = RTYPE_PATTERN.search(func_doc)
+                match: Optional[re.Match[str]] = RTYPE_PATTERN.search(func_doc)
                 if match is not None:
                     add_dependencies(item, deps, match[1])
                     ret = f" -> {unqualify(item, match[1])}"
