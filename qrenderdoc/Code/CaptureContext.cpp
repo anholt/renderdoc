@@ -929,6 +929,8 @@ void CaptureContext::LoadCapture(const rdcstr &captureFile, const ReplayOptions 
 
   PointerTypeRegistry::Init();
 
+  BufferInterpreter::context = this;
+
   m_LoadInProgress = true;
 
   if(local)
@@ -1568,6 +1570,8 @@ void CaptureContext::CloseCapture()
   m_UnreadMessageCount = 0;
 
   m_CaptureLoaded = false;
+
+  BufferInterpreter::context = NULL;
 
   m_Replay.CloseThread();
 }

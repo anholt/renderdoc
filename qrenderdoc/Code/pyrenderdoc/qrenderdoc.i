@@ -174,6 +174,7 @@ SWIGPY_DESTRUCTOR_CLOSURE(capviewer_deinit) /* defines capviewer_deinit_destruct
 %include "Code/Interface/PersistentConfig.h"
 %include "Code/Interface/RemoteHost.h"
 %include "Code/Interface/Extensions.h"
+%include "Code/Interface/Helpers.h"
 
 DOCUMENT("");
 
@@ -186,6 +187,7 @@ TEMPLATE_ARRAY_INSTANTIATE(rdcarray, DialogButton)
 TEMPLATE_ARRAY_INSTANTIATE(rdcarray, RemoteHost)
 TEMPLATE_ARRAY_INSTANTIATE(rdcarray, ConnectedTempCapture)
 TEMPLATE_ARRAY_INSTANTIATE_PTR(rdcarray, ICaptureViewer)
+TEMPLATE_ARRAY_INSTANTIATE(rdcarray, ParseError)
 
 // unignore the function from above
 %rename("%s") IReplayManager::BlockInvoke;

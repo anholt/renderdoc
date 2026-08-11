@@ -2323,7 +2323,7 @@ void D3D11PipelineStateViewer::resource_itemActivated(RDTreeWidgetItem *item, in
 
     if(shaderRes)
     {
-      format = BufferFormatter::GetBufferFormatString(Packing::D3DUAV, stage->resourceId,
+      format = BufferFormatter::GetBufferFormatString(PackingRules::D3DUAV(), stage->resourceId,
                                                       *shaderRes, view.desc.format);
 
       if(view.desc.flags & DescriptorFlags::RawBuffer)

@@ -260,3 +260,48 @@ void RemoteHost::SetConnected(bool connected)
 void RemoteHost::SetShutdown()
 {
 }
+
+ICaptureContext *BufferInterpreter::context = NULL;
+
+ParsedBufferFormat BufferInterpreter::Parse(rdcstr format)
+{
+  return {};
+}
+
+rdcstr BufferInterpreter::Unparse(ShaderConstantType structType, PackingRules pack, ResourceId shader)
+{
+  return rdcstr();
+}
+
+PackingRules BufferInterpreter::EstimatePackingRules(ShaderConstantType baseType, ResourceId shader)
+{
+  return PackingRules();
+}
+
+ShaderConstantType BufferInterpreter::GetPointerValType(PointerVal val)
+{
+  return ShaderConstantType();
+}
+
+ShaderConstantType BufferInterpreter::GetPointerType(uint32_t pointerTypeId, ResourceId shader)
+{
+  return ShaderConstantType();
+}
+
+rdcpair<ResourceId, uint64_t> BufferInterpreter::LookupPointer(uint64_t pointerAddress,
+                                                               uint64_t minSize /*= 0*/)
+{
+  return {ResourceId(), 0};
+}
+
+uint32_t BufferInterpreter::GetVariableAdvance(PackingRules pack, const ShaderConstant &var)
+{
+  return 0;
+}
+
+rdcarray<ShaderVariable> BufferInterpreter::GetShaderVariables(const ShaderConstant &elem,
+                                                               const bytebuf &data,
+                                                               int32_t maxVariables)
+{
+  return {};
+}

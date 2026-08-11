@@ -1,3 +1,5 @@
+.. _how_buffer_format:
+
 How do I specify a buffer format?
 =================================
 

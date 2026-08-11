@@ -578,6 +578,7 @@
     </ClCompile>
     <ClCompile Include="Code\BufferFormatter.cpp" />
     <ClCompile Include="Code\Interface\Analytics.cpp" />
+    <ClCompile Include="Code\Interface\Helpers.cpp" />
     <ClCompile Include="Code\Interface\PersistentConfig.cpp" />
     <ClCompile Include="Code\Interface\QRDInterface.cpp" />
     <ClCompile Include="Code\Interface\RemoteHost.cpp" />
@@ -935,6 +936,7 @@
     </CustomBuild>
     <ClInclude Include="3rdparty\flowlayout\FlowLayout.h" />
     <ClInclude Include="Code\Interface\Analytics.h" />
+    <ClInclude Include="Code\Interface\Helpers.h" />
     <ClInclude Include="Code\Interface\PersistentConfig.h" />
     <ClInclude Include="Code\Interface\QRDInterface.h" />
     <ClInclude Include="Code\Interface\RemoteHost.h" />

@@ -92,6 +92,7 @@ struct ICaptureContext;
 
 #include "Analytics.h"
 #include "Extensions.h"
+#include "Helpers.h"
 #include "PersistentConfig.h"
 #include "RemoteHost.h"
 

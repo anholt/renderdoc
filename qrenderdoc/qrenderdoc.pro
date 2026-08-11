@@ -183,6 +183,7 @@ SOURCES += Code/qrenderdoc.cpp \
     Code/Interface/ShaderProcessingTool.cpp \
     Code/Interface/PersistentConfig.cpp \
     Code/Interface/RemoteHost.cpp \
+    Code/Interface/Helpers.cpp \
     Styles/StyleData.cpp \
     Styles/RDStyle/RDStyle.cpp \
     Styles/RDTweakedNativeStyle/RDTweakedNativeStyle.cpp \
@@ -271,6 +272,7 @@ HEADERS += Code/CaptureContext.h \
     Code/Interface/QRDInterface.h \
     Code/Interface/Analytics.h \
     Code/Interface/PersistentConfig.h \
+    Code/Interface/Helpers.h \
     Code/Interface/Extensions.h \
     Code/Interface/RemoteHost.h \
     Styles/StyleData.h \

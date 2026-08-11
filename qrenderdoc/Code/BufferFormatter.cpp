@@ -271,7 +271,7 @@ QList<const ShaderConstantType *> GatherPointerRecursiveMembers(
   return ret;
 }
 
-void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
+void BufferFormatter::EstimatePackingRules(PackingRules &pack, ResourceId shader,
                                            const ShaderConstant &constant,
                                            QSet<uint32_t> &pointerTypesProcessed,
                                            uint32_t knownVecAlignment)
@@ -282,7 +282,7 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
   // scalar packing was used but it was only three float4 vectors then it will look like the most
   // conservative std140/scalar.
 
-  if(!pack.vector_align_component || !pack.vector_straddle_16b)
+  if(!pack.vectorAlignComponent || !pack.vectorStraddle16b)
   {
     // column major matrices have vectors that are 'rows' long. Everything else is vectors of
     // 'columns' long
@@ -304,29 +304,29 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
 
       // if it's a vec3 or vec4 and its offset is not purely aligned, it's only component aligned
       if(vecSize >= 3 && offsModVec != 0)
-        pack.vector_align_component = true;
+        pack.vectorAlignComponent = true;
 
       // if it's a vec2 and its offset is not either 0 or half the total size, it's also only
       // component aligned. vec2s without this allowance must be aligned to the vec2 size
       if(vecSize == 2 && offsModVec != 0 && offsModVec != vec4Size / 2)
-        pack.vector_align_component = true;
+        pack.vectorAlignComponent = true;
 
       if(constant.type.elements > 1)
       {
         // with arrays we can check the stride as well. If the stride isn't vector-aligned then
         // that's the same as vectors being aligned to components (even if we don't see it)
         if(vecSize >= 3 && constant.type.arrayByteStride < vec4Size)
-          pack.vector_align_component = true;
+          pack.vectorAlignComponent = true;
         if(vecSize == 2 && constant.type.arrayByteStride < vec4Size / 2)
-          pack.vector_align_component = true;
+          pack.vectorAlignComponent = true;
       }
 
       if(matSize > 1)
       {
         if(vecSize >= 3 && constant.type.matrixByteStride < vec4Size)
-          pack.vector_align_component = true;
+          pack.vectorAlignComponent = true;
         if(vecSize == 2 && constant.type.matrixByteStride < vec4Size / 2)
-          pack.vector_align_component = true;
+          pack.vectorAlignComponent = true;
       }
 
       // while we're here, check if the vector straddles a 16-byte boundary
@@ -337,35 +337,35 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
 
       // if the vector crosses a 16-byte boundary, vectors can straddle them
       if(low16b != high16b)
-        pack.vector_straddle_16b = true;
+        pack.vectorStraddle16b = true;
 
       // if we have determined earlier that a struct array may misalign the vector's base alignment, we are straddling
       if(vecSize >= 3 && knownVecAlignment < 16)
-        pack.vector_straddle_16b = true;
+        pack.vectorStraddle16b = true;
       else if(vecSize == 2 && knownVecAlignment < 8)
-        pack.vector_straddle_16b = true;
+        pack.vectorStraddle16b = true;
     }
 
-    if(!pack.tight_arrays && matSize > 1)
+    if(!pack.tightArrays && matSize > 1)
     {
       // if the array has a byte stride less than 16, it must be non-tight packed
       if(constant.type.matrixByteStride < 16)
-        pack.tight_arrays = true;
+        pack.tightArrays = true;
     }
   }
 
-  if(!pack.tight_arrays && constant.type.elements > 1)
+  if(!pack.tightArrays && constant.type.elements > 1)
   {
     // if the array has a byte stride less than 16, it must be non-tight packed
     if(constant.type.arrayByteStride < 16)
-      pack.tight_arrays = true;
+      pack.tightArrays = true;
   }
 
-  if(!pack.tight_arrays && constant.type.baseType == VarType::Struct)
+  if(!pack.tightArrays && constant.type.baseType == VarType::Struct)
   {
     // if a struct isn't padded to 16-byte alignment, assume non-tight arrays
     if((constant.type.arrayByteStride % 16) != 0)
-      pack.tight_arrays = true;
+      pack.tightArrays = true;
   }
 
   // handle the case where a structs array stride may need to pessimise its members' alignments.
@@ -389,7 +389,7 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
   EstimatePackingRules(pack, shader, constant.type.members, pointerTypesProcessed, knownVecAlignment);
 }
 
-void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shader,
+void BufferFormatter::EstimatePackingRules(PackingRules &pack, ResourceId shader,
                                            const rdcarray<ShaderConstant> &members,
                                            QSet<uint32_t> &pointerTypesProcessed,
                                            uint32_t knownVecAlignment)
@@ -413,11 +413,11 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
     // check for trailing array/struct use
     if(i > 0)
     {
-      Packing::Rules unpadded = pack;
-      Packing::Rules padded = pack;
-      unpadded.trailing_overlap = true;
-      unpadded.vector_align_component = true;
-      padded.trailing_overlap = false;
+      PackingRules unpadded = pack;
+      PackingRules padded = pack;
+      unpadded.trailingOverlap = true;
+      unpadded.vectorAlignComponent = true;
+      padded.trailingOverlap = false;
 
       const uint32_t unpaddedAdvance = GetVarAdvance(unpadded, members[i - 1]);
       const uint32_t paddedAdvance = GetVarAdvance(padded, members[i - 1]);
@@ -427,18 +427,18 @@ void BufferFormatter::EstimatePackingRules(Packing::Rules &pack, ResourceId shad
       if(paddedAdvance > unpaddedAdvance &&
          members[i].byteOffset < (members[i - 1].byteOffset + paddedAdvance))
       {
-        pack.trailing_overlap = true;
+        pack.trailingOverlap = true;
       }
     }
 
     // if we've degenerated to scalar we can't get any more lenient, stop checking rules
-    if(pack == Packing::Scalar)
+    if(pack == PackingRules::Scalar())
       break;
   }
 }
 
-Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
-                                                     const rdcarray<ShaderConstant> &members)
+PackingRules BufferFormatter::EstimatePackingRules(ResourceId shader,
+                                                   const rdcarray<ShaderConstant> &members)
 {
   ShaderConstantType base;
   base.members = members;
@@ -446,10 +446,10 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
   return EstimatePackingRules(shader, base);
 }
 
-Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
-                                                     const ShaderConstantType &baseType)
+PackingRules BufferFormatter::EstimatePackingRules(ResourceId shader,
+                                                   const ShaderConstantType &baseType)
 {
-  Packing::Rules pack;
+  PackingRules pack;
 
   // start from the most conservative ruleset. We will iteratively turn off any rules which are
   // violated to end up with the most conservative ruleset which is still valid for the described
@@ -458,9 +458,9 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
   // D3D shouldn't really need to be estimating, because it's implicit from how this is bound
   // (cbuffer or structured resource)
   if(IsD3D(m_API))
-    pack = Packing::D3DCB;
+    pack = PackingRules::D3DCB();
   else
-    pack = Packing::std140;
+    pack = PackingRules::STD140();
 
   // without more information we must assume all vectors are naturally aligned
   QSet<uint32_t> pointerTypesProcessed;
@@ -477,35 +477,37 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
   {
     // scalar is technically more lenient than anything D3D allows, as D3DUAV requires padding after
     // structs (it's closer to C packing)
-    if(pack == Packing::D3DCB || pack == Packing::D3DUAV || pack == Packing::Scalar)
+    if(pack == PackingRules::D3DCB() || pack == PackingRules::D3DUAV() ||
+       pack == PackingRules::Scalar())
       return pack;
 
     // shouldn't end up with these as we started at D3DCB, but just for safety
-    if(pack == Packing::std140)
-      return Packing::D3DCB;
+    if(pack == PackingRules::STD140())
+      return PackingRules::D3DCB();
 
-    if(pack == Packing::std430)
-      return Packing::D3DUAV;
+    if(pack == PackingRules::STD430())
+      return PackingRules::D3DUAV();
   }
   else
   {
-    if(pack == Packing::std140 || pack == Packing::std430 || pack == Packing::Scalar)
+    if(pack == PackingRules::STD140() || pack == PackingRules::STD430() ||
+       pack == PackingRules::Scalar())
       return pack;
 
     if(m_API == GraphicsAPI::Vulkan)
     {
-      if(pack == Packing::D3DCB || pack == Packing::D3DUAV)
+      if(pack == PackingRules::D3DCB() || pack == PackingRules::D3DUAV())
         return pack;
 
       // on vulkan HLSL shaders may use relaxed block layout, which is not wholly represented here.
       // it doesn't actually allow trailing overlap but this lets us check if we're 'almost' cbuffer
       // rules, at which point any instances where trailing overlap would be used will look just
       // like manual padding/offsetting
-      Packing::Rules mod = pack;
-      mod.trailing_overlap = true;
+      PackingRules mod = pack;
+      mod.trailingOverlap = true;
 
-      if(mod == Packing::D3DCB)
-        return Packing::D3DCB;
+      if(mod == PackingRules::D3DCB())
+        return PackingRules::D3DCB();
     }
   }
 
@@ -515,8 +517,8 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
   //
   // note, D3DUAV is treated the same as C but we checked for it above so we'd only get here on
   // non-D3D
-  if(pack == Packing::C)
-    return Packing::Scalar;
+  if(pack == PackingRules::C())
+    return PackingRules::Scalar();
 
   // our ruleset doesn't match exactly to a premade one. Check the rules to see which properties we
   // have.
@@ -527,60 +529,60 @@ Packing::Rules BufferFormatter::EstimatePackingRules(ResourceId shader,
   // straddling 16 bytes but e.g. not have tight arrays or component-aligned vectors. Possibly no
   // arrays were seen so tight arrays couldn't be explicitly determined. So regardless of what else
   // we found return scalar
-  if(pack.vector_straddle_16b)
-    return Packing::Scalar;
+  if(pack.vectorStraddle16b)
+    return PackingRules::Scalar();
 
   // trailing overlap is allowed in any D3D layout, but for non-D3D only in scalar layout.
   // Since we know from above that either we're not using D3D or we aren't an exact match for D3DCB,
   // assume we're in scalar one way or another.
   // This could be e.g. D3DUAV with tight arrays but vector straddling wasn't seen explicitly
-  if(pack.trailing_overlap)
-    return Packing::Scalar;
+  if(pack.trailingOverlap)
+    return PackingRules::Scalar();
 
   // the exact same logic as above applies to component-aligned vectors. Allowed in any D3D layout,
   // but for non-D3D only in scalar layout.
-  if(pack.vector_align_component)
-    return Packing::Scalar;
+  if(pack.vectorAlignComponent)
+    return PackingRules::Scalar();
 
   // For non-D3D: if we have tight arrays, this is possible in std430 - however since we didn't
   // match std430 above there must be some other allowance. That means we must devolve to scalar
   // For D3D this is possible only in D3DUAV (which is equivalent to scalar)
-  if(pack.tight_arrays)
-    return Packing::Scalar;
+  if(pack.tightArrays)
+    return PackingRules::Scalar();
 
   // shouldn't get here, but just for safety return the ruleset we derived
   return pack;
 }
 
-QString BufferFormatter::DeclarePacking(Packing::Rules pack)
+QString BufferFormatter::DeclarePacking(PackingRules pack)
 {
-  if(pack == Packing::D3DCB)
+  if(pack == PackingRules::D3DCB())
     return lit("#pack(cbuffer)");
-  else if(pack == Packing::std140)
+  else if(pack == PackingRules::STD140())
     return lit("#pack(std140)");
-  else if(pack == Packing::std430)
+  else if(pack == PackingRules::STD430())
     return lit("#pack(std430)");
-  else if(pack == Packing::D3DUAV)    // this is also C but we call it 'structured' for D3D
+  else if(pack == PackingRules::D3DUAV())    // this is also C but we call it 'structured' for D3D
     return lit("#pack(structured)");
-  else if(pack == Packing::Scalar)
+  else if(pack == PackingRules::Scalar())
     return lit("#pack(scalar)");
 
   // packing doesn't match a premade ruleset. Emit individual specifiers
   QString ret;
-  if(pack.vector_align_component)
+  if(pack.vectorAlignComponent)
     ret += lit("#pack(vector_align_component)    // vectors are aligned to their component\n");
   else
     ret +=
         lit("#pack(no_vector_align_component) // vectors are aligned evenly (float3 as float4)\n");
-  if(pack.tight_arrays)
+  if(pack.tightArrays)
     ret += lit("#pack(tight_arrays)              // arrays are packed tightly\n");
   else
     ret += lit("#pack(no_tight_arrays)           // arrays are padded to 16-byte boundaries\n");
-  if(pack.vector_straddle_16b)
+  if(pack.vectorStraddle16b)
     ret += lit("#pack(vector_straddle_16b)       // vectors can straddle 16-byte boundaries\n");
   else
     ret += lit("#pack(no_vector_straddle_16b)    // vectors cannot straddle 16-byte boundaries\n");
-  if(pack.trailing_overlap)
+  if(pack.trailingOverlap)
     ret +=
         lit("#pack(trailing_overlap)          // variables can overlap trailing padding after "
             "arrays/structs\n");
@@ -770,24 +772,24 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
   // default to scalar (tight packing) if nothing else is specified at all. The expectation is
   // anything that needs a better default will insert that into the format string for the user,
   // or be picked up below
-  Packing::Rules &pack = ret.packing;
-  pack = Packing::Scalar;
+  PackingRules &pack = ret.packing;
+  pack = PackingRules::Scalar();
 
   // for D3D and GL we default to the only valid packing for cbuffers and UAVs. The user can still
   // override this if they really wish with a #pack, but this makes sense as a sensible default
   if(cbuffer)
   {
     if(IsD3D(m_API))
-      pack = Packing::D3DCB;
+      pack = PackingRules::D3DCB();
     else if(m_API == GraphicsAPI::OpenGL)
-      pack = Packing::std140;
+      pack = PackingRules::STD140();
   }
   else
   {
     if(IsD3D(m_API))
-      pack = Packing::D3DUAV;
+      pack = PackingRules::D3DUAV();
     else if(m_API == GraphicsAPI::OpenGL)
-      pack = Packing::std430;
+      pack = PackingRules::STD430();
   }
   // vulkan allows scalar packing in any buffer, so don't wrest control away from the user
 
@@ -940,41 +942,41 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
         // try to pick up common aliases that people might use
         if(packrule == lit("d3dcbuffer") || packrule == lit("cbuffer") || packrule == lit("cb"))
-          pack = Packing::D3DCB;
+          pack = PackingRules::D3DCB();
         else if(packrule == lit("d3duav") || packrule == lit("uav") || packrule == lit("structured"))
-          pack = Packing::D3DUAV;
+          pack = PackingRules::D3DUAV();
         else if(packrule == lit("std140") || packrule == lit("ubo") || packrule == lit("gl") ||
                 packrule == lit("gles") || packrule == lit("opengl") || packrule == lit("glsl"))
-          pack = Packing::std140;
+          pack = PackingRules::STD140();
         else if(packrule == lit("std430") || packrule == lit("ssbo"))
-          pack = Packing::std430;
+          pack = PackingRules::STD430();
         else if(packrule == lit("scalar"))
-          pack = Packing::Scalar;
+          pack = PackingRules::Scalar();
         else if(packrule == lit("c"))
-          pack = Packing::C;
+          pack = PackingRules::C();
 
         // we also allow toggling the individual rules
         else if(packrule == lit("vector_align_component"))
-          pack.vector_align_component = true;
+          pack.vectorAlignComponent = true;
         else if(packrule == lit("no_vector_align_component"))
-          pack.vector_align_component = false;
+          pack.vectorAlignComponent = false;
         else if(packrule == lit("tight_arrays"))
-          pack.tight_arrays = true;
+          pack.tightArrays = true;
         else if(packrule == lit("no_tight_arrays"))
-          pack.tight_arrays = false;
+          pack.tightArrays = false;
         else if(packrule == lit("vector_straddle_16b"))
-          pack.vector_straddle_16b = true;
+          pack.vectorStraddle16b = true;
         else if(packrule == lit("no_vector_straddle_16b"))
-          pack.vector_straddle_16b = false;
+          pack.vectorStraddle16b = false;
         else if(packrule == lit("trailing_overlap"))
-          pack.trailing_overlap = true;
+          pack.trailingOverlap = true;
         else if(packrule == lit("no_trailing_overlap"))
-          pack.trailing_overlap = false;
+          pack.trailingOverlap = false;
 
         else if(packrule == lit("tight_bitfield_packing"))
-          pack.tight_bitfield_packing = true;
+          pack.tightBitfieldPacking = true;
         else if(packrule == lit("no_tight_bitfield_packing"))
-          pack.tight_bitfield_packing = false;
+          pack.tightBitfieldPacking = false;
 
         else
           packrule = QString();
@@ -1038,7 +1040,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
             cur->alignment = GetAlignment(pack, cur->structDef);
 
           // if we don't have tight arrays, struct byte strides are always 16-byte aligned
-          if(!pack.tight_arrays)
+          if(!pack.tightArrays)
           {
             cur->alignment = 16;
           }
@@ -1697,7 +1699,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
         cur->offset += el.type.elements * el.type.arrayByteStride;
 
         // if we allow trailing overlap, remove the padding
-        if(pack.trailing_overlap)
+        if(pack.trailingOverlap)
           cur->offset -= el.type.arrayByteStride - structContext.offset;
 
         continue;
@@ -2188,16 +2190,16 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
     const uint8_t vecSize = (el.type.rows > 1 && el.type.ColMajor()) ? el.type.rows : el.type.columns;
 
-    const uint32_t elSize =
-        packed32bit ? sizeof(uint32_t)
-                    : (pack.vector_align_component ? elAlignment * vecSize : elAlignment);
+    const uint32_t elSize = packed32bit
+                                ? sizeof(uint32_t)
+                                : (pack.vectorAlignComponent ? elAlignment * vecSize : elAlignment);
 
     // if we aren't using tight arrays the stride is at least 16 bytes
     el.type.arrayByteStride = elAlignment;
     if(el.type.rows > 1 || el.type.columns > 1)
       el.type.arrayByteStride = elSize;
 
-    if(!pack.tight_arrays)
+    if(!pack.tightArrays)
       el.type.arrayByteStride = std::max(16U, el.type.arrayByteStride);
 
     // matrices are always aligned like arrays of vectors
@@ -2231,7 +2233,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       el.type.baseType = VarType::GPUPointer;
       el.type.flags = ShaderVariableFlags::HexDisplay;
       el.type.arrayByteStride = elAlignment = 8;
-      if(!pack.tight_arrays)
+      if(!pack.tightArrays)
         el.type.arrayByteStride = std::max(16U, el.type.arrayByteStride);
       el.type.matrixByteStride = el.type.arrayByteStride;
     }
@@ -2285,7 +2287,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       //  unsigned int c : 4;
       if(start + el.bitFieldSize > elemScalarBitSize)
       {
-        if(pack.tight_bitfield_packing)
+        if(pack.tightBitfieldPacking)
         {
           while(bitfieldCurPos >= 8)
           {
@@ -2335,11 +2337,11 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       cur->offset = AlignUp(cur->offset, elAlignment);
 
       // if we have non-tight arrays, arrays (and matrices) always start on a 16-byte boundary
-      if(!pack.tight_arrays && (el.type.elements > 1 || el.type.rows > 1))
+      if(!pack.tightArrays && (el.type.elements > 1 || el.type.rows > 1))
         cur->offset = AlignUp(cur->offset, 16U);
 
       // if vectors can't straddle 16-byte alignment, check to see if we're going to do that
-      if(!pack.vector_straddle_16b)
+      if(!pack.vectorStraddle16b)
       {
         if(cur->offset / 16 != (cur->offset + elSize - 1) / 16)
         {
@@ -2518,7 +2520,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
   fixed = root.structDef;
   uint32_t end = root.offset;
   if(!fixed.type.members.isEmpty() &&
-     (!pack.tight_bitfield_packing || fixed.type.members.back().bitFieldSize == 0))
+     (!pack.tightBitfieldPacking || fixed.type.members.back().bitFieldSize == 0))
     end = qMax(
         end, fixed.type.members.back().byteOffset + GetVarSizeAndTrail(fixed.type.members.back()));
 
@@ -2651,6 +2653,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
       ShaderConstant el;
       el.byteOffset = 0;
+      el.type.name = fixed.type.name;
       el.type.baseType = VarType::Struct;
       el.type.elements = ~0U;
       el.type.arrayByteStride = fixed.type.arrayByteStride;
@@ -2851,7 +2854,7 @@ QString BufferFormatter::GetTextureFormatString(const TextureDescription &tex)
       .arg(w);
 }
 
-QString BufferFormatter::GetBufferFormatString(Packing::Rules pack, ResourceId shader,
+QString BufferFormatter::GetBufferFormatString(PackingRules pack, ResourceId shader,
                                                const ShaderResource &res,
                                                const ResourceFormat &viewFormat)
 {
@@ -3016,18 +3019,18 @@ uint32_t BufferFormatter::GetVarSizeAndTrail(const ShaderConstant &var)
   return VarTypeByteSize(var.type.baseType) * var.type.columns;
 }
 
-uint32_t BufferFormatter::GetVarAdvance(const Packing::Rules &pack, const ShaderConstant &var)
+uint32_t BufferFormatter::GetVarAdvance(PackingRules pack, const ShaderConstant &var)
 {
   uint32_t ret = GetVarSizeAndTrail(var);
 
   // if we allow trailing overlap, remove the padding at the end of the struct/array
-  if(pack.trailing_overlap)
+  if(pack.trailingOverlap)
   {
     if(var.type.baseType == VarType::Struct)
     {
       ret -= (var.type.arrayByteStride - GetUnpaddedStructAdvance(pack, var.type.members));
     }
-    else if((var.type.elements > 1 || var.type.rows > 1) && !pack.tight_arrays)
+    else if((var.type.elements > 1 || var.type.rows > 1) && !pack.tightArrays)
     {
       uint8_t vecSize = var.type.columns;
 
@@ -3035,7 +3038,7 @@ uint32_t BufferFormatter::GetVarAdvance(const Packing::Rules &pack, const Shader
         vecSize = var.type.rows;
 
       uint32_t elSize = GetAlignment(pack, var);
-      if(pack.vector_align_component)
+      if(pack.vectorAlignComponent)
         elSize *= vecSize;
 
       // the padding is the stride (which is rounded up to 16 for non-tight arrays) minus the size
@@ -3047,7 +3050,7 @@ uint32_t BufferFormatter::GetVarAdvance(const Packing::Rules &pack, const Shader
   return ret;
 }
 
-uint32_t BufferFormatter::GetAlignment(Packing::Rules pack, const ShaderConstant &c)
+uint32_t BufferFormatter::GetAlignment(PackingRules pack, const ShaderConstant &c)
 {
   uint32_t ret = 1;
 
@@ -3066,7 +3069,7 @@ uint32_t BufferFormatter::GetAlignment(Packing::Rules pack, const ShaderConstant
 
     // if vectors aren't component aligned we need to calculate the alignment based on the size of
     // the vectors
-    if(!pack.vector_align_component)
+    if(!pack.vectorAlignComponent)
     {
       // column major matrices have vectors that are 'rows' long. Everything else is vectors of
       // 'columns' long
@@ -3090,7 +3093,7 @@ uint32_t BufferFormatter::GetAlignment(Packing::Rules pack, const ShaderConstant
   return ret;
 }
 
-uint32_t BufferFormatter::GetUnpaddedStructAdvance(Packing::Rules pack,
+uint32_t BufferFormatter::GetUnpaddedStructAdvance(PackingRules pack,
                                                    const rdcarray<ShaderConstant> &members)
 {
   uint32_t lastMemberStart = 0;
@@ -3112,7 +3115,7 @@ uint32_t BufferFormatter::GetUnpaddedStructAdvance(Packing::Rules pack,
   return lastMemberStart + GetVarAdvance(pack, *lastChild);
 }
 
-QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
+QString BufferFormatter::DeclareStruct(PackingRules pack, ResourceId shader,
                                        QMap<QString, bool> &declaredStructs,
                                        QMap<ShaderConstant, QString> &anonStructs,
                                        const QString &name, const rdcarray<ShaderConstant> &members,
@@ -3164,15 +3167,15 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
     offset = AlignUp(offset, alignment);
 
     // if things can't straddle 16-byte boundaries, check that and enforce
-    if(!pack.vector_straddle_16b)
+    if(!pack.vectorStraddle16b)
     {
       if(offset / 16 != (offset + vecsize - 1) / 16)
         offset = AlignUp(offset, 16U);
     }
 
     // if we don't have tight arrays, arrays and structs begin at 16-byte boundaries
-    if(!pack.tight_arrays && (members[i].type.baseType == VarType::Struct ||
-                              members[i].type.elements > 1 || members[i].type.rows > 1))
+    if(!pack.tightArrays && (members[i].type.baseType == VarType::Struct ||
+                             members[i].type.elements > 1 || members[i].type.rows > 1))
     {
       offset = AlignUp(offset, 16U);
     }
@@ -3339,7 +3342,7 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
 
       uint32_t stride = GetAlignment(pack, members[i]);
 
-      if(pack.vector_align_component)
+      if(pack.vectorAlignComponent)
       {
         if(members[i].type.RowMajor())
           stride *= members[i].type.columns;
@@ -3347,7 +3350,7 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
           stride *= members[i].type.rows;
       }
 
-      if(!pack.tight_arrays)
+      if(!pack.tightArrays)
         stride = 16;
 
       if(stride != members[i].type.matrixByteStride)
@@ -3366,7 +3369,7 @@ QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader,
   }
 
   // if we don't have tight arrays, struct byte strides are always 16-byte aligned
-  if(!pack.tight_arrays)
+  if(!pack.tightArrays)
   {
     structAlignment = 16;
   }
@@ -3422,7 +3425,7 @@ QString BufferFormatter::DeclareEnum(const QString &name, const rdcarray<ShaderC
   return ret;
 }
 
-QString BufferFormatter::DeclareStruct(Packing::Rules pack, ResourceId shader, const QString &name,
+QString BufferFormatter::DeclareStruct(PackingRules pack, ResourceId shader, const QString &name,
                                        const rdcarray<ShaderConstant> &members,
                                        uint32_t requiredByteStride)
 {
@@ -4626,13 +4629,13 @@ outer_struct2 a[4];
   ResourceFormat fmt;
   ParsedFormat parsed;
 
-  Packing::Rules pack;
+  PackingRules pack;
 
   SECTION("No changes")
   {
     // we generated the members with std140 packing so it should stay std140
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::std140));
+    CHECK((pack == PackingRules::STD140()));
   }
 
   SECTION("std140 compatible offsets")
@@ -4648,7 +4651,7 @@ outer_struct2 a[4];
     }
 
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::std140));
+    CHECK((pack == PackingRules::STD140()));
   }
 
   // no other changes we can make that are std140 compatible, alignments and strides are already at
@@ -4662,25 +4665,25 @@ outer_struct2 a[4];
     {
       members[4].type.arrayByteStride = 4;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::std430));
+      CHECK((pack == PackingRules::STD430()));
     }
     SECTION("float2[4] tight array")
     {
       members[5].type.arrayByteStride = 8;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::std430));
+      CHECK((pack == PackingRules::STD430()));
     }
     SECTION("[[col_major]] float2x4 tight array")
     {
       members[8].type.matrixByteStride = 8;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::std430));
+      CHECK((pack == PackingRules::STD430()));
     }
     SECTION("[[row_major]] float4x2 tight array")
     {
       members[11].type.matrixByteStride = 8;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::std430));
+      CHECK((pack == PackingRules::STD430()));
     }
   }
 
@@ -4692,13 +4695,13 @@ outer_struct2 a[4];
     {
       members[1].byteOffset += 4;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::D3DCB));
+      CHECK((pack == PackingRules::D3DCB()));
     }
     SECTION("float3 4-byte offset")
     {
       members[2].byteOffset += 4;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::D3DCB));
+      CHECK((pack == PackingRules::D3DCB()));
     }
   }
 
@@ -4709,13 +4712,13 @@ outer_struct2 a[4];
     {
       members[1].byteOffset += 12;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::Scalar));
+      CHECK((pack == PackingRules::Scalar()));
     }
     SECTION("float3 8-byte offset")
     {
       members[2].byteOffset += 8;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::Scalar));
+      CHECK((pack == PackingRules::Scalar()));
     }
   }
 
@@ -4724,7 +4727,7 @@ outer_struct2 a[4];
     // float3[4] is the only stride of a pure array that actually changes
     members[6].type.arrayByteStride = 12;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 
   SECTION("scalar matrix strides")
@@ -4733,13 +4736,13 @@ outer_struct2 a[4];
     {
       members[12].type.matrixByteStride = 12;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::Scalar));
+      CHECK((pack == PackingRules::Scalar()));
     }
     SECTION("[[row_major]] float4x3 tight matrix")
     {
       members[15].type.matrixByteStride = 12;
       pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-      CHECK((pack == Packing::Scalar));
+      CHECK((pack == PackingRules::Scalar()));
     }
   }
 
@@ -4747,35 +4750,35 @@ outer_struct2 a[4];
   {
     members[21].byteOffset = members[20].byteOffset + 64 - 4;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 
   SECTION("trailing array overlap")
   {
     members[23].byteOffset = members[22].byteOffset + 64 - 4;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 
   SECTION("trailing matrix overlap")
   {
     members[25].byteOffset = members[24].byteOffset + 64 - 4;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 
   SECTION("struct vector member misaligned by array stride")
   {
     members[26].type.arrayByteStride = 20;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 
   SECTION("nested struct vector member misaligned by array stride")
   {
     members[27].type.arrayByteStride = 52;
     pack = BufferFormatter::EstimatePackingRules(ResourceId(), members);
-    CHECK((pack == Packing::Scalar));
+    CHECK((pack == PackingRules::Scalar()));
   }
 }
 
@@ -6889,70 +6892,70 @@ struct s
     {
       BufferFormatter::Init(GraphicsAPI::D3D11);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, true);
-      CHECK((parsed.packing == Packing::D3DCB));
+      CHECK((parsed.packing == PackingRules::D3DCB()));
 
       BufferFormatter::Init(GraphicsAPI::D3D11);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, false);
-      CHECK((parsed.packing == Packing::D3DUAV));
+      CHECK((parsed.packing == PackingRules::D3DUAV()));
 
       BufferFormatter::Init(GraphicsAPI::D3D12);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, true);
-      CHECK((parsed.packing == Packing::D3DCB));
+      CHECK((parsed.packing == PackingRules::D3DCB()));
 
       BufferFormatter::Init(GraphicsAPI::D3D12);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, false);
-      CHECK((parsed.packing == Packing::D3DUAV));
+      CHECK((parsed.packing == PackingRules::D3DUAV()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, true);
-      CHECK((parsed.packing == Packing::std140));
+      CHECK((parsed.packing == PackingRules::STD140()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("float a;"), 0, false);
-      CHECK((parsed.packing == Packing::std430));
+      CHECK((parsed.packing == PackingRules::STD430()));
     };
 
     SECTION("Overriding API defaults")
     {
       BufferFormatter::Init(GraphicsAPI::D3D11);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, true);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::D3D11);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::D3D12);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, true);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::D3D12);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, true);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("#pack(c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
     };
 
     SECTION("Parsing")
     {
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("#pack  (c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(lit("#  pack  (c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
 
       BufferFormatter::Init(GraphicsAPI::OpenGL);
       parsed = BufferFormatter::ParseFormatString(
           lit("# /*comm*/ pack  /* comments */ (c)\nfloat a;"), 0, false);
-      CHECK((parsed.packing == Packing::C));
+      CHECK((parsed.packing == PackingRules::C()));
     };
 
     SECTION("Selecting packing rules")
