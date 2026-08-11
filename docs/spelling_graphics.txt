@@ -7,6 +7,7 @@ bindpoint
 blackpoint
 blit
 blitted
+bpp
 bresenham
 Broadcom
 capturable

@@ -483,7 +483,7 @@ Will return 0 if the format is not PVRTC.
 Invalid values will result in undefined format properties. Has no effect if the format is
 not already set to be ASTC.
 
-:param Tuple[int, int] block2D: The 2D block shape.
+:param Tuple[int,int] block2D: The 2D block shape.
 )");
   void SetASTC2D(const rdcpair<uint32_t, uint32_t> &block2D)
   {
@@ -501,7 +501,7 @@ not already set to be ASTC.
 Invalid values will result in undefined format properties. Has no effect if the format is
 not already set to be ASTC.
 
-:param Tuple[int, int, int] block3D: The 3D block shape.
+:param Tuple[int,int,int] block3D: The 3D block shape.
 )");
   void SetASTC3D(const rdcfixedarray<uint32_t, 3> &block3D)
   {
