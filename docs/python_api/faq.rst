@@ -93,6 +93,15 @@ In theory RenderDoc's scripting works transparently regardless of where the repl
 
 However Android is an unstable, unreliable, and often broken platform. As a result the use of python scripting with Android captures is not considered officially supported. It is possible that you can use scripting when running on Android but this should be taken with care.
 
+Why doesn't VS Code apply breakpoints or catch exceptions properly?
+-------------------------------------------------------------------
+
+VS Code's python debugging requires some particular setup as in :doc:`ide_integration` and may only partially function if something is not configured as needed.
+
+If you find that script files open in a new tab even if the file is already open, and breakpoints aren't applied, you may have "path mappings" configured in your :file:`launch.json` when attaching the debugger. VS Code creates these by default when it adds remote debugging as an option, but RenderDoc does not. These mappings are intended for debugging across different machines but it causes VS Code to get confused when debugging on the same machine with the same path. You should delete these, and restart RenderDoc before trying to attach again.
+
+If exceptions are not being caught by VS Code, make sure you have the ``User Uncaught Exceptions`` setting under ``Breakpoints`` enabled, as RenderDoc itself catches otherwise-uncaught exceptions when running python code to improve UI stability and so VS Code's unhandled exception handler will not usually catch them.
+
 .. _example_preamble:
 
 Why do the examples have a preamble for ``pyrenderdoc``?

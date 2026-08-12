@@ -46,7 +46,7 @@ Python Stubs
 
 Python modules written in C like RenderDoc's can't have type annotations that are key to providing good autocomplete in an IDE. The standard alternative is to provide python 'stub' files which are written in pure python and have no implementations, only signatures and other type annotations.
 
-RenderDoc generates appropriate stubs within your application data directory with one per version as well as a rolling 'latest' version. On Windows this is ``%APPDATA%\qrenderdoc\pystubs`` and on linux it's ``~/.local/share/qrenderdoc/pystubs``.
+RenderDoc generates appropriate stubs within your application data directory with one per version as well as a rolling 'latest' version. On Windows this is :file:`%APPDATA%\qrenderdoc\pystubs` and on linux it's :file:`~/.local/share/qrenderdoc/pystubs`.
 
 Typically you can use the ``latest`` version without problems, but if you are targeting a specific version of RenderDoc you can use one of the versioned directories.
 
@@ -78,6 +78,9 @@ If RenderDoc has detected your installation of VS Code it also provides convenie
     Due to a quirk of how the python integration works in RenderDoc, VS Code may consider scripts as not being contained properly within a project. It is strongly recommend that you **disable** the ``Just my code`` option under the ``debugpy`` extension.
 
     You may also need to check the ``User Uncaught Exceptions`` setting under ``Breakpoints`` to properly trap exceptions that are thrown in the python code, as otherwise RenderDoc will catch them itself for display.
+
+.. warning::
+    By default, RenderDoc creates a :file:`.vscode` folder and :file:`launch.json` configuring the debugging setup for attaching, but it will not overwrite an existing file. Be warned that VS Code's default remote attach configuration contains "path mappings" which can cause RenderDoc debugging to not function correctly, since remote attach is normally not used on the same folder. It is strongly recommended you delete any path mappings and restart RenderDoc & VS Code if you have already tried to attach.
 
 Next steps
 ----------
