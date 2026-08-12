@@ -102,6 +102,8 @@ If you find that script files open in a new tab even if the file is already open
 
 If exceptions are not being caught by VS Code, make sure you have the ``User Uncaught Exceptions`` setting under ``Breakpoints`` enabled, as RenderDoc itself catches otherwise-uncaught exceptions when running python code to improve UI stability and so VS Code's unhandled exception handler will not usually catch them.
 
+RenderDoc only listens on one fixed port for the python debugger, so if you have multiple instances of RenderDoc's UI open only the first one to launch will be able to debug python code.
+
 .. _example_preamble:
 
 Why do the examples have a preamble for ``pyrenderdoc``?

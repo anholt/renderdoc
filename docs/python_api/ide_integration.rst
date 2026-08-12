@@ -82,6 +82,15 @@ If RenderDoc has detected your installation of VS Code it also provides convenie
 .. warning::
     By default, RenderDoc creates a :file:`.vscode` folder and :file:`launch.json` configuring the debugging setup for attaching, but it will not overwrite an existing file. Be warned that VS Code's default remote attach configuration contains "path mappings" which can cause RenderDoc debugging to not function correctly, since remote attach is normally not used on the same folder. It is strongly recommended you delete any path mappings and restart RenderDoc & VS Code if you have already tried to attach.
 
+Debugging workflow
+------------------
+
+When using an external python debugger such as VS Code, it can be attached to the RenderDoc UI at any time as long as RenderDoc has detected or been configured for the appropriate ``debugpy`` module. Attaching must be initiated from the IDE side and can't be started from RenderDoc - the attach debugger button within RenderDoc's UI only launches the IDE and possibly triggers it to attach immediately, but is not necessary if you already have your IDE open.
+
+When attached, the external debugger will debug all python code in RenderDoc even if it has a project open that only contains e.g. one script or one UI extension. You can reattach at any time from the relevant project, with nothing needed on the RenderDoc side.
+
+RenderDoc's python debugger connection is singleton though so only one IDE/debugger can be attached at a time, and only the first instance of the UI to start will be available to connect to.
+
 Next steps
 ----------
 
