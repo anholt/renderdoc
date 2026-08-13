@@ -510,6 +510,8 @@ def gen_class(file: Stream, class_obj: Type):
             file.println("")
         if len(constructors) > 0:
             file.println("")
+            file.println("def __init__(self): pass")
+            file.println("")
 
         for item_name in class_obj.__dict__.keys():
             if item_name.startswith("__"):
