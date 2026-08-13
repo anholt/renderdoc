@@ -59,6 +59,7 @@ class EditorWrapper : public QFrame
   RDLabel *m_Warning;
 
   QString m_Filename;
+  QString m_Title;
   bool m_Modified = false;
 
   bool m_UIExt = false;
@@ -73,6 +74,9 @@ public:
 
   QString filename() { return m_Filename; }
   void setFilename(QString filename);
+
+  QString title() { return m_Title; }
+  void setTitle(QString title);
 
   void setWarning(QString text);
 

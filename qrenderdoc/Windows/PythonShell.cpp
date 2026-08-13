@@ -76,6 +76,8 @@ EditorWrapper::EditorWrapper(PythonShell *parent) : QFrame(parent), m_PyShell(pa
   layout()->setSpacing(0);
   layout()->setMargin(0);
   layout()->setContentsMargins(0, 0, 0, 0);
+
+  m_Title = tr("Untitled Script");
 }
 
 EditorWrapper::~EditorWrapper()
@@ -86,6 +88,16 @@ EditorWrapper::~EditorWrapper()
 void EditorWrapper::setFilename(QString filename)
 {
   m_Filename = filename;
+  if(!m_Filename.isEmpty())
+    m_Title.clear();
+  updateTitle();
+}
+
+void EditorWrapper::setTitle(QString title)
+{
+  if(!m_Filename.isEmpty())
+    return;
+  m_Title = title;
   updateTitle();
 }
 
@@ -107,9 +119,9 @@ void EditorWrapper::updateTitle()
   if(m_Filename.isEmpty())
   {
     if(isModified())
-      setWindowTitle(lit("Untitled Script *"));
+      setWindowTitle(m_Title + lit(" *"));
     else
-      setWindowTitle(lit("Untitled Script"));
+      setWindowTitle(m_Title);
   }
   else
   {
@@ -1583,19 +1595,21 @@ void PythonShell::on_projectExplorer_itemActivated(RDTreeWidgetItem *item, int c
   }
   else if(item->parent() == m_Examples)
   {
-    QString filename = tr("Example: ") + item->text(0);
+    QString title = tr("Example: ") + item->text(0);
     QString text = item->data(0, Qt::UserRole).toString();
 
     for(EditorWrapper *edit : m_Editors)
     {
-      if(edit->filename() == filename)
+      if(edit->filename() == title || edit->title() == title)
       {
         ToolWindowManager::raiseToolWindow(edit);
         return;
       }
     }
 
-    CreateNewScriptEditor(filename, text);
+    CreateNewScriptEditor("", text);
+
+    m_Editors.back()->setTitle(title);
   }
   else
   {
