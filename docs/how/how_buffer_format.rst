@@ -172,6 +172,10 @@ Annotations
 
 The buffer format supports annotations on declarations to specify special properties. These use C++ ``[[annotation(parameter)]]`` syntax.
 
+Enum definitions support the following annotations:
+
+* ``[[flags]]`` or ``[[mask]]`` - The enum should be interpreted as a bitmask for matching values, and with the exception of any ``0`` values should use a bitwise AND to match against values instead of requiring equality, and list all matching values in the string representation.
+
 Struct definitions support the following annotations:
 
 * ``[[size(number)]]`` or ``[[byte_size(number)]]`` - Forces the struct to be padded up to a given size even if the contents don't require it.

@@ -1203,9 +1203,9 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
 
           for(const Annotation &annot : annotations)
           {
-            if(false)
+            if(annot.name == lit("flags") || annot.name == lit("mask"))
             {
-              // no annotations supported currently on enums
+              cur->structDef.type.flags |= ShaderVariableFlags::BinaryDisplay;
             }
             else
             {
@@ -1245,9 +1245,9 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
           }
 
           cur->structDef.type.matrixByteStride = VarTypeByteSize(tmp.type.baseType);
-          cur->structDef.type.flags = (VarTypeCompType(tmp.type.baseType) == CompType::SInt)
-                                          ? ShaderVariableFlags::SignedEnum
-                                          : ShaderVariableFlags::NoFlags;
+          cur->structDef.type.flags |= (VarTypeCompType(tmp.type.baseType) == CompType::SInt)
+                                           ? ShaderVariableFlags::SignedEnum
+                                           : ShaderVariableFlags::NoFlags;
         }
 
         continue;
@@ -1318,7 +1318,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
           }
           else if(cur->structDef.type.matrixByteStride == 8)
           {
-            el.defaultValue = valueNum.toULongLong();
+            el.defaultValue = val;
           }
         }
 
@@ -1364,7 +1364,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       {
         if(false)
         {
-          // no annotations supported currently on enums
+          // no annotations supported currently on enum values
         }
         else
         {
@@ -1397,7 +1397,7 @@ ParsedFormat BufferFormatter::ParseFormatString(const QString &formatString, uin
       {
         if(false)
         {
-          // no annotations supported currently on enums
+          // no annotations supported currently on bitfield skip elements
         }
         else
         {
@@ -3529,7 +3529,11 @@ static void FillShaderVarData(ShaderVariable &var, const ShaderConstant &elem, c
         case VarType::SByte:
           var.value.u8v[dst] = (int8_t)qBound((int)INT8_MIN, o.toInt(), (int)INT8_MAX);
           break;
-        case VarType::Enum: var.value.u64v[dst] = o.value<EnumInterpValue>().val; break;
+        case VarType::Enum:
+          var.value.u64v[dst] = o.value<EnumInterpValue>().val;
+          var.members.push_back(ShaderVariable(o.value<EnumInterpValue>().str, 0U, 0U, 0U, 0U));
+          var.members.back().value.u64v[0] = var.value.u64v[dst];
+          break;
         case VarType::GPUPointer:
           var.SetTypedPointer(o.toULongLong(), ResourceId(), elem.type.pointerTypeID);
           break;
@@ -4067,13 +4071,45 @@ QVariantList GetVariants(ResourceFormat format, const ShaderConstant &var, const
           {
             EnumInterpValue newval;
             newval.val = ret.back().toULongLong();
+            if(var.type.flags & ShaderVariableFlags::SignedEnum)
+              newval.val = ret.back().toLongLong();
 
-            for(size_t i = 0; i < var.type.members.size(); i++)
+            // is it a flags enum?
+            if(var.type.flags & ShaderVariableFlags::BinaryDisplay)
             {
-              if(newval.val == var.type.members[i].defaultValue)
+              for(size_t i = 0; i < var.type.members.size(); i++)
               {
-                newval.str = var.type.members[i].name;
-                break;
+                // special handling for a 0 case, since that will always match otherwise
+                if(newval.val == 0 && var.type.members[i].defaultValue == 0)
+                {
+                  newval.str = var.type.members[i].name;
+                  break;
+                }
+                if(newval.val & var.type.members[i].defaultValue)
+                {
+                  newval.str += var.type.members[i].name;
+                  newval.str += lit(" | ");
+                }
+              }
+
+              if(newval.str.isEmpty())
+              {
+                newval.str = QApplication::translate("BufferFormatter", "No bits set");
+              }
+              else if(newval.str.endsWith(lit(" | ")))
+              {
+                newval.str.resize(newval.str.count() - 3);
+              }
+            }
+            else
+            {
+              for(size_t i = 0; i < var.type.members.size(); i++)
+              {
+                if(newval.val == var.type.members[i].defaultValue)
+                {
+                  newval.str = var.type.members[i].name;
+                  break;
+                }
               }
             }
 
@@ -5782,6 +5818,82 @@ MyEnum e;
     CHECK(parsed.fixed.type.members[0].type.matrixByteStride == 2);
     CHECK(parsed.fixed.type.members[0].type.members[0].name == "Val");
     CHECK(parsed.fixed.type.members[0].type.members[0].defaultValue == 0);
+
+    def = R"(
+#pack(scalar)
+
+enum MyEnum : ushort
+{
+  A = 0,
+  B = 1,
+  C = 2,
+  D = 3,
+};
+
+[[flags]]
+enum MyFlags : ushort
+{
+  FlagA = 0,
+  FlagB = 1,
+  FlagC = 2,
+  FlagD = 4,
+};
+
+struct wrapper
+{
+  MyEnum e[2];
+  MyFlags f[2];
+};
+)";
+    parsed = BufferFormatter::ParseFormatString(def, 0, true);
+
+    REQUIRE(parsed.errors.isEmpty());
+
+    struct wrapper
+    {
+      uint16_t e0 = 1;
+      uint16_t e1 = 2;
+      uint16_t f0 = 0;
+      uint16_t f1 = 3;
+    } w;
+
+    const byte *data = (const byte *)&w;
+
+    ShaderVariable var = InterpretShaderVar(parsed.fixed, data, data + sizeof(wrapper));
+
+    REQUIRE(var.members.size() == 2);
+    ShaderVariable e = var.members[0];
+    ShaderVariable f = var.members[1];
+    CHECK(e.name == "e");
+    CHECK(f.name == "f");
+
+    REQUIRE(e.members.size() == 2);
+    ShaderVariable e0 = e.members[0];
+    ShaderVariable e1 = e.members[1];
+    CHECK(e0.name == "e[0]");
+    CHECK(e1.name == "e[1]");
+
+    REQUIRE(f.members.size() == 2);
+    ShaderVariable f0 = f.members[0];
+    ShaderVariable f1 = f.members[1];
+    CHECK(f0.name == "f[0]");
+    CHECK(f1.name == "f[1]");
+
+    CHECK(e0.value.u64v[0] == 1);
+    REQUIRE(e0.members.size() == 1);
+    CHECK(e0.members[0].name == "B");
+
+    CHECK(e1.value.u64v[0] == 2);
+    REQUIRE(e1.members.size() == 1);
+    CHECK(e1.members[0].name == "C");
+
+    CHECK(f0.value.u64v[0] == 0);
+    REQUIRE(f0.members.size() == 1);
+    CHECK(f0.members[0].name == "FlagA");
+
+    CHECK(f1.value.u64v[0] == 3);
+    REQUIRE(f1.members.size() == 1);
+    CHECK(f1.members[0].name == "FlagB | FlagC");
   };
 
   SECTION("bitfields")
