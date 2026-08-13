@@ -825,11 +825,13 @@ def gen(module: types.ModuleType, destpath: str):
         for name, stream in separate_decls.items():
 
             filename = name
+            circular = False
             if name in file_map.keys():
                 filename = file_map[filename]
+                circular = True
 
                 with open(
-                    os.path.join(output_basepath, name + ".py"),
+                    os.path.join(output_basepath, f"_{name}.py"),
                     mode="a",
                     newline=nl,
                     encoding="utf-8",
@@ -838,6 +840,8 @@ def gen(module: types.ModuleType, destpath: str):
 
                     out.println("# Classes in combined file for circular dependency")
                     out.println(f"from .{filename} import {name}")
+            else:
+                filename = "_" + name
 
             with open(
                 os.path.join(output_basepath, filename + ".py"),
@@ -849,7 +853,7 @@ def gen(module: types.ModuleType, destpath: str):
 
                 circular = None
 
-                if filename != name and filename not in files_written:
+                if circular and filename not in files_written:
                     out.println(
                         "# File with multiple classes to resolve circular dependency"
                     )
@@ -867,7 +871,7 @@ def gen(module: types.ModuleType, destpath: str):
                             if obj in dummy_types:
                                 needed_dummies.append(obj)
                             else:
-                                out.println(f"from .{obj} import {obj}")
+                                out.println(f"from ._{obj} import {obj}")
                     else:
                         objs = ", ".join(imports[dep])
                         out.println(f"from {dep} import {objs}")
@@ -895,7 +899,7 @@ def gen(module: types.ModuleType, destpath: str):
 
                 files_written.append(filename)
 
-            init.println(f"from .{name} import {name}")
+            init.println(f"from .{filename} import {name}")
 
         init.println("")
         init.println("# Functions")
