@@ -697,17 +697,17 @@ void PythonShell::editorTab_Menu(const QPoint &pos)
   contextMenu.addAction(&closeOtherTabs);
   contextMenu.addAction(&closeRightTabs);
 
-  QObject::connect(&closeTab, &QAction::triggered, [this, editorTabs, tabIndex]() {
+  QObject::connect(&closeTab, &QAction::triggered, [editorTabs, tabIndex]() {
     // remove the tab at this index
     delete editorTabs->widget(tabIndex);
   });
 
-  QObject::connect(&closeRightTabs, &QAction::triggered, [this, editorTabs, tabIndex]() {
+  QObject::connect(&closeRightTabs, &QAction::triggered, [editorTabs, tabIndex]() {
     for(int i = editorTabs->count() - 1; i > tabIndex; i--)
       delete editorTabs->widget(i);
   });
 
-  QObject::connect(&closeOtherTabs, &QAction::triggered, [this, editorTabs, tabIndex]() {
+  QObject::connect(&closeOtherTabs, &QAction::triggered, [editorTabs, tabIndex]() {
     for(int i = editorTabs->count() - 1; i >= 0; i--)
       if(i != tabIndex)
         delete editorTabs->widget(i);
@@ -950,7 +950,7 @@ void PythonShell::makeEditor(rdcstr filename, rdcstr text)
   QObject::connect(sc, &ScintillaEdit::charAdded, [this, sc](int ch) { doAutocomplete(sc); });
 
   QObject::connect(sc, &ScintillaEdit::buttonPressed,
-                   [this, sc](QMouseEvent *ev) { hideFunccompleteTooltip(); });
+                   [this](QMouseEvent *ev) { hideFunccompleteTooltip(); });
 
   QObject::connect(sc, &ScintillaEdit::keyPressed, [this, sc](QKeyEvent *ev) {
     if(ev->key() == Qt::Key_Space && (ev->modifiers() & Qt::ControlModifier))
@@ -1825,8 +1825,8 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   QAction undo(tr("Undo"), this);
   QAction redo(tr("Redo"), this);
 
-  QObject::connect(&undo, &QAction::triggered, [this, editor] { editor->undo(); });
-  QObject::connect(&redo, &QAction::triggered, [this, editor] { editor->redo(); });
+  QObject::connect(&undo, &QAction::triggered, [editor] { editor->undo(); });
+  QObject::connect(&redo, &QAction::triggered, [editor] { editor->redo(); });
 
   undo.setEnabled(editor->canUndo());
   redo.setEnabled(editor->canRedo());
@@ -1840,15 +1840,15 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   QAction pasteText(tr("Paste"), this);
   QAction deleteText(tr("Delete"), this);
 
-  QObject::connect(&cutText, &QAction::triggered, [this, editor] { editor->cut(); });
+  QObject::connect(&cutText, &QAction::triggered, [editor] { editor->cut(); });
 
-  QObject::connect(&copyText, &QAction::triggered, [this, editor] {
+  QObject::connect(&copyText, &QAction::triggered, [editor] {
     editor->copyRange(editor->selectionStart(), editor->selectionEnd());
   });
 
-  QObject::connect(&pasteText, &QAction::triggered, [this, editor] { editor->paste(); });
+  QObject::connect(&pasteText, &QAction::triggered, [editor] { editor->paste(); });
 
-  QObject::connect(&deleteText, &QAction::triggered, [this, editor] {
+  QObject::connect(&deleteText, &QAction::triggered, [editor] {
     editor->deleteRange(editor->selectionStart(), editor->selectionEnd());
   });
 
@@ -1868,7 +1868,7 @@ void PythonShell::editor_contextMenu(const QPoint &pos)
   pasteText.setEnabled(editor->canPaste());
 
   QAction selectAll(tr("Select All"), this);
-  QObject::connect(&selectAll, &QAction::triggered, [this, editor] { editor->selectAll(); });
+  QObject::connect(&selectAll, &QAction::triggered, [editor] { editor->selectAll(); });
   contextMenu.addAction(&selectAll);
 
   RDDialog::show(&contextMenu, editor->viewport()->mapToGlobal(pos));
@@ -1963,7 +1963,7 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
       }
 
       QObject::connect(&explorerOpen, &QAction::triggered,
-                       [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });
+                       [diskLocation]() { QDesktopServices::openUrl(diskLocation); });
 
       QObject::connect(&viewOutput, &QAction::triggered, [this, itemPath]() {
         ShowOutput();
@@ -1986,7 +1986,7 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
                        [this, item]() { on_projectExplorer_itemActivated(item, 0); });
 
       QObject::connect(&explorerOpen, &QAction::triggered,
-                       [this, diskLocation]() { QDesktopServices::openUrl(diskLocation); });
+                       [diskLocation]() { QDesktopServices::openUrl(diskLocation); });
     }
   }
   else if(item == m_UIExtensions)

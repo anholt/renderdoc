@@ -449,7 +449,7 @@ struct ReplayControllerInvoker : IReplayController
     if(scriptContext)
       scriptContext->PausePythonThreading();
     m_Ctx.Replay().BlockInvoke(
-        [this, ptr, params...](IReplayController *replay) { (replay->*ptr)(params...); });
+        [ptr, params...](IReplayController *replay) { (replay->*ptr)(params...); });
     if(scriptContext)
       scriptContext->ResumePythonThreading();
   }
@@ -461,9 +461,8 @@ struct ReplayControllerInvoker : IReplayController
     PythonContext *scriptContext = m_Shell->GetScriptContext();
     if(scriptContext)
       scriptContext->PausePythonThreading();
-    m_Ctx.Replay().BlockInvoke([this, &ret, ptr, params...](IReplayController *replay) {
-      ret = (replay->*ptr)(params...);
-    });
+    m_Ctx.Replay().BlockInvoke(
+        [&ret, ptr, params...](IReplayController *replay) { ret = (replay->*ptr)(params...); });
     if(scriptContext)
       scriptContext->ResumePythonThreading();
     return ret;
@@ -476,9 +475,8 @@ struct ReplayControllerInvoker : IReplayController
     PythonContext *scriptContext = m_Shell->GetScriptContext();
     if(scriptContext)
       scriptContext->PausePythonThreading();
-    m_Ctx.Replay().BlockInvoke([this, &ret, ptr, params...](IReplayController *replay) {
-      ret = &(replay->*ptr)(params...);
-    });
+    m_Ctx.Replay().BlockInvoke(
+        [&ret, ptr, params...](IReplayController *replay) { ret = &(replay->*ptr)(params...); });
     if(scriptContext)
       scriptContext->ResumePythonThreading();
     return *ret;

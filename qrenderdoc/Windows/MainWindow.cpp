@@ -757,7 +757,7 @@ void MainWindow::OnCaptureTrigger(const QString &exe, const QString &workingDir,
   if(!PromptCloseCapture())
     return;
 
-  ExecuteResult ret;
+  ExecuteResult ret = {};
 
   LambdaThread *th = new LambdaThread([this, exe, workingDir, cmdLine, env, opts, callback, &ret]() {
     if(isUnshareableDeviceInUse())
@@ -825,7 +825,7 @@ void MainWindow::OnInjectTrigger(uint32_t PID, const rdcarray<EnvironmentModific
   if(!PromptCloseCapture())
     return;
 
-  ExecuteResult ret;
+  ExecuteResult ret = {};
 
   LambdaThread *th = new LambdaThread([this, PID, env, name, opts, callback, &ret]() {
     QString capturefile = m_Ctx.TempCaptureFilename(name);
