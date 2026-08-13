@@ -29,5 +29,6 @@ The examples will also usually check to see if a capture is open, and prompt for
     mem_binds
     history_debug
     mesh_output
+    advanced_buffers
     exe_launching
     event_filter

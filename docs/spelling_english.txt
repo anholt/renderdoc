@@ -39,6 +39,9 @@ initialises
 Initialises
 initialising
 Initialising
+generalise
+generalised
+generalising
 labelled
 Maths
 maximise

@@ -444,6 +444,7 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
       {tr("Memory bindings"), lit(":/py/examples/mem_binds.py")},
       {tr("Pixel History & Shader Debug"), lit(":/py/examples/history_debug.py")},
       {tr("Mesh Output"), lit(":/py/examples/mesh_output.py")},
+      {tr("Advanced Buffers"), lit(":/py/examples/advanced_buffers.py")},
       {tr("Launching an application"), lit(":/py/examples/exe_launching.py")},
       {tr("Custom event filter"), lit(":/py/examples/event_filter.py")},
       {tr("Mini-Qt UI"), lit(":/py/examples/miniqt_ui.py")},

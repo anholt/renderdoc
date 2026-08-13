@@ -11,6 +11,7 @@
         <file alias="examples/mem_binds.py">../../docs/python_api/examples/mem_binds.py</file>
         <file alias="examples/history_debug.py">../../docs/python_api/examples/history_debug.py</file>
         <file alias="examples/mesh_output.py">../../docs/python_api/examples/mesh_output.py</file>
+        <file alias="examples/advanced_buffers.py">../../docs/python_api/examples/advanced_buffers.py</file>
         <file alias="examples/miniqt_ui.py">../../docs/python_api/examples/miniqt_ui.py</file>
         <file alias="examples/exe_launching.py">../../docs/python_api/examples/exe_launching.py</file>
         <file alias="examples/event_filter.py">../../docs/python_api/examples/event_filter.py</file>
