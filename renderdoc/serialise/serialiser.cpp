@@ -500,13 +500,15 @@ void Serialiser<SerialiserMode::Writing>::EndChunk()
 
     RDCASSERT(curOffset > chunkOffset);
 
-    uint64_t chunkLength = (curOffset - chunkOffset) - sizeof(uint32_t);
+    uint64_t chunkLength = (curOffset - chunkOffset);
     if(m_ChunkMetadata.length == LARGE_CHUNK_SIZE)
     {
+      chunkLength -= sizeof(uint64_t);
       m_Write->WriteAt(chunkOffset, chunkLength);
     }
     else
     {
+      chunkLength -= sizeof(uint32_t);
       if(chunkLength > 0xffffffff)
       {
         RDCERR("!!! CHUNK LENGTH %llu EXCEEDED 32 BIT VALUE. CAPTURE WILL BE CORRUPTED. !!!",
