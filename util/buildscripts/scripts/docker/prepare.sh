@@ -131,9 +131,9 @@ make install
 cd ..
 
 # build python locally to static link against
-wget https://www.python.org/ftp/python/3.6.1/Python-3.6.1.tgz
-tar xf Python-3.6.1.tgz
-cd Python-3.6.1
+wget https://www.python.org/ftp/python/3.8.20/Python-3.8.20.tgz
+tar xf Python-3.8.20.tgz
+cd Python-3.8.20
 ./configure --prefix=/usr
 make -j$(nproc)
 make install
