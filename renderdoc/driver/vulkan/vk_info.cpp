@@ -1165,6 +1165,27 @@ void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
     }
   }
 
+  const VkShaderDescriptorSetAndBindingMappingInfoEXT *mappingInfo =
+      (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+          pCreateInfo, VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+  if(mappingInfo)
+  {
+    for(uint32_t j = 0; j < mappingInfo->mappingCount; j++)
+    {
+      const VkDescriptorSetAndBindingMappingEXT *vkMap = &mappingInfo->pMappings[j];
+      DescriptorMapping map;
+
+      map.descriptorSet = vkMap->descriptorSet;
+      map.firstBinding = vkMap->firstBinding;
+      map.bindingCount = vkMap->bindingCount;
+      map.resourceMask = vkMap->resourceMask;
+      map.source = vkMap->source;
+      map.sourceData = vkMap->sourceData;
+
+      shad.descriptorMappings.push_back(map);
+    }
+  }
+
   const VkCustomResolveCreateInfoEXT *customResInfo =
       (const VkCustomResolveCreateInfoEXT *)FindNextStruct(
           pCreateInfo, VK_STRUCTURE_TYPE_CUSTOM_RESOLVE_CREATE_INFO_EXT);
@@ -1368,7 +1389,6 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
           (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
               &pCreateInfo->pStages[i],
               VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
-      // XXX: need this for shader objects, too?
       if(mappingInfo)
       {
         for(uint32_t j = 0; j < mappingInfo->mappingCount; j++)
