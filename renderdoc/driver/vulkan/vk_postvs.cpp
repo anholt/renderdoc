@@ -6320,6 +6320,12 @@ void VulkanReplay::InitPostVSBuffers(uint32_t eventId, VulkanRenderState state)
     return;
   }
 
+  if(state.UsingDescHeaps())
+  {
+    ret.gsout.status = ret.vsout.status = "Post-VS output not yet supported with descriptor heaps";
+    return;
+  }
+
   VkMarkerRegion::Begin(StringFormat::Fmt("FetchVSOut for %u", eventId));
 
   FetchVSOut(eventId, state);
