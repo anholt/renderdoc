@@ -1424,7 +1424,6 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
           (const VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
               &pCreateInfo->pStages[i],
               VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
-      // XXX: need this for shader objects, too?
       if(mappingInfo)
         shad.InitDescriptorMappings(resourceMan, info, mappingInfo);
     }

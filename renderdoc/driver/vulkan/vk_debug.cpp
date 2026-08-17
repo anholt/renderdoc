@@ -3459,10 +3459,10 @@ VulkanReplay::AddedDescriptorData VulkanReplay::PrepareExtraBufferDescriptor(
     }
     else
     {
-      pushRanges =
-          c.m_PipelineLayout[srcPipeState.bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? pipe.compLayout
-                                                                                      : pipe.vertLayout]
-              .pushRanges;
+      ResourceId layout = srcPipeState.bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? pipe.compLayout
+                                                                                   : pipe.vertLayout;
+      if(layout != ResourceId())
+        pushRanges = c.m_PipelineLayout[layout].pushRanges;
     }
 
     // the spec says only one push constant range may be used per stage, so at most one has
@@ -3503,19 +3503,22 @@ VulkanReplay::AddedDescriptorData VulkanReplay::PrepareExtraBufferDescriptor(
       }
     }
 
-    // create pipeline layout with new descriptor set layouts
-    VkPipelineLayoutCreateInfo pipeLayoutInfo = {
-        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        NULL,
-        0,
-        (uint32_t)ret.setLayouts.size(),
-        ret.setLayouts.data(),
-        (uint32_t)pushRanges.size(),
-        pushRanges.data(),
-    };
+    if(!state.UsingDescHeaps())
+    {
+      // create pipeline layout with new descriptor set layouts
+      VkPipelineLayoutCreateInfo pipeLayoutInfo = {
+          VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+          NULL,
+          0,
+          (uint32_t)ret.setLayouts.size(),
+          ret.setLayouts.data(),
+          (uint32_t)pushRanges.size(),
+          pushRanges.data(),
+      };
 
-    vkr = m_pDriver->vkCreatePipelineLayout(dev, &pipeLayoutInfo, NULL, &ret.pipeLayout);
-    CHECK_VKR(m_pDriver, vkr);
+      vkr = m_pDriver->vkCreatePipelineLayout(dev, &pipeLayoutInfo, NULL, &ret.pipeLayout);
+      CHECK_VKR(m_pDriver, vkr);
+    }
 
     if(vertexPatchedToCompute)
     {
