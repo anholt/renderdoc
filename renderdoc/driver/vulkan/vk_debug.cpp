@@ -3503,19 +3503,22 @@ VulkanReplay::AddedDescriptorData VulkanReplay::PrepareExtraBufferDescriptor(
       }
     }
 
-    // create pipeline layout with new descriptor set layouts
-    VkPipelineLayoutCreateInfo pipeLayoutInfo = {
-        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        NULL,
-        0,
-        (uint32_t)ret.setLayouts.size(),
-        ret.setLayouts.data(),
-        (uint32_t)pushRanges.size(),
-        pushRanges.data(),
-    };
+    if(!state.UsingDescHeaps())
+    {
+      // create pipeline layout with new descriptor set layouts
+      VkPipelineLayoutCreateInfo pipeLayoutInfo = {
+          VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+          NULL,
+          0,
+          (uint32_t)ret.setLayouts.size(),
+          ret.setLayouts.data(),
+          (uint32_t)pushRanges.size(),
+          pushRanges.data(),
+      };
 
-    vkr = m_pDriver->vkCreatePipelineLayout(dev, &pipeLayoutInfo, NULL, &ret.pipeLayout);
-    CHECK_VKR(m_pDriver, vkr);
+      vkr = m_pDriver->vkCreatePipelineLayout(dev, &pipeLayoutInfo, NULL, &ret.pipeLayout);
+      CHECK_VKR(m_pDriver, vkr);
+    }
 
     if(vertexPatchedToCompute)
     {
