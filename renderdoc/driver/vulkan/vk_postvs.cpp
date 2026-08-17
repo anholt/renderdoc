@@ -4448,7 +4448,8 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
   // we should always get a new pipeline layout when we're doing vertex-to-compute, since even if we
   // don't change set layouts we might need to fiddle with push constants (and we don't skip the new
   // layout create if there are no push ranges)
-  RDCASSERT(patchedBufferdata.pipeLayout != VK_NULL_HANDLE);
+  if(!state.UsingDescHeaps())
+    RDCASSERT(patchedBufferdata.pipeLayout != VK_NULL_HANDLE);
 
   VkBuffer meshBuffer = VK_NULL_HANDLE, readbackBuffer = VK_NULL_HANDLE;
   VkDeviceMemory meshMem = VK_NULL_HANDLE, readbackMem = VK_NULL_HANDLE;
@@ -4815,6 +4816,7 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
       shaderCreateInfo, state.shaderObjects[(size_t)ShaderStage::Vertex]);
 
   // copy over specialization info
+  const VkPipelineShaderStageCreateInfo *stageCreateInfo = NULL;
   const VkSpecializationInfo *prevSpecInfo = NULL;
 
   if(state.graphics.shaderObject)
@@ -4827,6 +4829,7 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
     {
       if(pipeCreateInfo.pStages[s].stage == VK_SHADER_STAGE_VERTEX_BIT)
       {
+        stageCreateInfo = &pipeCreateInfo.pStages[s];
         prevSpecInfo = pipeCreateInfo.pStages[s].pSpecializationInfo;
         break;
       }
@@ -5358,6 +5361,7 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
   }
 
   VkComputePipelineCreateInfo compPipeInfo = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+  VkPipelineCreateFlags2CreateInfo flags2 = {VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO};
 
   // repoint pipeline layout
   compPipeInfo.layout = patchedBufferdata.pipeLayout;
@@ -5457,6 +5461,30 @@ void VulkanReplay::FetchVSOut(uint32_t eventId, VulkanRenderState &state)
   specInfo.pMapEntries = specEntries.data();
 
   compPipeInfo.stage.pSpecializationInfo = &specInfo;
+
+  VkShaderDescriptorSetAndBindingMappingInfoEXT mapping;
+  if(state.UsingDescHeaps())
+  {
+    flags2.flags = compPipeInfo.flags | VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+    flags2.pNext = compPipeInfo.pNext;
+    compPipeInfo.pNext = &flags2;
+
+    // Chain any original set and binding mappings onto our compute pipeline.
+    VkShaderDescriptorSetAndBindingMappingInfoEXT *orig_mapping;
+    if(stageCreateInfo)
+      orig_mapping = (VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+          stageCreateInfo, VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+    else
+      orig_mapping = (VkShaderDescriptorSetAndBindingMappingInfoEXT *)FindNextStruct(
+          &shaderCreateInfo, VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT);
+
+    if(orig_mapping)
+    {
+      mapping = *orig_mapping;
+      mapping.pNext = compPipeInfo.stage.pNext;
+      compPipeInfo.stage.pNext = &mapping;
+    }
+  };
 
   // create new pipeline
   VkPipeline pipe;
@@ -6339,6 +6367,12 @@ void VulkanReplay::InitPostVSBuffers(uint32_t eventId, VulkanRenderState state)
   if(noTessGS)
   {
     ret.gsout.status = "No geometry and no tessellation shader bound.";
+    return;
+  }
+
+  if(state.UsingDescHeaps())
+  {
+    ret.gsout.status = "Post-VS output not yet supported with descriptor heaps";
     return;
   }
 

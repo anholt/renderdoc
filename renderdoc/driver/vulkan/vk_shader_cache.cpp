@@ -634,6 +634,8 @@ void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &p
 
   static VkPipelineShaderStageRequiredSubgroupSizeCreateInfo reqSubgroupSize[NumShaderStages] = {};
   static VkPipelineRobustnessCreateInfo shaderRobustness[NumShaderStages] = {};
+  static rdcarray<VkDescriptorSetAndBindingMappingEXT> mappings[NumShaderStages] = {};
+  static VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo[NumShaderStages] = {};
 
   // reserve space for spec constants
   for(uint32_t i = 0; i < NumShaderStages; i++)
@@ -690,6 +692,31 @@ void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &p
         specInfo[i].pData = specdata.data();
 
         entry += specInfo[i].mapEntryCount;
+      }
+
+      if(pipeInfo.shaders[i].descriptorMappings.size() != 0)
+      {
+        mappings[i].clear();
+        for(const VulkanCreationInfo::DescriptorMapping &mapping :
+            pipeInfo.shaders[i].descriptorMappings)
+        {
+          VkDescriptorSetAndBindingMappingEXT m;
+          m.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+          m.pNext = NULL;
+          m.descriptorSet = mapping.descriptorSet;
+          m.firstBinding = mapping.firstBinding;
+          m.bindingCount = mapping.bindingCount;
+          m.resourceMask = mapping.resourceMask;
+          m.source = mapping.source;
+          m.sourceData = mapping.sourceData;
+          mappings[i].push_back(m);
+        }
+
+        mappingInfo[i].sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT;
+        mappingInfo[i].pMappings = mappings[i].data();
+        mappingInfo[i].mappingCount = mappings[i].size();
+        mappingInfo[i].pNext = stages[stageCount].pNext;
+        stages[stageCount].pNext = &mappingInfo[i];
       }
 
       stageCount++;
@@ -1357,6 +1384,32 @@ void VulkanShaderCache::MakeShaderObjectInfo(VkShaderCreateInfoEXT &shadCreateIn
 
     specInfo.dataSize = specdata.size() * sizeof(uint64_t);
     specInfo.pData = specdata.data();
+  }
+
+  static rdcarray<VkDescriptorSetAndBindingMappingEXT> mappings = {};
+  static VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo = {};
+  if(shadInfo.shad.descriptorMappings.size() != 0)
+  {
+    mappings.clear();
+    for(const VulkanCreationInfo::DescriptorMapping &mapping : shadInfo.shad.descriptorMappings)
+    {
+      VkDescriptorSetAndBindingMappingEXT m;
+      m.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+      m.pNext = NULL;
+      m.descriptorSet = mapping.descriptorSet;
+      m.firstBinding = mapping.firstBinding;
+      m.bindingCount = mapping.bindingCount;
+      m.resourceMask = mapping.resourceMask;
+      m.source = mapping.source;
+      m.sourceData = mapping.sourceData;
+      mappings.push_back(m);
+    }
+
+    mappingInfo.sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT;
+    mappingInfo.pMappings = mappings.data();
+    mappingInfo.mappingCount = mappings.size();
+    mappingInfo.pNext = shadCreateInfo.pNext;
+    shadCreateInfo.pNext = &mappingInfo;
   }
 
   static VkCustomResolveCreateInfoEXT customResCreate = {
