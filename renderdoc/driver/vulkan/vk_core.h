@@ -145,7 +145,7 @@ struct VulkanActionTreeNode
 
   struct DeferredResourceUsage
   {
-    uint32_t descBufVersionIdx;
+    uint32_t snapshotVersionIdx;
     ResourceId pipeline;
     ResourceId shaderObjects[NumShaderStages];
     rdcarray<VulkanStatePipeline::DescriptorAndOffsets> descSets;
@@ -868,8 +868,8 @@ private:
     uint32_t curEventID;             // current event ID while reading or executing
     uint32_t actionCount;            // similar to above
 
-    // the index in m_DescriptorBufferVersions for the current GPUBuffer containing the descriptor buffer snapshot
-    uint32_t descBufVersionIdx = ~0U;
+    // the index in m_MemorySnapshots for the current GPUBuffer containing the descriptor buffer snapshot
+    uint32_t snapshotVersionIdx = ~0U;
     // when multiple buffers are bound, the offsets of each in the single GPUBuffer where they are
     rdcarray<uint64_t> descBufOffsets;
 
@@ -1119,10 +1119,10 @@ private:
   // immutable creation data
   VulkanCreationInfo m_CreationInfo;
 
-  rdcarray<GPUBuffer> m_DescriptorBufferVersions;
+  rdcarray<GPUBuffer> m_MemorySnapshots;
   void VersionDescriptorBuffers(VkCommandBuffer cmd);
-  void CopyVersionedDescriptorBuffer(VkCommandBuffer cmdBuf, VkBuffer unwrappedDstBuf,
-                                     const rdcarray<rdcpair<VkDeviceAddress, uint64_t>> &copyOffsets);
+  void CopyVersionedRanges(VkCommandBuffer cmdBuf, VkBuffer unwrappedDstBuf,
+                           const rdcarray<rdcpair<VkDeviceAddress, uint64_t>> &copyOffsets);
 
   std::map<ResourceId, rdcarray<EventUsage>> m_ResourceUses;
   std::map<uint32_t, EventFlags> m_EventFlags;
