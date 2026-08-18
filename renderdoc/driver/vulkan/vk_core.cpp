@@ -6369,7 +6369,7 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
 
     VulkanEventNode::DeferredResourceUsage &def = eventNode.deferredResourceUsage.back();
 
-    def.descBufVersionIdx = m_BakedCmdBufferInfo[m_LastCmdBufferID].descBufVersionIdx;
+    def.snapshotVersionIdx = m_BakedCmdBufferInfo[m_LastCmdBufferID].snapshotVersionIdx;
     def.pipeline = pipeState.shaderObject ? ResourceId() : pipeState.pipeline;
     if(pipeState.shaderObject)
       memcpy(def.shaderObjects, state.shaderObjects, sizeof(state.shaderObjects));
@@ -6404,7 +6404,7 @@ void WrappedVulkan::AddUsage(VulkanEventNode &eventNode)
 void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
                                                  const VulkanEventNode::DeferredResourceUsage &def)
 {
-  if(def.descBufVersionIdx >= m_DescriptorBufferVersions.size())
+  if(def.snapshotVersionIdx >= m_MemorySnapshots.size())
   {
     RDCERR("Invalid deferred resource usage buffer reference");
     return;
@@ -6416,7 +6416,7 @@ void WrappedVulkan::AddUsageForDescriptorBuffers(VulkanEventNode &eventNode,
 
   rdcarray<int> shaderStages = ShaderStagesForAction(action.flags);
 
-  GPUBuffer &buf = m_DescriptorBufferVersions[def.descBufVersionIdx];
+  GPUBuffer &buf = m_MemorySnapshots[def.snapshotVersionIdx];
 
   byte *descriptorBytes = (byte *)buf.Map();
 
