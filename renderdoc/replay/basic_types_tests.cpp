@@ -461,7 +461,7 @@ struct MoveTrasher : public NonTrivial
 {
   MoveTrasher() {}
   MoveTrasher(int v) : NonTrivial(v) {}
-  MoveTrasher(const MoveTrasher &v) { val = v.val; }
+  MoveTrasher(const MoveTrasher &v) : NonTrivial(v) { val = v.val; }
   MoveTrasher(MoveTrasher &&v)
   {
     // trash on move
