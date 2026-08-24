@@ -153,6 +153,10 @@ GLuint RefreshUniforms(WrappedOpenGL *driver, GLRenderState &rs, GLuint dstProgr
                      .name;
   }
 
+  // if there's no program bound, nothing to do
+  if(srcProgram == 0)
+    return dstProgram;
+
   PerStageReflections stages;
   driver->FillReflectionArray(ProgramRes(ctx, srcProgram), stages);
 
