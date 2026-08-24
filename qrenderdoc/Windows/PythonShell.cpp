@@ -469,11 +469,6 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   m_UIExtensions->setBold(true);
   m_UIExtensions->setIcon(0, Icons::plugin());
 
-  m_NewExtension = new RDTreeWidgetItem({tr("Create new...")});
-  m_NewExtension->setData(0, Qt::UserRole + 1, m_NewExtension->text(0));
-  m_NewExtension->setItalic(true);
-  m_NewExtension->setIcon(0, Icons::plugin_add());
-
   m_RecentFiles = new RDTreeWidgetItem({lit("Recent files")});
   m_RecentFiles->setData(0, Qt::UserRole + 1, m_UIExtensions->text(0));
   m_RecentFiles->setSelectable(false);
@@ -742,6 +737,11 @@ void PythonShell::updateExtensionProjects()
 
     m_UIExtensions->addChild(root);
   }
+
+  m_NewExtension = new RDTreeWidgetItem({tr("Create new...")});
+  m_NewExtension->setData(0, Qt::UserRole + 1, m_NewExtension->text(0));
+  m_NewExtension->setItalic(true);
+  m_NewExtension->setIcon(0, Icons::plugin_add());
 
   m_UIExtensions->addChild(m_NewExtension);
 
