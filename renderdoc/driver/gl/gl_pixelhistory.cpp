@@ -1051,7 +1051,7 @@ void readPixelValues(WrappedOpenGL *driver, const GLPixelHistoryResources &resou
     driver->glReadPixels(0, 0, GLint(numPixels), 1, eGL_RGBA_INTEGER, eGL_UNSIGNED_INT,
                          (void *)intColourValues.data());
   }
-  else if(colourFormatType == eGL_UNSIGNED_INT)
+  else if(colourFormatType == eGL_INT)
   {
     driver->glReadPixels(0, 0, GLint(numPixels), 1, eGL_RGBA_INTEGER, eGL_INT,
                          (void *)intColourValues.data());
