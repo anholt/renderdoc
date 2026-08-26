@@ -953,7 +953,13 @@ void Reflector::PostParse()
   for(auto it = dataTypes.begin(); it != dataTypes.end(); ++it)
   {
     if(it->second.type == DataType::PointerType && it->second.name.empty())
-      it->second.name = StringFormat::Fmt("%s*", dataTypes[it->second.InnerType()].name.c_str());
+    {
+      if(it->second.pointerType.baseId == Id())
+        it->second.name =
+            StringFormat::Fmt("untyped_ptr<%s>", ToStr(it->second.pointerType.storage).c_str());
+      else
+        it->second.name = StringFormat::Fmt("%s*", dataTypes[it->second.InnerType()].name.c_str());
+    }
   }
 
   // finally do a last pass for arrays of pointers, now that we have pointer types

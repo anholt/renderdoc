@@ -176,6 +176,9 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint, const rdcarray<SpecConst
     if(!ret.empty())
       return ret;
 
+    if(dataTypes.find(id) != dataTypes.end())
+      return dataTypes[id].name;
+
     // if we *still* have nothing, just stringise the id itself
     return StringFormat::Fmt("_%u", id.value());
   };
@@ -392,6 +395,7 @@ rdcstr Reflector::Disassemble(const rdcstr &entryPoint, const rdcarray<SpecConst
         case Op::TypeFloat:
         case Op::TypeVector:
         case Op::TypeMatrix:
+        case Op::TypeUntypedPointerKHR:
         case Op::TypePointer:
         case Op::TypeArray:
         case Op::TypeImage:
