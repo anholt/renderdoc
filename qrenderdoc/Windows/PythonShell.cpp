@@ -796,7 +796,7 @@ EditorWrapper *PythonShell::curEditor()
   return NULL;
 }
 
-void PythonShell::makeEditor(rdcstr filename, rdcstr text)
+EditorWrapper *PythonShell::makeEditor(rdcstr filename, rdcstr text)
 {
   EditorWrapper *editor = new EditorWrapper(this);
   editor->setObjectName(lit("scriptEditor"));
@@ -1005,6 +1005,8 @@ void PythonShell::makeEditor(rdcstr filename, rdcstr text)
   sc->setText(text.c_str());
   sc->emptyUndoBuffer();
   editor->markModified(false);
+
+  return editor;
 }
 
 void PythonShell::updateEditorCloseButton()
@@ -1241,7 +1243,13 @@ bool PythonShell::LoadScriptFromFilename(rdcstr filename)
 
 void PythonShell::CreateNewScriptEditor(rdcstr name, rdcstr text)
 {
-  makeEditor(name, text);
+  EditorWrapper *ed = makeEditor("", text);
+
+  QFileInfo info(name);
+  if(info.isAbsolute() && (info.exists() || info.absoluteDir().exists()))
+    ed->setFilename(name);
+  else
+    ed->setTitle(name);
 
   ui->saveScript->setEnabled(false);
   updateNonDebugWarning();

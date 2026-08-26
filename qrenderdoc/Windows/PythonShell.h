@@ -232,7 +232,7 @@ private:
   void setupTabs();
 
   EditorWrapper *curEditor();
-  void makeEditor(rdcstr filename, rdcstr text);
+  EditorWrapper *makeEditor(rdcstr filename, rdcstr text);
 
   void updateEditorCloseButton();
   void updateNonDebugWarning();
