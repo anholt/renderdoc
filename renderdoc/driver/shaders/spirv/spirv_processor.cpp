@@ -631,6 +631,18 @@ void Processor::RegisterOp(Iter it)
     if(decoded.storageClass == StorageClass::Workgroup)
       m_ThreadScope |= ThreadScope::Workgroup;
   }
+  else if(opdata.op == Op::UntypedVariableKHR)
+  {
+    OpUntypedVariableKHR decoded(it);
+
+    // only register global variables here
+    if(decoded.storageClass != rdcspv::StorageClass::Function)
+      globals.push_back(
+          Variable(decoded.resultType, decoded.result, decoded.storageClass, decoded.initializer));
+
+    if(decoded.storageClass == StorageClass::Workgroup)
+      m_ThreadScope |= ThreadScope::Workgroup;
+  }
   else if(opdata.op == Op::ConstantNull)
   {
     OpConstantNull decoded(it);
@@ -812,6 +824,11 @@ void Processor::RegisterOp(Iter it)
     OpTypePointer decoded(it);
     dataTypes[opdata.result] = DataType(opdata.result, Pointer(decoded.type, decoded.storageClass));
   }
+  else if(opdata.op == Op::TypeUntypedPointerKHR)
+  {
+    OpTypeUntypedPointerKHR decoded(it);
+    dataTypes[opdata.result] = DataType(opdata.result, Pointer(Id(), decoded.storageClass));
+  }
   else if(opdata.op == Op::TypeArray)
   {
     OpTypeArray decoded(it);
@@ -987,9 +1004,9 @@ void Processor::UnregisterOp(Iter it)
     specConstants.erase(opdata.result);
   }
   else if(opdata.op == Op::TypeVoid || opdata.op == Op::TypeBool || opdata.op == Op::TypeInt ||
-          opdata.op == Op::TypeFloat || opdata.op == Op::TypeVector ||
-          opdata.op == Op::TypeMatrix || opdata.op == Op::TypeStruct || opdata.op == Op::TypeArray ||
-          opdata.op == Op::TypePointer || opdata.op == Op::TypeRuntimeArray ||
+          opdata.op == Op::TypeFloat || opdata.op == Op::TypeVector || opdata.op == Op::TypeMatrix ||
+          opdata.op == Op::TypeStruct || opdata.op == Op::TypeArray || opdata.op == Op::TypePointer ||
+          opdata.op == Op::TypeUntypedPointerKHR || opdata.op == Op::TypeRuntimeArray ||
           opdata.op == Op::TypeRayQueryKHR || opdata.op == Op::TypeAccelerationStructureKHR)
   {
     dataTypes[opdata.result] = DataType();
