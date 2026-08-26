@@ -232,6 +232,7 @@ Maintainers can update this file by updating vk.xml in this folder and running `
 * `VK_KHR_shader_subgroup_rotate`
 * `VK_KHR_shader_subgroup_uniform_control_flow`
 * `VK_KHR_shader_terminate_invocation`
+* `VK_KHR_shader_untyped_pointers`
 * `VK_KHR_shared_presentable_image`
 * `VK_KHR_spirv_1_4`
 * `VK_KHR_storage_buffer_storage_class`
@@ -296,7 +297,6 @@ KHR extensions will definitely be implemented at some point, though KHR extensio
 * `VK_KHR_shader_abort`
 * `VK_KHR_shader_constant_data`
 * `VK_KHR_shader_fma`
-* `VK_KHR_shader_untyped_pointers`
 
 ## KHR Portability
 
