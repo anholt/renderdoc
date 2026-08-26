@@ -128,6 +128,8 @@ Each extension references the relevant capabilities below it.
 * `SPV_KHR_subgroup_vote`
   * `SubgroupVoteKHR`
 * `SPV_KHR_terminate_invocation`
+* `SPV_KHR_untyped_pointers`
+  * `UntypedPointersKHR`
 * `SPV_KHR_vulkan_memory_model`
   * `VulkanMemoryModelKHR`
   * `VulkanMemoryModelDeviceScopeKHR`
@@ -211,8 +213,6 @@ KHR extensions will definitely be implemented at some point, though KHR extensio
 * `SPV_KHR_fragment_shading_rate`
   * `FragmentShadingRateKHR`
 * `SPV_KHR_integer_dot_product`
-* `SPV_KHR_untyped_pointers`
-  * `UntypedPointersKHR`
 * `SPV_KHR_variable_pointers`
   * `VariablePointers`
   * `VariablePointersStorageBuffer`
