@@ -309,7 +309,7 @@ struct DeviceQueueCreateInfo : public VkDeviceQueueCreateInfo
 struct DeviceCreateInfo : public VkDeviceCreateInfo
 {
   DeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo> &queues,
-                   const std::vector<const char *> &layers, const std::vector<const char *> &exts,
+                   const std::vector<const char *> &exts,
                    const VkPhysicalDeviceFeatures *features = NULL)
   {
     sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -317,17 +317,16 @@ struct DeviceCreateInfo : public VkDeviceCreateInfo
     flags = 0;
     queueCreateInfoCount = uint32_t(queues.size());
     pQueueCreateInfos = queues.data();
-    enabledLayerCount = uint32_t(layers.size());
-    ppEnabledLayerNames = layers.data();
+    enabledLayerCount = 0;
+    ppEnabledLayerNames = NULL;
     enabledExtensionCount = uint32_t(exts.size());
     ppEnabledExtensionNames = exts.data();
     pEnabledFeatures = features;
   }
 
   DeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo> &queues,
-                   const std::vector<const char *> &layers, const std::vector<const char *> &exts,
-                   const VkPhysicalDeviceFeatures &features)
-      : DeviceCreateInfo(queues, layers, exts, &features)
+                   const std::vector<const char *> &exts, const VkPhysicalDeviceFeatures &features)
+      : DeviceCreateInfo(queues, exts, &features)
   {
   }
 

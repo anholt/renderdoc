@@ -736,7 +736,7 @@ bool VulkanGraphicsTest::Init()
     queueCreates.push_back(vkh::DeviceQueueCreateInfo(transferQueueFamilyIndex, 1, priorities));
 
   CHECK_VKR(vkCreateDevice(
-      phys, vkh::DeviceCreateInfo(queueCreates, enabledLayers, devExts, features).next(devInfoNext),
+      phys, vkh::DeviceCreateInfo(queueCreates, devExts, features).next(devInfoNext),
       NULL, &device));
 
   volkLoadDevice(device);
