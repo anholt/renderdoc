@@ -616,7 +616,7 @@ void CaptureContext::RegisterWindowMenu(WindowMenu base, const rdcarray<rdcstr> 
     return;
   }
 
-  std::function<void()> slotcallback = [this, callback]() {
+  std::function<void()> slotcallback = [callback]() {
     callback(PythonContext::GetExtensionPyrenderdoc(), {});
   };
 
