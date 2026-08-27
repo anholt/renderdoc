@@ -2229,9 +2229,17 @@ void PythonShell::interactive_keypress(QKeyEvent *event)
     {
       // manually trigger a completion with tab
       case Qt::Key_Tab:
-        m_InteractiveCompleter->activated(
-            m_InteractiveCompleter->popup()->selectionModel()->currentIndex());
-        m_InteractiveCompleter->popup()->hide();
+        // allow prefixed tabs to be inserted
+        if(ui->lineInput->text().trimmed().isEmpty())
+        {
+          ui->lineInput->insert(lit("\t"));
+        }
+        else
+        {
+          m_InteractiveCompleter->activated(
+              m_InteractiveCompleter->popup()->selectionModel()->currentIndex());
+          m_InteractiveCompleter->popup()->hide();
+        }
         return;
       // if a completion is in progress ignore any events the completer will process
       case Qt::Key_Return:
