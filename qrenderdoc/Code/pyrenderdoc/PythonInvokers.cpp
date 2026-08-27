@@ -32,9 +32,9 @@
 template <typename Obj>
 struct UIThreadInvoker : Obj
 {
-  UIThreadInvoker(PythonShell *sh, Obj &o) : m_Shell(sh), m_Obj(o) {}
+  UIThreadInvoker(ICaptureContext &ctx, Obj &o) : m_Ctx(ctx), m_Obj(o) {}
   virtual ~UIThreadInvoker() {}
-  PythonShell *m_Shell;
+  ICaptureContext &m_Ctx;
   Obj &m_Obj;
 
   template <typename F, typename... paramTypes>
@@ -42,12 +42,10 @@ struct UIThreadInvoker : Obj
   {
     if(!GUIInvoke::onUIThread())
     {
-      PythonContext *scriptContext = m_Shell->GetScriptContext();
-      if(scriptContext)
-        scriptContext->PausePythonThreading();
-      GUIInvoke::blockcall(m_Shell, [this, ptr, params...]() { (m_Obj.*ptr)(params...); });
-      if(scriptContext)
-        scriptContext->ResumePythonThreading();
+      void *ctx = PythonContext::PausePythonThreading();
+      GUIInvoke::blockcall(m_Ctx.GetMainWindow()->Widget(),
+                           [this, ptr, params...]() { (m_Obj.*ptr)(params...); });
+      PythonContext::ResumePythonThreading(ctx);
       return;
     }
 
@@ -60,13 +58,10 @@ struct UIThreadInvoker : Obj
     if(!GUIInvoke::onUIThread())
     {
       R ret;
-      PythonContext *scriptContext = m_Shell->GetScriptContext();
-      if(scriptContext)
-        scriptContext->PausePythonThreading();
-      GUIInvoke::blockcall(m_Shell,
+      void *ctx = PythonContext::PausePythonThreading();
+      GUIInvoke::blockcall(m_Ctx.GetMainWindow()->Widget(),
                            [this, &ret, ptr, params...]() { ret = (m_Obj.*ptr)(params...); });
-      if(scriptContext)
-        scriptContext->ResumePythonThreading();
+      PythonContext::ResumePythonThreading(ctx);
       return ret;
     }
 
@@ -76,7 +71,7 @@ struct UIThreadInvoker : Obj
 
 struct MiniQtInvoker : UIThreadInvoker<IMiniQtHelper>
 {
-  MiniQtInvoker(PythonShell *shell, IMiniQtHelper &obj) : UIThreadInvoker(shell, obj) {}
+  MiniQtInvoker(ICaptureContext &ctx, IMiniQtHelper &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~MiniQtInvoker() {}
   void InvokeOntoUIThread(std::function<void()> callback)
   {
@@ -349,9 +344,9 @@ struct MiniQtInvoker : UIThreadInvoker<IMiniQtHelper>
 struct ExtensionInvoker : UIThreadInvoker<IExtensionManager>
 {
   MiniQtInvoker *m_MiniQt;
-  ExtensionInvoker(PythonShell *shell, IExtensionManager &obj) : UIThreadInvoker(shell, obj)
+  ExtensionInvoker(ICaptureContext &ctx, IExtensionManager &obj) : UIThreadInvoker(ctx, obj)
   {
-    m_MiniQt = new MiniQtInvoker(shell, obj.GetMiniQtHelper());
+    m_MiniQt = new MiniQtInvoker(ctx, obj.GetMiniQtHelper());
   }
   virtual ~ExtensionInvoker() { delete m_MiniQt; }
   //
@@ -437,7 +432,7 @@ struct ExtensionInvoker : UIThreadInvoker<IExtensionManager>
 
 struct ReplayControllerInvoker : IReplayController
 {
-  ReplayControllerInvoker(PythonShell *shell, ICaptureContext &ctx) : m_Shell(shell), m_Ctx(ctx) {}
+  ReplayControllerInvoker(ICaptureContext &ctx) : m_Ctx(ctx) {}
   virtual ~ReplayControllerInvoker() {}
   PythonShell *m_Shell;
   ICaptureContext &m_Ctx;
@@ -445,26 +440,20 @@ struct ReplayControllerInvoker : IReplayController
   template <typename F, typename... paramTypes>
   void InvokeVoidFunction(F ptr, paramTypes... params)
   {
-    PythonContext *scriptContext = m_Shell->GetScriptContext();
-    if(scriptContext)
-      scriptContext->PausePythonThreading();
+    void *ctx = PythonContext::PausePythonThreading();
     m_Ctx.Replay().BlockInvoke(
         [ptr, params...](IReplayController *replay) { (replay->*ptr)(params...); });
-    if(scriptContext)
-      scriptContext->ResumePythonThreading();
+    PythonContext::ResumePythonThreading(ctx);
   }
 
   template <typename R, typename F, typename... paramTypes>
   R InvokeRetFunction(F ptr, paramTypes... params)
   {
     R ret = R();
-    PythonContext *scriptContext = m_Shell->GetScriptContext();
-    if(scriptContext)
-      scriptContext->PausePythonThreading();
+    void *ctx = PythonContext::PausePythonThreading();
     m_Ctx.Replay().BlockInvoke(
         [&ret, ptr, params...](IReplayController *replay) { ret = (replay->*ptr)(params...); });
-    if(scriptContext)
-      scriptContext->ResumePythonThreading();
+    PythonContext::ResumePythonThreading(ctx);
     return ret;
   }
 
@@ -472,13 +461,10 @@ struct ReplayControllerInvoker : IReplayController
   R &InvokeRetRefFunction(F ptr, paramTypes... params)
   {
     R *ret = NULL;
-    PythonContext *scriptContext = m_Shell->GetScriptContext();
-    if(scriptContext)
-      scriptContext->PausePythonThreading();
+    void *ctx = PythonContext::PausePythonThreading();
     m_Ctx.Replay().BlockInvoke(
         [&ret, ptr, params...](IReplayController *replay) { ret = &(replay->*ptr)(params...); });
-    if(scriptContext)
-      scriptContext->ResumePythonThreading();
+    PythonContext::ResumePythonThreading(ctx);
     return *ret;
   }
 
@@ -798,7 +784,7 @@ struct ReplayControllerInvoker : IReplayController
 
 struct IMainWindowInvoker : UIThreadInvoker<IMainWindow>
 {
-  IMainWindowInvoker(PythonShell *shell, IMainWindow &obj) : UIThreadInvoker(shell, obj) {}
+  IMainWindowInvoker(ICaptureContext &ctx, IMainWindow &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~IMainWindowInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -815,7 +801,7 @@ struct IMainWindowInvoker : UIThreadInvoker<IMainWindow>
 
 struct IEventBrowserInvoker : UIThreadInvoker<IEventBrowser>
 {
-  IEventBrowserInvoker(PythonShell *shell, IEventBrowser &obj) : UIThreadInvoker(shell, obj) {}
+  IEventBrowserInvoker(ICaptureContext &ctx, IEventBrowser &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~IEventBrowserInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -891,7 +877,7 @@ struct IEventBrowserInvoker : UIThreadInvoker<IEventBrowser>
 
 struct IAPIInspectorInvoker : UIThreadInvoker<IAPIInspector>
 {
-  IAPIInspectorInvoker(PythonShell *shell, IAPIInspector &obj) : UIThreadInvoker(shell, obj) {}
+  IAPIInspectorInvoker(ICaptureContext &ctx, IAPIInspector &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~IAPIInspectorInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -904,7 +890,7 @@ struct IAPIInspectorInvoker : UIThreadInvoker<IAPIInspector>
 
 struct IAnnotationViewerInvoker : UIThreadInvoker<IAnnotationViewer>
 {
-  IAnnotationViewerInvoker(PythonShell *shell, IAnnotationViewer &obj) : UIThreadInvoker(shell, obj)
+  IAnnotationViewerInvoker(ICaptureContext &ctx, IAnnotationViewer &obj) : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IAnnotationViewerInvoker() {}
@@ -919,7 +905,7 @@ struct IAnnotationViewerInvoker : UIThreadInvoker<IAnnotationViewer>
 
 struct ITextureViewerInvoker : UIThreadInvoker<ITextureViewer>
 {
-  ITextureViewerInvoker(PythonShell *shell, ITextureViewer &obj) : UIThreadInvoker(shell, obj) {}
+  ITextureViewerInvoker(ICaptureContext &ctx, ITextureViewer &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~ITextureViewerInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -995,7 +981,7 @@ struct ITextureViewerInvoker : UIThreadInvoker<ITextureViewer>
 
 struct IBufferViewerInvoker : UIThreadInvoker<IBufferViewer>
 {
-  IBufferViewerInvoker(PythonShell *shell, IBufferViewer &obj) : UIThreadInvoker(shell, obj) {}
+  IBufferViewerInvoker(ICaptureContext &ctx, IBufferViewer &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~IBufferViewerInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -1027,8 +1013,8 @@ struct IBufferViewerInvoker : UIThreadInvoker<IBufferViewer>
 
 struct IPipelineStateViewerInvoker : UIThreadInvoker<IPipelineStateViewer>
 {
-  IPipelineStateViewerInvoker(PythonShell *shell, IPipelineStateViewer &obj)
-      : UIThreadInvoker(shell, obj)
+  IPipelineStateViewerInvoker(ICaptureContext &ctx, IPipelineStateViewer &obj)
+      : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IPipelineStateViewerInvoker() {}
@@ -1044,10 +1030,10 @@ struct IPipelineStateViewerInvoker : UIThreadInvoker<IPipelineStateViewer>
   }
 };
 
-struct ICaptureConnectionInvoker : UIThreadInvoker<ICaptureConnection>
+struct ICaptureConnectionInvoker : public UIThreadInvoker<ICaptureConnection>
 {
-  ICaptureConnectionInvoker(PythonShell *shell, ICaptureConnection &obj)
-      : UIThreadInvoker(shell, obj)
+  ICaptureConnectionInvoker(ICaptureContext &ctx, ICaptureConnection &obj)
+      : UIThreadInvoker(ctx, obj)
   {
     // delete ourself when the connection dies
     obj.RegisterClosedCallback([this](ICaptureConnection *) { delete this; });
@@ -1109,13 +1095,13 @@ struct ICaptureConnectionInvoker : UIThreadInvoker<ICaptureConnection>
     if(!ret)
       return ret;
 
-    return new ICaptureConnectionInvoker(m_Shell, *ret);
+    return new ICaptureConnectionInvoker(m_Ctx, *ret);
   }
 };
 
 struct ICaptureDialogInvoker : UIThreadInvoker<ICaptureDialog>
 {
-  ICaptureDialogInvoker(PythonShell *shell, ICaptureDialog &obj) : UIThreadInvoker(shell, obj) {}
+  ICaptureDialogInvoker(ICaptureContext &ctx, ICaptureDialog &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~ICaptureDialogInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -1155,7 +1141,7 @@ struct ICaptureDialogInvoker : UIThreadInvoker<ICaptureDialog>
     if(!ret)
       return ret;
 
-    return new ICaptureConnectionInvoker(m_Shell, *ret);
+    return new ICaptureConnectionInvoker(m_Ctx, *ret);
   }
   void LoadSettings(const rdcstr &filename)
   {
@@ -1171,7 +1157,7 @@ struct ICaptureDialogInvoker : UIThreadInvoker<ICaptureDialog>
 
 struct IDebugMessageViewInvoker : UIThreadInvoker<IDebugMessageView>
 {
-  IDebugMessageViewInvoker(PythonShell *shell, IDebugMessageView &obj) : UIThreadInvoker(shell, obj)
+  IDebugMessageViewInvoker(ICaptureContext &ctx, IDebugMessageView &obj) : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IDebugMessageViewInvoker() {}
@@ -1181,8 +1167,8 @@ struct IDebugMessageViewInvoker : UIThreadInvoker<IDebugMessageView>
 
 struct IDiagnosticLogViewInvoker : UIThreadInvoker<IDiagnosticLogView>
 {
-  IDiagnosticLogViewInvoker(PythonShell *shell, IDiagnosticLogView &obj)
-      : UIThreadInvoker(shell, obj)
+  IDiagnosticLogViewInvoker(ICaptureContext &ctx, IDiagnosticLogView &obj)
+      : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IDiagnosticLogViewInvoker() {}
@@ -1192,7 +1178,7 @@ struct IDiagnosticLogViewInvoker : UIThreadInvoker<IDiagnosticLogView>
 
 struct ICommentViewInvoker : UIThreadInvoker<ICommentView>
 {
-  ICommentViewInvoker(PythonShell *shell, ICommentView &obj) : UIThreadInvoker(shell, obj) {}
+  ICommentViewInvoker(ICaptureContext &ctx, ICommentView &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~ICommentViewInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -1205,8 +1191,8 @@ struct ICommentViewInvoker : UIThreadInvoker<ICommentView>
 
 struct IPerformanceCounterViewerInvoker : UIThreadInvoker<IPerformanceCounterViewer>
 {
-  IPerformanceCounterViewerInvoker(PythonShell *shell, IPerformanceCounterViewer &obj)
-      : UIThreadInvoker(shell, obj)
+  IPerformanceCounterViewerInvoker(ICaptureContext &ctx, IPerformanceCounterViewer &obj)
+      : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IPerformanceCounterViewerInvoker() {}
@@ -1220,7 +1206,7 @@ struct IPerformanceCounterViewerInvoker : UIThreadInvoker<IPerformanceCounterVie
 
 struct IStatisticsViewerInvoker : UIThreadInvoker<IStatisticsViewer>
 {
-  IStatisticsViewerInvoker(PythonShell *shell, IStatisticsViewer &obj) : UIThreadInvoker(shell, obj)
+  IStatisticsViewerInvoker(ICaptureContext &ctx, IStatisticsViewer &obj) : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IStatisticsViewerInvoker() {}
@@ -1230,7 +1216,7 @@ struct IStatisticsViewerInvoker : UIThreadInvoker<IStatisticsViewer>
 
 struct ITimelineBarInvoker : UIThreadInvoker<ITimelineBar>
 {
-  ITimelineBarInvoker(PythonShell *shell, ITimelineBar &obj) : UIThreadInvoker(shell, obj) {}
+  ITimelineBarInvoker(ICaptureContext &ctx, ITimelineBar &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~ITimelineBarInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -1246,7 +1232,7 @@ struct ITimelineBarInvoker : UIThreadInvoker<ITimelineBar>
 
 struct IPythonShellInvoker : UIThreadInvoker<IPythonShell>
 {
-  IPythonShellInvoker(PythonShell *shell, IPythonShell &obj) : UIThreadInvoker(shell, obj) {}
+  IPythonShellInvoker(ICaptureContext &ctx, IPythonShell &obj) : UIThreadInvoker(ctx, obj) {}
   virtual ~IPythonShellInvoker() {}
 
   QWidget *Widget() { return m_Obj.Widget(); }
@@ -1278,8 +1264,8 @@ struct IPythonShellInvoker : UIThreadInvoker<IPythonShell>
 
 struct IResourceInspectorInvoker : UIThreadInvoker<IResourceInspector>
 {
-  IResourceInspectorInvoker(PythonShell *shell, IResourceInspector &obj)
-      : UIThreadInvoker(shell, obj)
+  IResourceInspectorInvoker(ICaptureContext &ctx, IResourceInspector &obj)
+      : UIThreadInvoker(ctx, obj)
   {
   }
   virtual ~IResourceInspectorInvoker() {}
@@ -1296,7 +1282,7 @@ struct IResourceInspectorInvoker : UIThreadInvoker<IResourceInspector>
   }
 };
 
-struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
+struct CaptureContextInvoker : public UIThreadInvoker<ICaptureContext>
 {
   ExtensionInvoker *m_Ext;
   ReplayControllerInvoker m_ReplayController;
@@ -1308,7 +1294,7 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
     if(!m_invoker##iface || &m_invoker##iface->m_Obj != i) \
     {                                                      \
       delete m_invoker##iface;                             \
-      m_invoker##iface = new iface##Invoker(m_Shell, *i);  \
+      m_invoker##iface = new iface##Invoker(m_Ctx, *i);    \
     }                                                      \
     return m_invoker##iface;                               \
   }
@@ -1330,10 +1316,9 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
   WINDOW_INVOKER(IPythonShell);
   WINDOW_INVOKER(IResourceInspector);
 
-  CaptureContextInvoker(PythonShell *shell, ICaptureContext &obj)
-      : UIThreadInvoker(shell, obj), m_ReplayController(shell, obj)
+  CaptureContextInvoker(ICaptureContext &ctx) : UIThreadInvoker(ctx, ctx), m_ReplayController(ctx)
   {
-    m_Ext = new ExtensionInvoker(shell, obj.Extensions());
+    m_Ext = new ExtensionInvoker(ctx, ctx.Extensions());
   }
   virtual ~CaptureContextInvoker() { delete m_Ext; }
   //
@@ -1556,14 +1541,12 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
   {
     if(!GUIInvoke::onUIThread())
     {
-      PythonContext *scriptContext = m_Shell->GetScriptContext();
-      if(scriptContext)
-        scriptContext->PausePythonThreading();
-      GUIInvoke::call(m_Shell, [this, milliseconds, callback]() {
+      IPythonShell *shell = m_Ctx.GetPythonShell();
+      void *ctx = PythonContext::PausePythonThreading();
+      GUIInvoke::call(m_Ctx.GetMainWindow()->Widget(), [this, milliseconds, callback]() {
         m_Obj.DelayedCallback(milliseconds, callback);
       });
-      if(scriptContext)
-        scriptContext->ResumePythonThreading();
+      PythonContext::ResumePythonThreading(ctx);
       return;
     }
 
@@ -1831,9 +1814,9 @@ struct CaptureContextInvoker : UIThreadInvoker<ICaptureContext>
   }
 };
 
-ICaptureContext *MakeCaptureContextInvoker(PythonShell *shell, ICaptureContext &ctx)
+ICaptureContext *MakeCaptureContextInvoker(ICaptureContext &ctx)
 {
-  return new CaptureContextInvoker(shell, ctx);
+  return new CaptureContextInvoker(ctx);
 }
 
 void FreeCaptureContextInvoker(ICaptureContext *ctx)

@@ -181,16 +181,10 @@ bool EditorWrapper::checkAllowClose()
   return true;
 }
 
-// See PythonInvokers.cpp
-ICaptureContext *MakeCaptureContextInvoker(PythonShell *shell, ICaptureContext &ctx);
-void FreeCaptureContextInvoker(ICaptureContext *ctx);
-
 PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
     : QFrame(parent), ui(new Ui::PythonShell), m_Ctx(ctx)
 {
   ui->setupUi(this);
-
-  m_ThreadCtx = MakeCaptureContextInvoker(this, m_Ctx);
 
   QObject::connect(ui->lineInput, &RDLineEdit::keyPress, this, &PythonShell::interactive_keypress);
   QObject::connect(ui->helpSearch, &RDLineEdit::keyPress, this, &PythonShell::helpSearch_keypress);
@@ -287,7 +281,6 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   });
 
   completionContext = new PythonContext();
-  setGlobals(completionContext);
 
   // if we're help printing in the completion context, append it to the help text
   QObject::connect(completionContext, &PythonContext::textOutput,
@@ -573,8 +566,6 @@ PythonShell::~PythonShell()
 
   completionContext->Finish();
   interactiveContext->Finish();
-
-  FreeCaptureContextInvoker(m_ThreadCtx);
 
   delete ui;
 }
@@ -2564,12 +2555,5 @@ PythonContext *PythonShell::newContext()
   QObject::connect(ret, &PythonContext::exception, this, &PythonShell::exception);
   QObject::connect(ret, &PythonContext::textOutput, this, &PythonShell::textOutput);
 
-  setGlobals(ret);
-
   return ret;
-}
-
-void PythonShell::setGlobals(PythonContext *ret)
-{
-  ret->setGlobal("pyrenderdoc", m_ThreadCtx);
 }

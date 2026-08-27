@@ -148,10 +148,16 @@ PyObject *PythonContext::main_dict = NULL;
 PyObject *PythonContext::m_DebugPy = NULL;
 PyObject *PythonContext::m_CallWrapper = NULL;
 PyObject *PythonContext::m_Reflector = NULL;
+PyObject *PythonContext::m_pyrenderdoc = NULL;
+ICaptureContext *PythonContext::m_CtxWrapper = NULL;
 QAtomicInt PythonContext::m_DeferredInit = 0;
 PyObject *PythonContext::m_CallWrapperGlobals = NULL;
 PythonContext *PythonContext::m_ExtensionContext = NULL;
 QMap<rdcstr, PyObject *> PythonContext::extensions;
+
+// defined in PythonInvokers.cpp
+ICaptureContext *MakeCaptureContextInvoker(ICaptureContext &ctx);
+void FreeCaptureContextInvoker(ICaptureContext *ctx);
 
 static PyObject *current_global_handle = NULL;
 
@@ -1002,6 +1008,18 @@ except:
   m_ExtensionContext = new PythonContext(true, NULL);
 }
 
+void PythonContext::setCtxGlobal(ICaptureContext &ctx)
+{
+  m_CtxWrapper = MakeCaptureContextInvoker(ctx);
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  m_pyrenderdoc =
+      PassObjectToPython((rdcstr(TypeName<ICaptureContext>()) + " *").c_str(), m_CtxWrapper);
+
+  PyGILState_Release(gil);
+}
+
 bool PythonContext::initialised()
 {
   return main_dict != NULL;
@@ -1033,6 +1051,11 @@ PythonContext::PythonContext(bool extensionContext, QObject *parent) : QObject(p
     output->selfDeleting = !extensionContext;
     output->block = false;
     Py_XDECREF(redirector);
+  }
+
+  if(m_pyrenderdoc)
+  {
+    PyDict_SetItemString(context_namespace, "pyrenderdoc", m_pyrenderdoc);
   }
 
   // release the GIL again
@@ -1121,15 +1144,14 @@ void PythonContext::Finish()
   PyGILState_Release(gil);
 }
 
-void PythonContext::PausePythonThreading()
+void *PythonContext::PausePythonThreading()
 {
-  m_SavedThread = PyEval_SaveThread();
+  return PyEval_SaveThread();
 }
 
-void PythonContext::ResumePythonThreading()
+void PythonContext::ResumePythonThreading(void *ctx)
 {
-  PyEval_RestoreThread((PyThreadState *)m_SavedThread);
-  m_SavedThread = NULL;
+  PyEval_RestoreThread((PyThreadState *)ctx);
 }
 
 void PythonContext::GlobalShutdown()
@@ -1148,6 +1170,8 @@ void PythonContext::GlobalShutdown()
   PyGILState_Ensure();
 
   Py_Finalize();
+
+  FreeCaptureContextInvoker(m_CtxWrapper);
 }
 
 QStringList PythonContext::GetApplicationExtensionsPaths()
@@ -1300,7 +1324,8 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
       ext = PyImport_ReloadModule(extensions[extension]);
   }
 
-  PyObject *pyctx = PassObjectToPython((rdcstr(TypeName<ICaptureContext>()) + " *").c_str(), &ctx);
+  if(!m_pyrenderdoc)
+    qCritical() << "pyrenderdoc variable is NULL";
 
   // if import succeeded, store this extension module in our map. If import failed, we might have
   // failed a reimport in which case the original module is still there and valid, so don't
@@ -1323,13 +1348,13 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
     PyModule_AddObject(ext, "_renderdoc_internal", ext_context);
 
-    Py_XINCREF(pyctx);
+    Py_XINCREF(m_pyrenderdoc);
 
-    int pyret = PyModule_AddObject(ext, "pyrenderdoc", pyctx);
+    int pyret = PyModule_AddObject(ext, "pyrenderdoc", m_pyrenderdoc);
 
     if(pyret != 0)
     {
-      Py_XDECREF(pyctx);
+      Py_XDECREF(m_pyrenderdoc);
 
       qCritical() << "Couldn't set pyrenderdoc global in loaded module";
       ret += tr("Couldn't set pyrenderdoc global in loaded module\n");
@@ -1347,9 +1372,10 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
     if(register_func)
     {
       PyObject *retval = NULL;
-      if(pyctx)
+      if(m_pyrenderdoc)
       {
-        retval = PyObject_CallFunction(register_func, "sO", MAJOR_MINOR_VERSION_STRING, pyctx);
+        retval =
+            PyObject_CallFunction(register_func, "sO", MAJOR_MINOR_VERSION_STRING, m_pyrenderdoc);
       }
       else
       {
@@ -1380,7 +1406,7 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
     ext = NULL;
   }
 
-  Py_XDECREF(pyctx);
+  Py_XDECREF(m_pyrenderdoc);
 
   if(ext)
   {

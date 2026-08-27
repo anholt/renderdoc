@@ -168,7 +168,6 @@ private slots:
 private:
   Ui::PythonShell *ui;
   ICaptureContext &m_Ctx;
-  ICaptureContext *m_ThreadCtx = NULL;
 
   ScintillaEdit *runningScriptEditor = NULL;
 
@@ -248,7 +247,6 @@ private:
   void updateScriptOutput(bool fullRefresh);
 
   PythonContext *newContext();
-  void setGlobals(PythonContext *ret);
 
   void doAutocomplete(ScintillaEdit *editor);
   void doFunccomplete(ScintillaEdit *editor);

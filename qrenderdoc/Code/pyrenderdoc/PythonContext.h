@@ -59,10 +59,11 @@ public:
   void Finish();
 
   PyThreadState *GetExecutingThreadState() { return m_State; }
-  void PausePythonThreading();
-  void ResumePythonThreading();
+  static void *PausePythonThreading();
+  static void ResumePythonThreading(void *ctx);
 
   static void GlobalInit(PersistentConfig &config);
+  static void setCtxGlobal(ICaptureContext &ctx);
   static void GlobalShutdown();
 
   static QStringList GetApplicationExtensionsPaths();
@@ -133,6 +134,8 @@ public:
   static void AddDebuggableThread();
   static void RemoveDebuggableThread();
 
+  // for extension callbacks we want to pass the python wrapper
+  static ICaptureContext *GetExtensionPyrenderdoc() { return m_CtxWrapper; }
   static PythonContext *GetExtensionContext() { return m_ExtensionContext; }
 
 signals:
@@ -166,6 +169,10 @@ private:
   // the PyReflector from parse_reflection
   static PyObject *m_Reflector;
   static QAtomicInt m_DeferredInit;
+
+  // the pyrenderdoc wrapper around ICaptureContext
+  static PyObject *m_pyrenderdoc;
+  static ICaptureContext *m_CtxWrapper;
 
   // a statically created PythonContext for extension events/output.
   // each extension has its own dictionary but this is used so that users can connect to it and receieve events

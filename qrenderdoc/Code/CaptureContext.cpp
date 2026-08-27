@@ -93,6 +93,8 @@ CaptureContext::CaptureContext(PersistentConfig &cfg) : m_Config(cfg)
 
   qApp->setApplicationVersion(QString::fromLatin1(RENDERDOC_GetVersionString()));
 
+  PythonContext::setCtxGlobal(*this);
+
   m_Icon = new QIcon();
   m_Icon->addFile(QStringLiteral(":/logo.svg"), QSize(), QIcon::Normal, QIcon::Off);
 
@@ -614,7 +616,9 @@ void CaptureContext::RegisterWindowMenu(WindowMenu base, const rdcarray<rdcstr> 
     return;
   }
 
-  std::function<void()> slotcallback = [this, callback]() { callback(this, {}); };
+  std::function<void()> slotcallback = [this, callback]() {
+    callback(PythonContext::GetExtensionPyrenderdoc(), {});
+  };
 
   // if it's a new menu, GetBaseMenu already did the work, so skip the 0th element of submenus
   if(base == WindowMenu::NewMenu)
@@ -691,7 +695,7 @@ void CaptureContext::MenuDisplaying(ContextMenu contextMenu, QMenu *menu,
 
         PythonContext::ConvertPyArgs(data, args);
 
-        item->callback(this, args);
+        item->callback(PythonContext::GetExtensionPyrenderdoc(), args);
 
         PythonContext::FreePyArgs(args);
       });
@@ -711,7 +715,7 @@ void CaptureContext::MenuDisplaying(PanelMenu panelMenu, QMenu *menu, QWidget *e
 
         PythonContext::ConvertPyArgs(data, args);
 
-        item->callback(this, args);
+        item->callback(PythonContext::GetExtensionPyrenderdoc(), args);
 
         PythonContext::FreePyArgs(args);
       });
