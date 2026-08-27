@@ -5640,10 +5640,8 @@ void VulkanReplay::SetProxyBufferData(ResourceId bufid, byte *data, size_t dataS
   VULKANNOTIMP("SetProxyTextureData");
 }
 
-RDResult Vulkan_CreateReplayDevice(RDCFile *rdc, const ReplayOptions &opts, IReplayDriver **driver)
+void VulkanEnvSetup()
 {
-  RDCDEBUG("Creating a VulkanReplay replay device");
-
   // disable the layer env var, just in case the user left it set from a previous capture run
   Process::RegisterEnvironmentModification(
       EnvironmentModification(EnvMod::Set, EnvSep::NoSep, RENDERDOC_VULKAN_LAYER_VAR, "0"));
@@ -5706,6 +5704,11 @@ RDResult Vulkan_CreateReplayDevice(RDCFile *rdc, const ReplayOptions &opts, IRep
       EnvironmentModification(EnvMod::Set, EnvSep::NoSep, "DISABLE_LAYER", "1"));
 
   Process::ApplyEnvironmentModification();
+}
+
+RDResult Vulkan_CreateReplayDevice(RDCFile *rdc, const ReplayOptions &opts, IReplayDriver **driver)
+{
+  RDCDEBUG("Creating a VulkanReplay replay device");
 
   void *module = LoadVulkanLibrary();
 
@@ -5803,6 +5806,7 @@ struct VulkanDriverRegistration
   VulkanDriverRegistration()
   {
     RenderDoc::Inst().RegisterReplayProvider(RDCDriver::Vulkan, &Vulkan_CreateReplayDevice);
+    RenderDoc::Inst().AddEnvSetup(&VulkanEnvSetup);
     RenderDoc::Inst().SetVulkanLayerCheck(&VulkanReplay::CheckVulkanLayer);
     RenderDoc::Inst().SetVulkanLayerInstall(&VulkanReplay::InstallVulkanLayer);
   }
