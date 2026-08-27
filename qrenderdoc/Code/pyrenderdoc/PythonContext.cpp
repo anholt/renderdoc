@@ -1793,7 +1793,7 @@ void PythonContext::makeHelpContext()
 
     m_DeferredInit = 1;
 
-    if(!m_StubRD || !m_StubQRD))
+    if(!m_StubRD || !m_StubQRD)
       return;
   }
 
