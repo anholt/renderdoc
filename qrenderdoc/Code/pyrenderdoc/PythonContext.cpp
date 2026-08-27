@@ -1783,6 +1783,67 @@ void PythonContext::reflectSource(QString src)
   PyGILState_Release(gil);
 }
 
+void PythonContext::makeHelpContext()
+{
+  // expand out members of renderdoc and qrenderdoc using the stubs
+  if(!m_Reflector)
+  {
+    for(int i = 0; i < 50 && m_DeferredInit == 0; i++)
+      QThread::msleep(20);
+    m_DeferredInit = 1;
+
+    if(!m_Reflector)
+      return;
+  }
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+
+  PyObject *alias_modules = PyObject_SafeGetAttrString(m_Reflector, "alias_modules");
+  PyObject *stub_rd = PyDict_GetItemString(alias_modules, "renderdoc");
+  PyObject *stub_qrd = PyDict_GetItemString(alias_modules, "qrenderdoc");
+
+  PyDict_SetItemString(context_namespace, "stub_rd", stub_rd);
+  PyDict_SetItemString(context_namespace, "stub_qrd", stub_qrd);
+
+  Py_XDECREF(stub_rd);
+  Py_XDECREF(stub_qrd);
+  Py_XDECREF(alias_modules);
+
+  PyGILState_Release(gil);
+
+  executeString(lit(R"(
+def publicise_module(mod):
+  for name in dir(mod):
+    if name[0] == '_' or '_circular' in name:
+      continue
+    obj = getattr(mod, name)
+    if hasattr(obj, '__module__') and mod.__name__ not in getattr(obj, '__module__'):
+      print(f"{name} is {obj.__module__} vs {mod.__name__}")
+      continue
+    globals()[name] = obj
+
+publicise_module(stub_rd)
+publicise_module(stub_qrd)
+
+del publicise_module
+
+)"));
+
+  gil = PyGILState_Ensure();
+
+  PyDict_DelItemString(context_namespace, "stub_rd");
+  PyDict_DelItemString(context_namespace, "stub_qrd");
+
+  if(PyDict_ContainsString(context_namespace, "pyrenderdoc"))
+    PyDict_DelItemString(context_namespace, "pyrenderdoc");
+  if(PyDict_ContainsString(context_namespace, "sys"))
+    PyDict_DelItemString(context_namespace, "sys");
+
+  PyGILState_Release(gil);
+
+  reflectSource(QString());
+}
+
 QString PythonContext::tooltipForLoc(int line, int col)
 {
   PyGILState_STATE gil = PyGILState_Ensure();

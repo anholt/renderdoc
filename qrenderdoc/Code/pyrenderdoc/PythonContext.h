@@ -118,6 +118,7 @@ public:
   static QWidget *QWidgetFromPy(PyObject *widget);
 
   void reflectSource(QString src);
+  void makeHelpContext();
   QString tooltipForLoc(int line, int col);
   QList<QPair<QString, QString>> completionOptions(int line, QString expr, int &prefix_len);
   QString tryFunctionCompletion(int line, QString expr);

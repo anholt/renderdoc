@@ -149,7 +149,6 @@ private slots:
 
   // manual slots
   void interactive_keypress(QKeyEvent *e);
-  void helpSearch_keypress(QKeyEvent *e);
   void traceLine(const QString &file, int line);
   void exception(const QString &extension, const QString &type, const QString &value, int finalLine,
                  QList<QString> frames);
@@ -176,7 +175,6 @@ private:
   QWidget *m_FuncTipWidget = NULL;
   intptr_t m_FuncTipLine = 0;
   bool m_ContextMenuVisible = false;
-  bool m_HelpPrinting = false;
 
   bool m_IgnoreRecovered = false;
 
@@ -205,7 +203,8 @@ private:
   int m_CurLine = 0;
   QTimer *m_CurLineTimer = NULL;
 
-  PythonContext *interactiveContext = NULL, *scriptContext = NULL, *completionContext = NULL;
+  PythonContext *interactiveContext = NULL, *scriptContext = NULL, *completionContext = NULL,
+                *helpContext = NULL;
 
   QList<QString> history;
   int historyidx = -1;
