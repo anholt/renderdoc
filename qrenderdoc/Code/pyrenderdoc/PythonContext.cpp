@@ -1811,7 +1811,6 @@ def publicise_module(mod):
       continue
     obj = getattr(mod, name)
     if hasattr(obj, '__module__') and mod.__name__ not in getattr(obj, '__module__'):
-      print(f"{name} is {obj.__module__} vs {mod.__name__}")
       continue
     globals()[name] = obj
 
