@@ -169,6 +169,9 @@ private:
 
   // the PyReflector from parse_reflection
   static PyObject *m_Reflector;
+  // the stub modules
+  static PyObject *m_StubRD;
+  static PyObject *m_StubQRD;
   static QAtomicInt m_DeferredInit;
 
   // the pyrenderdoc wrapper around ICaptureContext

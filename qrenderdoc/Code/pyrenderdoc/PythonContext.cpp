@@ -148,6 +148,8 @@ PyObject *PythonContext::main_dict = NULL;
 PyObject *PythonContext::m_DebugPy = NULL;
 PyObject *PythonContext::m_CallWrapper = NULL;
 PyObject *PythonContext::m_Reflector = NULL;
+PyObject *PythonContext::m_StubRD = NULL;
+PyObject *PythonContext::m_StubQRD = NULL;
 PyObject *PythonContext::m_pyrenderdoc = NULL;
 ICaptureContext *PythonContext::m_CtxWrapper = NULL;
 QAtomicInt PythonContext::m_DeferredInit = 0;
@@ -950,25 +952,25 @@ except:
 
         Py_XDECREF(syspath);
 
-        PyObject *stub_rd = PyImport_ImportModule(QFormatStr("v%1_%2.renderdoc")
-                                                      .arg(RENDERDOC_VERSION_MAJOR)
-                                                      .arg(RENDERDOC_VERSION_MINOR)
-                                                      .toUtf8()
-                                                      .data());
+        m_StubRD = PyImport_ImportModule(QFormatStr("v%1_%2.renderdoc")
+                                             .arg(RENDERDOC_VERSION_MAJOR)
+                                             .arg(RENDERDOC_VERSION_MINOR)
+                                             .toUtf8()
+                                             .data());
 
-        if(!stub_rd)
+        if(!m_StubRD)
         {
           qCritical() << "Failed importing stubs for renderdoc";
           HandleException(NULL);
         }
 
-        PyObject *stub_qrd = PyImport_ImportModule(QFormatStr("v%1_%2.qrenderdoc")
-                                                       .arg(RENDERDOC_VERSION_MAJOR)
-                                                       .arg(RENDERDOC_VERSION_MINOR)
-                                                       .toUtf8()
-                                                       .data());
+        m_StubQRD = PyImport_ImportModule(QFormatStr("v%1_%2.qrenderdoc")
+                                              .arg(RENDERDOC_VERSION_MAJOR)
+                                              .arg(RENDERDOC_VERSION_MINOR)
+                                              .toUtf8()
+                                              .data());
 
-        if(!stub_qrd)
+        if(!m_StubQRD)
         {
           qCritical() << "Failed importing stubs for qrenderdoc";
           HandleException(NULL);
@@ -976,14 +978,12 @@ except:
 
         PyObject *alias_modules = PyObject_SafeGetAttrString(m_Reflector, "alias_modules");
 
-        if(stub_rd)
-          PyDict_SetItemString(alias_modules, "renderdoc", stub_rd);
+        if(m_StubRD)
+          PyDict_SetItemString(alias_modules, "renderdoc", m_StubRD);
 
-        if(stub_qrd)
-          PyDict_SetItemString(alias_modules, "qrenderdoc", stub_qrd);
+        if(m_StubQRD)
+          PyDict_SetItemString(alias_modules, "qrenderdoc", m_StubQRD);
 
-        Py_XDECREF(stub_rd);
-        Py_XDECREF(stub_qrd);
         Py_XDECREF(alias_modules);
 
         break;
@@ -1786,28 +1786,21 @@ void PythonContext::reflectSource(QString src)
 void PythonContext::makeHelpContext()
 {
   // expand out members of renderdoc and qrenderdoc using the stubs
-  if(!m_Reflector)
+  if(!m_StubRD || !m_StubQRD)
   {
     for(int i = 0; i < 50 && m_DeferredInit == 0; i++)
       QThread::msleep(20);
+
     m_DeferredInit = 1;
 
-    if(!m_Reflector)
+    if(!m_StubRD || !m_StubQRD))
       return;
   }
 
   PyGILState_STATE gil = PyGILState_Ensure();
 
-  PyObject *alias_modules = PyObject_SafeGetAttrString(m_Reflector, "alias_modules");
-  PyObject *stub_rd = PyDict_GetItemString(alias_modules, "renderdoc");
-  PyObject *stub_qrd = PyDict_GetItemString(alias_modules, "qrenderdoc");
-
-  PyDict_SetItemString(context_namespace, "stub_rd", stub_rd);
-  PyDict_SetItemString(context_namespace, "stub_qrd", stub_qrd);
-
-  Py_XDECREF(stub_rd);
-  Py_XDECREF(stub_qrd);
-  Py_XDECREF(alias_modules);
+  PyDict_SetItemString(context_namespace, "stub_rd", m_StubRD);
+  PyDict_SetItemString(context_namespace, "stub_qrd", m_StubQRD);
 
   PyGILState_Release(gil);
 
