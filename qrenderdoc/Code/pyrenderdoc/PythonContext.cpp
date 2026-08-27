@@ -1603,6 +1603,11 @@ void PythonContext::executeString(const QString &filename, const QString &source
     Py_XDECREF(settrace);
     Py_XDECREF(gettrace);
   }
+  else
+  {
+    caughtException = true;
+    FetchException(typeStr, valueStr, finalLine, frames);
+  }
 
   Py_XDECREF(compiled);
 
