@@ -367,6 +367,7 @@ MainWindow::MainWindow(ICaptureContext &ctx) : QMainWindow(NULL), ui(new Ui::Mai
     delete m_NetWorker;
   });
   m_NetManagerThread->moveObjectToThread(m_NetWorker);
+  m_NetManagerThread->selfDelete(true);
   m_NetManagerThread->start();
   m_NetManagerThread->thread()->setPriority(QThread::LowPriority);
 
@@ -597,7 +598,6 @@ MainWindow::~MainWindow()
 {
   // close the network manager thread
   m_NetManagerThread->thread()->quit();
-  m_NetManagerThread->deleteLater();
 
   m_Ctx.Replay().DisconnectFromRemoteServer();
 
