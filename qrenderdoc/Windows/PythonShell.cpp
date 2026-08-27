@@ -77,7 +77,7 @@ EditorWrapper::EditorWrapper(PythonShell *parent) : QFrame(parent), m_PyShell(pa
   layout()->setMargin(0);
   layout()->setContentsMargins(0, 0, 0, 0);
 
-  m_Title = tr("Untitled Script");
+  setTitle(QString());
 }
 
 EditorWrapper::~EditorWrapper()
@@ -97,7 +97,10 @@ void EditorWrapper::setTitle(QString title)
 {
   if(!m_Filename.isEmpty())
     return;
-  m_Title = title;
+  if(title.isEmpty())
+    m_Title = tr("Untitled Script");
+  else
+    m_Title = title;
   updateTitle();
 }
 
@@ -155,7 +158,7 @@ bool EditorWrapper::checkAllowClose()
     if(filename.isEmpty())
     {
       untitled = true;
-      filename = lit("Untitled Script");
+      filename = m_Title;
     }
     QMessageBox::StandardButton res = RDDialog::question(this, tr("Python script is modified"),
                                                          tr("You have unsaved changes to '%1'.\n"
