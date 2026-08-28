@@ -88,7 +88,7 @@ public:
 
   bool CheckInterfaces(rdcstr &log);
 
-  QString versionString();
+  static QString versionString();
 
   template <typename T>
   void setGlobal(const char *varName, T *object)

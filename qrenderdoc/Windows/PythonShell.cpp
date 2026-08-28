@@ -2398,7 +2398,7 @@ QString PythonShell::scriptHeader()
 The 'pyrenderdoc' object is the current CaptureContext instance.
 The 'renderdoc' and 'qrenderdoc' modules are available.
 Documentation is available: https://renderdoc.org/docs/python_api/index.html)")
-      .arg(interactiveContext->versionString());
+      .arg(PythonContext::versionString());
 }
 
 void PythonShell::appendText(QTextEdit *output, const QString &text)
