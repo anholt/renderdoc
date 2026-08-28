@@ -1298,8 +1298,11 @@ VkResult WrappedVulkan::vkCreateComputePipelines(VkDevice device, VkPipelineCach
           }
         }
 
-        VkResourceRecord *layoutrecord = GetRecord(pCreateInfos[i].layout);
-        record->AddParent(layoutrecord);
+        if(pCreateInfos[i].layout != NULL)
+        {
+          VkResourceRecord *layoutrecord = GetRecord(pCreateInfos[i].layout);
+          record->AddParent(layoutrecord);
+        }
 
         VkResourceRecord *modulerecord = GetRecord(pCreateInfos[i].stage.module);
         if(modulerecord)
