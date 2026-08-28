@@ -370,6 +370,14 @@ This will always be false if the extension is unloaded.
 :type: bool
 )");
   bool hasChanges = false;
+
+  DOCUMENT(R"(A flag indicating that the extension failed to load properly.
+
+This will always be false if the extension is unloaded.
+
+:type: bool
+)");
+  bool failedLoad = false;
 };
 
 DECLARE_REFLECTION_STRUCT(ExtensionMetadata);

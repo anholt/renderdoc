@@ -248,7 +248,7 @@ MainWindow::MainWindow(ICaptureContext &ctx) : QMainWindow(NULL), ui(new Ui::Mai
   QObject::connect(extensionReload, &RDToolButton::clicked, [this]() {
     rdcarray<ExtensionMetadata> exts = m_Ctx.Extensions().GetInstalledExtensions();
     for(const ExtensionMetadata &m : exts)
-      if(m.hasChanges)
+      if(m.hasChanges || m.failedLoad)
         m_Ctx.Extensions().LoadExtension(m.package);
   });
   QObject::connect(PythonContext::GetExtensionContext(), &PythonContext::extensionLoaded, this,
@@ -1354,6 +1354,15 @@ void MainWindow::PythonStatusUpdate()
       if(m.hasChanges)
       {
         text += tr(" (changed on disk)");
+        reloadVisible = true;
+        break;
+      }
+    }
+    for(const ExtensionMetadata &m : m_Ctx.Extensions().GetInstalledExtensions())
+    {
+      if(m.failedLoad)
+      {
+        text += tr(" (some failed to load)");
         reloadVisible = true;
         break;
       }

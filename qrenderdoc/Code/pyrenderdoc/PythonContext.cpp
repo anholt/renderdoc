@@ -1423,9 +1423,10 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
 
     if(!valueStr.isEmpty())
     {
-      qCritical("Error importing extension module. %s: %s", typeStr.toUtf8().data(),
-                valueStr.toUtf8().data());
-      ret += tr("Error importing extension module. %1: %2\n\n").arg(typeStr).arg(valueStr);
+      qCritical("Error importing extension module '%s'. %s: %s", extension.c_str(),
+                typeStr.toUtf8().data(), valueStr.toUtf8().data());
+      ret +=
+          tr("Error importing extension module '%1'. %2: %3\n\n").arg(extension).arg(typeStr).arg(valueStr);
 
       if(!frames.isEmpty())
       {
@@ -1443,7 +1444,7 @@ QString PythonContext::LoadExtension(ICaptureContext &ctx, const rdcstr &extensi
       }
     }
 
-    if(!ret.isEmpty() && reload)
+    if(!ret.isEmpty())
       m_ExtensionContext->addText(extension, true, ret);
   }
 

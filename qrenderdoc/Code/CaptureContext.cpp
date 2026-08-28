@@ -422,6 +422,7 @@ rdcarray<ExtensionMetadata> CaptureContext::GetInstalledExtensions()
           ext.filePath = fileinfo.absolutePath();
 
           ext.hasChanges = m_DirtyExtensions.contains(rdcstr(package));
+          ext.failedLoad = m_FailedExtensions.contains(rdcstr(package));
 
           ext.extensionAPI = 1;
           if(json.contains(lit("extension_api")))
@@ -563,6 +564,7 @@ rdcstr CaptureContext::LoadExtension(rdcstr name)
       m_ExtensionObjects[name].swap(m_PendingExtensionObjects);
 
       m_DirtyExtensions.removeOne(name);
+      m_FailedExtensions.removeOne(name);
 
       for(const ExtensionMetadata &e : GetInstalledExtensions())
         if(e.package == name)
@@ -571,6 +573,7 @@ rdcstr CaptureContext::LoadExtension(rdcstr name)
     else
     {
       m_ExtensionObjects.remove(name);
+      m_FailedExtensions.push_back(name);
 
       for(QObject *o : m_PendingExtensionObjects)
         delete o;

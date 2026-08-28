@@ -476,6 +476,11 @@ PythonShell::PythonShell(ICaptureContext &ctx, QWidget *parent)
   updateRecentFiles(false);
   updateExtensionProjects();
 
+  // on first launch we could be creating the python shell before extensions are loaded while
+  // initialising the UI. Refresh the extension projects after a short delay to pick up any
+  // additional information on loading status.
+  QTimer::singleShot(200, [this]() { updateExtensionProjects(); });
+
   ui->projectExplorer->endUpdate();
 
   ui->projectExplorer->expandItem(m_RecentFiles);
@@ -729,11 +734,17 @@ void PythonShell::updateExtensionProjects()
     if(ext.hasChanges)
       name += tr(" (Reload required)");
 
+    if(ext.failedLoad)
+      name += tr(" (Failed to load)");
+
     RDTreeWidgetItem *root = new RDTreeWidgetItem({name});
     root->setData(0, Qt::UserRole + 1, ext.package);
 
     if(ext.hasChanges)
       root->setItalic(true);
+
+    if(m_Ctx.Config().AlwaysLoad_Extensions.contains(ext.package))
+      root->setBold(true);
 
     addExtensionDirItems(root, QDir(ext.filePath));
 
@@ -1949,7 +1960,7 @@ void PythonShell::projectExplorer_contextMenu(const QPoint &pos)
       {
         if(m.package == rdcstr(itemPath))
         {
-          reloadExtension.setEnabled(m.hasChanges);
+          reloadExtension.setEnabled(m.hasChanges || m.failedLoad);
           diskLocation = QFileInfo(m.filePath).absoluteFilePath();
           break;
         }
