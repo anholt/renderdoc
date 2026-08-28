@@ -483,20 +483,27 @@ struct ReplayControllerInvoker : IReplayController
     return InvokeRetFunction<IReplayOutput *>(&IReplayController::CreateOutput, window, type);
   }
 
-  void Shutdown() {}
+  void Shutdown() { m_Ctx.CloseCapture(); }
 
-  void ReplayLoop(WindowingData window, ResourceId texid) {}
+  void ReplayLoop(WindowingData window, ResourceId texid)
+  {
+    return InvokeVoidFunction(&IReplayController::ReplayLoop, window, texid);
+  }
 
   rdcstr CreateRGPProfile(WindowingData window)
   {
     return InvokeRetFunction<rdcstr>(&IReplayController::CreateRGPProfile, window);
   }
 
-  void CancelReplayLoop() {}
+  void CancelReplayLoop() { return InvokeVoidFunction(&IReplayController::CancelReplayLoop); }
 
-  void FileChanged() {}
+  void FileChanged() { return InvokeVoidFunction(&IReplayController::FileChanged); }
 
-  void SetFrameEvent(uint32_t eventId, bool force) {}
+  void SetFrameEvent(uint32_t eventId, bool force)
+  {
+    // go through the context so the UI stays up to date
+    m_Ctx.SetEventID({}, eventId, eventId, force);
+  }
 
   const D3D11Pipe::State *GetD3D11PipelineState()
   {
@@ -561,7 +568,10 @@ struct ReplayControllerInvoker : IReplayController
     return InvokeRetFunction<rdcstr>(&IReplayController::DisassembleShader, pipeline, refl, target);
   }
 
-  void SetCustomShaderIncludes(const rdcarray<rdcstr> &directories) {}
+  void SetCustomShaderIncludes(const rdcarray<rdcstr> &directories)
+  {
+    return InvokeVoidFunction(&IReplayController::SetCustomShaderIncludes, directories);
+  }
 
   rdcpair<ResourceId, rdcstr> BuildCustomShader(const rdcstr &entry, ShaderEncoding sourceEncoding,
                                                 bytebuf source,
@@ -572,7 +582,10 @@ struct ReplayControllerInvoker : IReplayController
         &IReplayController::BuildCustomShader, entry, sourceEncoding, source, compileFlags, type);
   }
 
-  void FreeCustomShader(ResourceId id) {}
+  void FreeCustomShader(ResourceId id)
+  {
+    return InvokeVoidFunction(&IReplayController::FreeCustomShader, id);
+  }
 
   rdcpair<ResourceId, rdcstr> BuildTargetShader(const rdcstr &entry, ShaderEncoding sourceEncoding,
                                                 bytebuf source,
@@ -599,15 +612,27 @@ struct ReplayControllerInvoker : IReplayController
         &IReplayController::GetCustomShaderSourcePrefixes);
   }
 
-  void ReplaceResource(ResourceId original, ResourceId replacement) {}
+  void ReplaceResource(ResourceId original, ResourceId replacement)
+  {
+    return InvokeVoidFunction(&IReplayController::ReplaceResource, original, replacement);
+  }
 
-  void ClearReplayCache() {}
+  void ClearReplayCache() { return InvokeVoidFunction(&IReplayController::ClearReplayCache); }
 
-  void ReloadShaderDebugInformation() {}
+  void ReloadShaderDebugInformation()
+  {
+    return InvokeVoidFunction(&IReplayController::ReloadShaderDebugInformation);
+  }
 
-  void RemoveReplacement(ResourceId id) {}
+  void RemoveReplacement(ResourceId id)
+  {
+    return InvokeVoidFunction(&IReplayController::RemoveReplacement, id);
+  }
 
-  void FreeTargetResource(ResourceId id) {}
+  void FreeTargetResource(ResourceId id)
+  {
+    return InvokeVoidFunction(&IReplayController::FreeTargetResource, id);
+  }
 
   FrameDescription GetFrameInfo()
   {
@@ -619,7 +644,7 @@ struct ReplayControllerInvoker : IReplayController
     return InvokeRetRefFunction<const SDFile>(&IReplayController::GetStructuredFile);
   }
 
-  void AddFakeMarkers() {}
+  void AddFakeMarkers() { return InvokeVoidFunction(&IReplayController::AddFakeMarkers); }
 
   const rdcarray<ActionDescription> &GetRootActions()
   {
