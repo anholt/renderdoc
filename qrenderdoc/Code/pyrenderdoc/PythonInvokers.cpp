@@ -483,7 +483,17 @@ struct ReplayControllerInvoker : IReplayController
     return InvokeRetFunction<IReplayOutput *>(&IReplayController::CreateOutput, window, type);
   }
 
-  void Shutdown() { m_Ctx.CloseCapture(); }
+  void Shutdown()
+  {
+    if(!GUIInvoke::onUIThread())
+    {
+      void *ctx = PythonContext::PausePythonThreading();
+      GUIInvoke::blockcall(m_Ctx.GetMainWindow()->Widget(), [this]() { m_Ctx.CloseCapture(); });
+      PythonContext::ResumePythonThreading(ctx);
+      return;
+    }
+    m_Ctx.CloseCapture();
+  }
 
   void ReplayLoop(WindowingData window, ResourceId texid)
   {
@@ -502,6 +512,16 @@ struct ReplayControllerInvoker : IReplayController
   void SetFrameEvent(uint32_t eventId, bool force)
   {
     // go through the context so the UI stays up to date
+    if(!GUIInvoke::onUIThread())
+    {
+      void *ctx = PythonContext::PausePythonThreading();
+      GUIInvoke::blockcall(m_Ctx.GetMainWindow()->Widget(), [this, eventId, force]() {
+        m_Ctx.SetEventID({}, eventId, eventId, force);
+      });
+      PythonContext::ResumePythonThreading(ctx);
+      return;
+    }
+
     m_Ctx.SetEventID({}, eventId, eventId, force);
   }
 
