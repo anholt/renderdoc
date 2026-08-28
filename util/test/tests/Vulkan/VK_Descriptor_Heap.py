@@ -26,7 +26,10 @@ class VK_Descriptor_Heap(rdtest.TestCase):
 
             if (len(vkpipe.graphics.descriptorHeaps) != 2):
                 raise rdtest.TestFailureException("Expected 2 heaps")
-            # XXX: check that the heaps are resource and sampler.
+            if not vkpipe.graphics.descriptorHeaps[0].resourceHeap:
+                raise rdtest.TestFailureException("Expected resource heap")
+            if vkpipe.graphics.descriptorHeaps[1].resourceHeap:
+                raise rdtest.TestFailureException("Expected sampler heap")
 
             if not (draw.flags & rd.ActionFlags.Dispatch):
                 self.check_postvs(testName, draw)
