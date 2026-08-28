@@ -797,6 +797,7 @@ struct IMainWindowInvoker : UIThreadInvoker<IMainWindow>
     return InvokeVoidFunction(&IMainWindow::UnregisterShortcut, shortcut, widget);
   }
   void BringToFront() { return InvokeVoidFunction(&IMainWindow::BringToFront); }
+  bool PromptCloseCapture() { return InvokeRetFunction<bool>(&IMainWindow::PromptCloseCapture); }
 };
 
 struct IEventBrowserInvoker : UIThreadInvoker<IEventBrowser>

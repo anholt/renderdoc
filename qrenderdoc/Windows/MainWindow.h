@@ -84,6 +84,7 @@ public:
   void RegisterShortcut(const rdcstr &shortcut, QWidget *widget, ShortcutCallback callback) override;
   void UnregisterShortcut(const rdcstr &shortcut, QWidget *widget) override;
   void BringToFront() override;
+  bool PromptCloseCapture() override;
 
   // ICaptureViewer
   void OnCaptureLoaded() override;
@@ -118,7 +119,6 @@ public:
   void ShowLiveCapture(LiveCapture *live);
   void LiveCaptureClosed(LiveCapture *live);
 
-  bool PromptCloseCapture();
   bool PromptSaveCaptureAs();
   bool SaveCurrentCapture(QString saveFilename);
 
