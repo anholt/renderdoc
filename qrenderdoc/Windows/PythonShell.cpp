@@ -1805,8 +1805,11 @@ void PythonShell::removeEditor(EditorWrapper *editor)
 
 void PythonShell::extensionLoaded(const QString &extension)
 {
-  ui->outputContext->addItem(tr("Extension %1").arg(extension));
-  loadedExtensions.push_back(extension);
+  if(!loadedExtensions.contains(extension))
+  {
+    ui->outputContext->addItem(tr("Extension %1").arg(extension));
+    loadedExtensions.push_back(extension);
+  }
 }
 
 void PythonShell::editor_contextMenu(const QPoint &pos)
