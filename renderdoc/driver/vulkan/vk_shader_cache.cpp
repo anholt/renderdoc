@@ -1138,7 +1138,7 @@ void VulkanShaderCache::MakeGraphicsPipelineInfo(VkGraphicsPipelineCreateInfo &p
       VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO,
   };
 
-  if(pipeInfo.useCreateFlags2 && m_pDriver->Maintenance5())
+  if(pipeInfo.useCreateFlags2)
   {
     createFlags.flags = flags;
 
@@ -1279,7 +1279,7 @@ void VulkanShaderCache::MakeComputePipelineInfo(VkComputePipelineCreateInfo &pip
       VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO,
   };
 
-  if(pipeInfo.useCreateFlags2 && m_pDriver->Maintenance5())
+  if(pipeInfo.useCreateFlags2)
   {
     createFlags.flags = flags;
 
