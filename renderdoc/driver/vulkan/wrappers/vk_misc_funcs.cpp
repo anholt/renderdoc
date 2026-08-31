@@ -1346,7 +1346,7 @@ VkResult WrappedVulkan::vkCreateRenderPass(VkDevice device, const VkRenderPassCr
 
   // descriptor buffers intercepts all swapchain images during capture so we change any
   // reference to PRESENT layout into GENERAL since that's what is valid for our image
-  if(DescriptorBuffers())
+  if(DescriptorBuffers() || DescriptorHeap())
   {
     byte *tempMem = GetTempMemory(GetNextPatchSize(patchedCreateInfo.pNext));
     CopyNextChainForPatching("VkRenderPassCreateInfo", tempMem,
@@ -1606,7 +1606,7 @@ VkResult WrappedVulkan::vkCreateRenderPass2(VkDevice device,
 
   // descriptor buffers intercepts all swapchain images during capture so we change any
   // reference to PRESENT layout into GENERAL since that's what is valid for our image
-  if(DescriptorBuffers())
+  if(DescriptorBuffers() || DescriptorHeap())
   {
     byte *tempMem = GetTempMemory(GetNextPatchSize(patchedCreateInfo.pNext));
     CopyNextChainForPatching("VkRenderPassCreateInfo2", tempMem,
