@@ -896,7 +896,7 @@ void WrappedVulkan::vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t even
 
       // descriptor buffers intercepts all swapchain images during capture so we change any
       // reference to PRESENT layout into GENERAL since that's what is valid for our image
-      if(DescriptorBuffers())
+      if(DescriptorBuffers() || DescriptorHeap())
       {
         SanitiseDescriptorBufferImageLayout(im[i].newLayout);
         SanitiseDescriptorBufferImageLayout(im[i].newLayout);
