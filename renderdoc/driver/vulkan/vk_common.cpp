@@ -433,6 +433,10 @@ bool VkInitParams::IsSupportedVersion(uint64_t ver)
   if(ver == CurrentVersion)
     return true;
 
+  // 0x20 -> 0x21 - Added serialisation fields for descriptor heaps.
+  if(ver == 0x20)
+    return true;
+
   // 0x19 -> 0x20 - converted serialised page table to be 64-bit
   if(ver == 0x19)
     return true;
