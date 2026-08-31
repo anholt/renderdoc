@@ -365,6 +365,28 @@ void MiniQtHelper::SetWidgetText(QWidget *widget, const rdcstr &text)
   }
 }
 
+void MiniQtHelper::AppendText(QWidget *widget, const rdcstr &text)
+{
+#define APPEND_TEXT(TextWidget)                         \
+  {                                                     \
+    TextWidget *w = qobject_cast<TextWidget *>(widget); \
+    if(w)                                               \
+    {                                                   \
+      ScrollToBottom(widget);                           \
+      w->moveCursor(QTextCursor::End);                  \
+      w->insertPlainText(text);                         \
+      return;                                           \
+    }                                                   \
+  }
+
+  APPEND_TEXT(RDTextEdit);
+  APPEND_TEXT(QTextEdit);
+
+  rdcstr t = GetWidgetText(widget);
+  t += text;
+  SetWidgetText(widget, t);
+}
+
 rdcstr MiniQtHelper::GetWidgetText(QWidget *widget)
 {
   if(!widget)

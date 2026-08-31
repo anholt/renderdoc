@@ -72,6 +72,7 @@ public:
   // widget manipulation
 
   void SetWidgetText(QWidget *widget, const rdcstr &text) override;
+  void AppendText(QWidget *widget, const rdcstr &text) override;
   rdcstr GetWidgetText(QWidget *widget) override;
 
   void ScrollToTop(QWidget *widget) override;

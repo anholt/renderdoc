@@ -687,6 +687,17 @@ add text next to it.
 )");
   virtual void SetWidgetText(QWidget *widget, const rdcstr &text) = 0;
 
+  DOCUMENT(R"(Appends to the 'text' of a widget. For most widgets this will not be different from
+getting the text with :meth:`GetWidgetText`, appending to the string, and setting with :meth:`SetWidgetText`
+but for multi-line widgets like text edits this can give a better experience with better scrolling.
+
+This will also scroll to and move the cursor to the end of the text.
+
+:param QWidget widget: The widget to append text for.
+:param str text: The text to append to the widget's text.
+)");
+  virtual void AppendText(QWidget *widget, const rdcstr &text) = 0;
+
   DOCUMENT(R"(Return the current text of a widget. See :meth:`SetWidgetText`.
 
 :param QWidget widget: The widget to query.

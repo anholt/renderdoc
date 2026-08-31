@@ -177,6 +177,10 @@ struct MiniQtInvoker : UIThreadInvoker<IMiniQtHelper>
   {
     InvokeVoidFunction(&IMiniQtHelper::SetWidgetText, widget, text);
   }
+  void AppendText(QWidget *widget, const rdcstr &text)
+  {
+    InvokeVoidFunction(&IMiniQtHelper::AppendText, widget, text);
+  }
   rdcstr GetWidgetText(QWidget *widget)
   {
     return InvokeRetFunction<rdcstr>(&IMiniQtHelper::GetWidgetText, widget);
