@@ -3005,7 +3005,7 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
                                                         eFrameRef_Read);
 
     // we're using the fake image for descriptor buffers, which is in layout general not present
-    if(DescriptorBuffers())
+    if(DescriptorBuffers() || DescriptorHeap())
       swapLayout = VK_IMAGE_LAYOUT_GENERAL;
   }
   else
@@ -3033,7 +3033,7 @@ bool WrappedVulkan::EndFrameCapture(DeviceOwnedWindow devWnd)
         GetResourceManager()->MarkResourceFrameReferenced(
             GetResID(swapInfo.images[i].userSwapImage), eFrameRef_Read);
 
-      if(DescriptorBuffers())
+      if(DescriptorBuffers() || DescriptorHeap())
         swapLayout = VK_IMAGE_LAYOUT_GENERAL;
     }
     else if(VRBackbufferRecord)
