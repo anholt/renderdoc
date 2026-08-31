@@ -1146,12 +1146,13 @@ void PythonContext::Finish()
 
 void *PythonContext::PausePythonThreading()
 {
-  return PyEval_SaveThread();
+  return PyGILState_Check() == 0 ? NULL : PyEval_SaveThread();
 }
 
 void PythonContext::ResumePythonThreading(void *ctx)
 {
-  PyEval_RestoreThread((PyThreadState *)ctx);
+  if(ctx)
+    PyEval_RestoreThread((PyThreadState *)ctx);
 }
 
 void PythonContext::GlobalShutdown()
