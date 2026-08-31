@@ -2228,7 +2228,7 @@ class PyReflector:
             src = "\n" * (line - 1) + func
 
             node = ast.parse(src)
-            if not isinstance(node, ast.Module) or len(node.body) == []:
+            if not isinstance(node, ast.Module) or len(node.body) == 0:
                 return "", "", ""
             node = node.body[0]
 
