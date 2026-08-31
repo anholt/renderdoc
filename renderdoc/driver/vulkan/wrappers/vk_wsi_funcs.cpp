@@ -281,7 +281,7 @@ VkResult WrappedVulkan::vkGetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR 
 
     VkResourceRecord *swapRecord = GetRecord(swapchain);
 
-    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers();
+    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers() || DescriptorHeap();
 
     for(uint32_t i = 0; i < numImages; i++)
     {
@@ -380,12 +380,14 @@ bool WrappedVulkan::Serialise_vkCreateSwapchainKHR(SerialiserType &ser, VkDevice
   SERIALISE_ELEMENT(NumImages);
 
   rdcarray<OpaqueDataForSerialising> opaqueDataFetch;
+  rdcarray<OpaqueHeapDataForSerialising> opaqueHeapDataFetch;
 
   rdcarray<VkOpaqueCaptureDescriptorDataCreateInfoEXT> opaqueData;
+  rdcarray<VkOpaqueCaptureDataCreateInfoEXT> opaqueHeapData;
   rdcarray<uint64_t> imageMemOffsets;
   uint64_t opaqueMemAddress = 0;
 
-  const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers();
+  const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers() || DescriptorHeap();
 
   if(IsCaptureMode(m_State) && fakeBackbuffers)
   {
@@ -393,6 +395,11 @@ bool WrappedVulkan::Serialise_vkCreateSwapchainKHR(SerialiserType &ser, VkDevice
     {
       opaqueDataFetch.resize(NumImages);
       opaqueData.resize(NumImages);
+    }
+    if(DescriptorHeap())
+    {
+      opaqueHeapDataFetch.resize(NumImages);
+      opaqueHeapData.resize(NumImages);
     }
     imageMemOffsets.resize(NumImages);
 
@@ -405,6 +412,15 @@ bool WrappedVulkan::Serialise_vkCreateSwapchainKHR(SerialiserType &ser, VkDevice
                                          m_DescriptorBufferProperties);
         opaqueData[i] = opaqueDataFetch[i];
       }
+
+      if(DescriptorHeap())
+      {
+        opaqueHeapDataFetch[i].fillUnwrapped(
+            device, GetRecord(*pSwapChain)->swapInfo->images[i].userSwapImage,
+            m_DescriptorHeapProperties);
+        opaqueHeapData[i] = opaqueHeapDataFetch[i];
+      }
+
       imageMemOffsets[i] = GetRecord(*pSwapChain)->swapInfo->images[i].fakeImageMemoryOffset;
     }
 
@@ -422,6 +438,8 @@ bool WrappedVulkan::Serialise_vkCreateSwapchainKHR(SerialiserType &ser, VkDevice
     SERIALISE_ELEMENT(opaqueData).Hidden();
     SERIALISE_ELEMENT(imageMemOffsets).Hidden();
     SERIALISE_ELEMENT(opaqueMemAddress).Hidden();
+    if(ser.VersionAtLeast(0x21))
+      SERIALISE_ELEMENT(opaqueHeapData).Hidden();
   }
 
   SERIALISE_CHECK_READ_ERRORS();
@@ -484,6 +502,13 @@ bool WrappedVulkan::Serialise_vkCreateSwapchainKHR(SerialiserType &ser, VkDevice
       {
         RDCASSERT(i < opaqueData.size(), i, opaqueData.size());
         imInfo.pNext = &opaqueData[i];
+      }
+
+      if(DescriptorHeap())
+      {
+        RDCASSERT(i < opaqueHeapDataFetch.size(), i, opaqueHeapDataFetch.size());
+        opaqueHeapData[i].pNext = imInfo.pNext;
+        imInfo.pNext = &opaqueHeapData[i];
       }
 
       VkResult vkr = ObjDisp(device)->CreateImage(Unwrap(device), &imInfo, NULL, &ims[i]);
@@ -628,7 +653,7 @@ void WrappedVulkan::WrapAndProcessCreatedSwapchain(VkDevice device,
 
     swapInfo.images.resize(numSwapImages);
 
-    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers();
+    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers() || DescriptorHeap();
 
     // create fake images and memory if we're using descriptor buffers so that the user's handles
     // that views and descriptors are created from are replayable
@@ -1160,7 +1185,7 @@ void WrappedVulkan::HandlePresent(VkQueue queue, const VkPresentInfoKHR *pPresen
   {
     uint32_t overlay = RenderDoc::Inst().GetOverlayBits();
 
-    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers();
+    const bool fakeBackbuffers = AccelerationStructures() || DescriptorBuffers() || DescriptorHeap();
 
     if(fakeBackbuffers || (overlay & eRENDERDOC_Overlay_Enabled))
     {
