@@ -114,6 +114,7 @@ set(VULKAN_SRC
         vk/vk_custom_border_color.cpp
         vk/vk_dedicated_allocation.cpp
         vk/vk_descriptor_buffer.cpp
+        vk/vk_descriptor_heap.cpp
         vk/vk_descriptor_index.cpp
         vk/vk_descriptor_reuse.cpp
         vk/vk_descriptor_variable_count.cpp
