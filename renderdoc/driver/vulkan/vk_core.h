@@ -1593,6 +1593,16 @@ public:
 
   uint32_t DescriptorDataSize(VkDescriptorType type);
   uint32_t HeapDescriptorDataSize(VkDescriptorType type);
+  uint32_t HeapReservedSize()
+  {
+    return (uint32_t)AlignUp(AlignUp(m_DescriptorHeapProperties.imageDescriptorSize,
+                                     m_DescriptorHeapProperties.imageDescriptorAlignment),
+                             m_DescriptorHeapProperties.bufferDescriptorAlignment);
+  }
+  uint32_t HeapReservedPushOffset()
+  {
+    return (uint32_t)m_DescriptorHeapProperties.maxPushDataSize - 4;
+  };
 
   VkBufferCreateFlags DefaultBufferCreateFlags()
   {

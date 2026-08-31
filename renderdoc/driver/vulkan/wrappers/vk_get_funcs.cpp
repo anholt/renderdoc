@@ -931,6 +931,9 @@ void WrappedVulkan::vkGetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevi
           pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES);
   VkPhysicalDeviceVulkan14Properties *vulkan14 = (VkPhysicalDeviceVulkan14Properties *)FindNextStruct(
       pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_PROPERTIES);
+  VkPhysicalDeviceDescriptorHeapPropertiesEXT *heap =
+      (VkPhysicalDeviceDescriptorHeapPropertiesEXT *)FindNextStruct(
+          pProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT);
 
   if(shaderObject || hostImageCopy || vulkan14)
   {
@@ -994,6 +997,14 @@ void WrappedVulkan::vkGetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevi
         ExpectedMaxNumDescriptorBuffers * reservedDescriptorSize;
     descBufferProperties->resourceDescriptorBufferAddressSpaceSize -=
         ExpectedMaxNumDescriptorBuffers * reservedDescriptorSize;
+  }
+
+  if(heap)
+  {
+    heap->minResourceHeapReservedRange += HeapReservedSize();
+    // Reserve a slot for HeapReservedPushOffset() to place the offset to get to
+    // the reserved range within the currently bound heap.
+    heap->maxPushDataSize -= 4;
   }
 }
 
