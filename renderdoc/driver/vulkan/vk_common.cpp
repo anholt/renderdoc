@@ -712,6 +712,15 @@ void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkBufferMemoryBa
       0, NULL);                     // image memory barriers
 }
 
+void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkBufferMemoryBarrier2 *barriers)
+{
+  RDCASSERT(cmd != VK_NULL_HANDLE);
+  VkDependencyInfo dep = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+  dep.pBufferMemoryBarriers = barriers;
+  dep.bufferMemoryBarrierCount = (uint32_t)count;
+  ObjDisp(cmd)->CmdPipelineBarrier2(Unwrap(cmd), &dep);
+}
+
 void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkMemoryBarrier *barriers)
 {
   RDCASSERT(cmd != VK_NULL_HANDLE);
