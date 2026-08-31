@@ -10639,7 +10639,14 @@ bool WrappedVulkan::Serialise_vkCmdBindResourceHeapEXT(SerialiserType &ser,
       if(InRerecordRange(m_LastCmdBufferID))
       {
         commandBuffer = RerecordCmdBuf(m_LastCmdBufferID);
-        ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+
+        uint32_t reserved = HeapReservedSize(&m_DescriptorHeapProperties);
+        VkBindHeapInfoEXT adjustedInfo = *pBindInfo;
+        RDCASSERT(adjustedInfo.reservedRangeSize >= reserved);
+        adjustedInfo.reservedRangeOffset += reserved;
+        adjustedInfo.reservedRangeSize -= reserved;
+
+        ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), &adjustedInfo);
 
         {
           VulkanRenderState &renderstate = GetCmdRenderState();
@@ -10667,7 +10674,13 @@ bool WrappedVulkan::Serialise_vkCmdBindResourceHeapEXT(SerialiserType &ser,
         VersionDescriptorHeaps(commandBuffer);
       }
 
-      ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), pBindInfo);
+      uint32_t reserved = HeapReservedSize(&m_DescriptorHeapProperties);
+      VkBindHeapInfoEXT adjustedInfo = *pBindInfo;
+      RDCASSERT(adjustedInfo.reservedRangeSize >= reserved);
+      adjustedInfo.reservedRangeOffset += reserved;
+      adjustedInfo.reservedRangeSize -= reserved;
+
+      ObjDisp(commandBuffer)->CmdBindResourceHeapEXT(Unwrap(commandBuffer), &adjustedInfo);
     }
   }
 

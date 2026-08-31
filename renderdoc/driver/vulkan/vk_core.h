@@ -1593,6 +1593,17 @@ public:
 
   uint32_t DescriptorDataSize(VkDescriptorType type);
   uint32_t HeapDescriptorDataSize(VkDescriptorType type);
+  static uint32_t HeapReservedSize(VkPhysicalDeviceDescriptorHeapPropertiesEXT *props)
+  {
+    return (uint32_t)AlignUp(AlignUp(props->imageDescriptorSize, props->imageDescriptorAlignment),
+                             props->bufferDescriptorAlignment);
+  }
+  uint32_t HeapReservedPushOffset()
+  {
+    return RDCMIN((uint32_t)m_DescriptorHeapProperties.maxPushDataSize,
+                  (uint32_t)sizeof(VulkanRenderState::pushconsts)) -
+           4;
+  };
 
   VkBufferCreateFlags DefaultBufferCreateFlags()
   {
