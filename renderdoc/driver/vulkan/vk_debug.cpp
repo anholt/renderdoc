@@ -4578,9 +4578,10 @@ void VulkanReplay::OverlayRendering::Init(WrappedVulkan *driver, VkDescriptorPoo
                       {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, NULL},
                   },
                   VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT);
-
-    m_QuadDescriptor.Create(driver, driver->GetDev(), MaxDescriptorSize, 1, 0);
   }
+
+  if(driver->DescriptorBuffers() || driver->DescriptorHeap())
+    m_QuadDescriptor.Create(driver, driver->GetDev(), MaxDescriptorSize, 1, 0);
 
   CREATE_OBJECT(m_TriSizeDescSetLayout,
                 {
