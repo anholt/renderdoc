@@ -711,6 +711,9 @@ this will do nothing
 
   DOCUMENT(R"(Change the font properties of a widget.
 
+The font string can be set either to '_default' or '_fixed' to choose the user-selected default
+font or monospaced fonts respectively.
+
 :param QWidget widget: The widget to change font of.
 :param str font: The new font family to use, or an empty string to leave the font family the same.
 :param int fontSize: The new font point size to use, or 0 to leave the size the same.

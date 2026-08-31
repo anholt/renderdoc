@@ -439,10 +439,16 @@ void MiniQtHelper::SetWidgetFont(QWidget *widget, const rdcstr &font, int32_t fo
   if(!widget)
     return;
 
+  QString fontFamily = font;
+  if(font == "_default")
+    fontFamily = Formatter::PreferredFont().family();
+  if(font == "_fixed")
+    fontFamily = Formatter::FixedFont().family();
+
   QFont f = widget->font();
 
-  if(!font.empty())
-    f.setFamily(font);
+  if(!fontFamily.isEmpty())
+    f.setFamily(fontFamily);
   if(fontSize != 0)
     f.setPointSize(fontSize);
   f.setBold(bold);
