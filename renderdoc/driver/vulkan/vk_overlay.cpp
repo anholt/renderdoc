@@ -94,6 +94,7 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
     CachedShader shad = m_ShaderCache[pipestate.shaderObjects[4]];
 
     bool descBuf = false;
+    bool descHeap = pipestate.UsingDescHeaps();
 
     // if we don't get a hit, create a modified pipeline
     if(pipestate.graphics.shaderObject ? shad.shad == VK_NULL_HANDLE : pipe.pipe == VK_NULL_HANDLE)
@@ -101,57 +102,80 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
       const VulkanCreationInfo::Pipeline &p =
           m_pDriver->GetDebugManager()->GetPipelineInfo(pipestate.graphics.pipeline);
 
-      const ResourceId layoutID =
-          (pipestate.graphics.shaderObject)
-              ? pipestate.graphics.descSets[pipestate.graphics.LastBoundSet()].pipeLayout
-              : p.vertLayout;
+      VkDescriptorSetLayout *descSetLayouts = NULL;
+      uint32_t descSet = 0;
+      VkDescriptorSetAndBindingMappingEXT mapping = {
+          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT};
+      VkShaderDescriptorSetAndBindingMappingInfoEXT mappingInfo = {
+          VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT};
 
-      const VulkanCreationInfo::PipelineLayout &layout =
-          m_pDriver->GetDebugManager()->GetPipelineLayoutInfo(layoutID);
+      if(descHeap)
+      {
+        descHeap = true;
 
-      const rdcarray<ResourceId> &origDescSetLayouts =
-          (pipestate.graphics.shaderObject) ? layout.descSetLayouts : p.descSetLayouts;
+        mapping.descriptorSet = descSet;
+        mapping.firstBinding = 0;
+        mapping.bindingCount = 1;
+        mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
+        mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
+        mapping.sourceData.pushIndex.pushOffset = m_pDriver->HeapReservedPushOffset();
+        mapping.sourceData.pushIndex.heapIndexStride = 1;
 
-      VkDescriptorSetLayout *descSetLayouts;
-
-      // descSet will be the index of our new descriptor set
-      uint32_t descSet = (uint32_t)origDescSetLayouts.size();
-
-      descSetLayouts = new VkDescriptorSetLayout[descSet + 1];
-
-      for(uint32_t i = 0; i < descSet; i++)
-        descSetLayouts[i] =
-            m_pDriver->GetResourceManager()->GetHandle<VkDescriptorSetLayout>(origDescSetLayouts[i]);
-
-      // this layout has storage image
-      descBuf = (p.flags & VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) != 0;
-
-      if(descBuf)
-        descSetLayouts[descSet] = m_DescBufLayout;
+        mappingInfo.pMappings = &mapping;
+        mappingInfo.mappingCount = 1;
+      }
       else
-        descSetLayouts[descSet] = m_DescSetLayout;
+      {
+        const ResourceId layoutID =
+            (pipestate.graphics.shaderObject)
+                ? pipestate.graphics.descSets[pipestate.graphics.LastBoundSet()].pipeLayout
+                : p.vertLayout;
 
-      // don't have to handle separate vert/frag layouts as push constant ranges must be identical
-      const rdcarray<VkPushConstantRange> &push = layout.pushRanges;
+        const VulkanCreationInfo::PipelineLayout &layout =
+            m_pDriver->GetDebugManager()->GetPipelineLayoutInfo(layoutID);
 
-      VkPipelineLayoutCreateInfo pipeLayoutInfo = {
-          VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-          NULL,
-          0,
-          descSet + 1,
-          descSetLayouts,
-          (uint32_t)push.size(),
-          push.empty() ? NULL : &push[0],
-      };
+        const rdcarray<ResourceId> &origDescSetLayouts =
+            (pipestate.graphics.shaderObject) ? layout.descSetLayouts : p.descSetLayouts;
 
-      // create pipeline layout with same descriptor set layouts, plus our mesh output set
-      if(pipestate.graphics.shaderObject)
-        vkr = m_pDriver->vkCreatePipelineLayout(m_pDriver->GetDev(), &pipeLayoutInfo, NULL,
-                                                &shad.pipeLayout);
-      else
-        vkr = m_pDriver->vkCreatePipelineLayout(m_pDriver->GetDev(), &pipeLayoutInfo, NULL,
-                                                &pipe.pipeLayout);
-      CHECK_VKR(m_pDriver, vkr);
+        // descSet will be the index of our new descriptor set
+        descSet = (uint32_t)origDescSetLayouts.size();
+
+        descSetLayouts = new VkDescriptorSetLayout[descSet + 1];
+
+        for(uint32_t i = 0; i < descSet; i++)
+          descSetLayouts[i] = m_pDriver->GetResourceManager()->GetHandle<VkDescriptorSetLayout>(
+              origDescSetLayouts[i]);
+
+        // this layout has storage image
+        descBuf = (p.flags & VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) != 0;
+
+        if(descBuf)
+          descSetLayouts[descSet] = m_DescBufLayout;
+        else
+          descSetLayouts[descSet] = m_DescSetLayout;
+
+        // don't have to handle separate vert/frag layouts as push constant ranges must be identical
+        const rdcarray<VkPushConstantRange> &push = layout.pushRanges;
+
+        VkPipelineLayoutCreateInfo pipeLayoutInfo = {
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            NULL,
+            0,
+            descSet + 1,
+            descSetLayouts,
+            (uint32_t)push.size(),
+            push.empty() ? NULL : &push[0],
+        };
+
+        // create pipeline layout with same descriptor set layouts, plus our mesh output set
+        if(pipestate.graphics.shaderObject)
+          vkr = m_pDriver->vkCreatePipelineLayout(m_pDriver->GetDev(), &pipeLayoutInfo, NULL,
+                                                  &shad.pipeLayout);
+        else
+          vkr = m_pDriver->vkCreatePipelineLayout(m_pDriver->GetDev(), &pipeLayoutInfo, NULL,
+                                                  &pipe.pipeLayout);
+        CHECK_VKR(m_pDriver, vkr);
+      }
 
       VkGraphicsPipelineCreateInfo pipeCreateInfo;
       m_pDriver->GetShaderCache()->MakeGraphicsPipelineInfo(pipeCreateInfo,
@@ -214,12 +238,18 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
         m_pDriver->GetShaderCache()->MakeShaderObjectInfo(shadCreateInfo, pipestate.shaderObjects[4]);
 
         shadCreateInfo.pSetLayouts = descSetLayouts;
-        shadCreateInfo.setLayoutCount = descSet + 1;
+        shadCreateInfo.setLayoutCount = descSetLayouts != NULL ? descSet + 1 : 0;
         shadCreateInfo.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT;
         shadCreateInfo.codeSize = spirv.size() * sizeof(uint32_t);
         shadCreateInfo.pCode = &spirv[0];
         shadCreateInfo.pName = "main";
         shadCreateInfo.pSpecializationInfo = NULL;
+
+        if(descHeap)
+        {
+          mappingInfo.pNext = shadCreateInfo.pNext;
+          shadCreateInfo.pNext = &mappingInfo;
+        }
 
         vkr = m_pDriver->vkCreateShadersEXT(dev, 1, &shadCreateInfo, NULL, &shad.shad);
         CHECK_VKR(m_pDriver, vkr);
@@ -254,6 +284,16 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
           {
             sh.module = module;
             sh.pName = "main";
+
+            if(descHeap)
+            {
+              /* Dropping any pNext chain from the pipeline's FS stage that
+               * might have itself had a mapping info.  This is fine, since
+               * we're wholesale replacing the fragment stage.
+               */
+              sh.pNext = &mappingInfo;
+            }
+
             found = true;
             break;
           }
@@ -272,6 +312,12 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
           sh.module = module;
           sh.pName = "main";
           sh.pSpecializationInfo = NULL;
+
+          if(descHeap)
+          {
+            mappingInfo.pNext = sh.pNext;
+            sh.pNext = &mappingInfo;
+          }
         }
 
         vkr = m_pDriver->vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &pipeCreateInfo, NULL,
@@ -289,6 +335,16 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
     }
 
     // modify state for first draw call
+    if(descHeap)
+    {
+      uint32_t descSize = m_pDriver->HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+      uint32_t pushOffset = m_pDriver->HeapReservedPushOffset();
+      pipestate.pushConstSize = RDCMAX(pipestate.pushConstSize, pushOffset + 4);
+      RDCASSERT(pipestate.resourceHeap.reservedRangeSize >= descSize);
+      *(uint32_t *)(pipestate.pushconsts + pushOffset) =
+          (uint32_t)pipestate.resourceHeap.reservedRangeOffset;
+    }
+
     if(pipestate.graphics.shaderObject)
     {
       pipestate.shaderObjects[4] = GetResID(shad.shad);
@@ -320,7 +376,7 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
           }
         }
       }
-      else
+      else if(!descHeap)
       {
         descSet.descSet = GetResID(m_DescSet);
       }
@@ -351,7 +407,7 @@ struct VulkanQuadOverdrawCallback : public VulkanActionCallback
           }
         }
       }
-      else
+      else if(!descHeap)
       {
         descSet.descSet = GetResID(m_DescSet);
       }
@@ -3224,7 +3280,76 @@ ResourceId VulkanReplay::RenderOverlay(ResourceId texid, FloatVector clearCol, D
       m_pDriver->ReplayLog(0, events[0], eReplay_WithoutDraw);
 
       // fill descriptor here so that initial contents doesn't overwrite it
-      if(m_pDriver->DescriptorBuffers())
+      if(prevstate.UsingDescHeaps())
+      {
+        VkImageViewCreateInfo view = viewinfo;
+        view.image = Unwrap(view.image);
+
+        VkImageDescriptorInfoEXT image = {VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT};
+        image.pView = &view;
+        image.layout = VK_IMAGE_LAYOUT_GENERAL;
+
+        VkResourceDescriptorInfoEXT resource = {VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT};
+        resource.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        resource.data.pImage = &image;
+
+        uint32_t descSize = m_pDriver->HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+
+        VkHostAddressRangeEXT address = {m_Overlay.m_QuadDescriptor.Map(), descSize};
+        ObjDisp(m_Device)->WriteResourceDescriptorsEXT(Unwrap(m_Device), 1, &resource, &address);
+        m_Overlay.m_QuadDescriptor.Unmap();
+
+        // Copy the descriptor into the heap bound at the start of the overlaid
+        // draws, assuming that it won't be re-bound while the overlay draws
+        // happen.  If we need to support the heap getting re-bound, we probably
+        // need to collect the reserved ranges in a separate set of callbacks
+        // for ReplayLog.
+        ResourceId id;
+        uint64_t offs;
+        m_pDriver->GetResIDFromAddr(prevstate.resourceHeap.heapRange.address, id, offs);
+
+        if(id != ResourceId())
+        {
+          cmd = m_pDriver->GetNextCmd();
+
+          vkr = vt->BeginCommandBuffer(Unwrap(cmd), &beginInfo);
+          CHECK_VKR(m_pDriver, vkr);
+
+          VkBuffer dst = GetResourceManager()->GetHandle<VkBuffer>(id);
+          VkBufferCopy bufCopy = {};
+          bufCopy.srcOffset = 0;
+          bufCopy.dstOffset = offs + prevstate.resourceHeap.reservedRangeOffset;
+          bufCopy.size = descSize;
+
+          ObjDisp(m_Device)->CmdCopyBuffer(
+              Unwrap(cmd), m_Overlay.m_QuadDescriptor.UnwrappedBuffer(), Unwrap(dst), 1, &bufCopy);
+
+          VkBufferMemoryBarrier bufBarrier = {
+              VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+              NULL,
+              VK_ACCESS_TRANSFER_WRITE_BIT,
+              VK_ACCESS_HOST_READ_BIT,
+              VK_QUEUE_FAMILY_IGNORED,
+              VK_QUEUE_FAMILY_IGNORED,
+              Unwrap(dst),
+              bufCopy.dstOffset,
+              descSize,
+          };
+          DoPipelineBarrier(cmd, 1, &bufBarrier);
+
+          vkr = vt->EndCommandBuffer(Unwrap(cmd));
+          CHECK_VKR(m_pDriver, vkr);
+
+          m_pDriver->SubmitCmds();
+          m_pDriver->FlushQ();
+        }
+        else
+        {
+          RDCERR("No heap found at the start of the overlay draw.");
+          return ResourceId();
+        }
+      }
+      else if(m_pDriver->DescriptorBuffers())
       {
         VkDescriptorGetInfoEXT info = {
             VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT,

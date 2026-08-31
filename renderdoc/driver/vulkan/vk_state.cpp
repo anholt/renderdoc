@@ -418,9 +418,12 @@ void VulkanRenderState::BindDescriptorHeaps(WrappedVulkan *vk, VkCommandBuffer c
   if(resourceHeap.heapRange.size != 0)
   {
     VkBindHeapInfoEXT info = {VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT};
+    uint32_t reserved = vk->HeapReservedSize();
+    RDCASSERT(resourceHeap.reservedRangeSize >= reserved);
+
     info.heapRange = resourceHeap.heapRange;
-    info.reservedRangeOffset = resourceHeap.reservedRangeOffset;
-    info.reservedRangeSize = resourceHeap.reservedRangeSize;
+    info.reservedRangeOffset = resourceHeap.reservedRangeOffset + reserved;
+    info.reservedRangeSize = resourceHeap.reservedRangeSize - reserved;
 
     ObjDisp(cmd)->CmdBindResourceHeapEXT(Unwrap(cmd), &info);
   }
