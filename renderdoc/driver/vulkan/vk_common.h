@@ -138,6 +138,7 @@ void CombineDepthStencilLayouts(rdcarray<VkImageMemoryBarrier> &barriers);
 
 void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkImageMemoryBarrier *barriers);
 void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkBufferMemoryBarrier *barriers);
+void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkBufferMemoryBarrier2 *barriers);
 void DoPipelineBarrier(VkCommandBuffer cmd, size_t count, const VkMemoryBarrier *barriers);
 
 int SampleCount(VkSampleCountFlagBits countFlag);

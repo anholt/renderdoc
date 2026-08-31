@@ -1932,6 +1932,18 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
             "mesh stage will not be available");
     }
 
+    bool KHRsync2 = false;
+    // enable VK_KHR_synchronization2 if it's available, for descriptor heap quad overlay pipeline barriers.
+    if(supportedExtensions.find(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME) != supportedExtensions.end())
+    {
+      KHRsync2 = true;
+      if(!Extensions.contains(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME))
+      {
+        Extensions.push_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
+        RDCLOG("Enabling VK_KHR_synchronization2 extension");
+      }
+    }
+
     // enable VK_KHR_shader_subgroup_uniform_control_flow if it's available, to make subgroup
     // debugging more reliable/spec-clean.
     // if we can't get it, we'll just emit the same code anyway and hope it compiles to something sensible
@@ -4197,6 +4209,47 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
             "is not. Disabling");
 
         Extensions.removeOne(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
+      }
+    }
+
+    // Note that 1.3 or KHR_synchronization2 guarantee that the feature is
+    // available.
+    VkPhysicalDeviceSynchronization2Features sync2Features = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES};
+    const bool vulkan13 =
+        RDCMIN(m_EnabledExtensions.vulkanVersion, physProps.apiVersion) >= VK_MAKE_VERSION(1, 3, 0);
+    if(vulkan13 || KHRsync2)
+    {
+      VkPhysicalDeviceVulkan13Features *existing13 =
+          (VkPhysicalDeviceVulkan13Features *)FindNextStruct(
+              &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES);
+
+      if(existing13)
+      {
+        existing13->synchronization2 = VK_TRUE;
+        vulkan13Features.synchronization2 = VK_TRUE;
+      }
+      else
+      {
+        VkPhysicalDeviceSynchronization2Features *existingEXT =
+            (VkPhysicalDeviceSynchronization2Features *)FindNextStruct(
+                &createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES);
+
+        if(existingEXT)
+        {
+          existingEXT->synchronization2 = VK_TRUE;
+        }
+        else
+        {
+          // don't add a new VkPhysicalDeviceVulkan13Features to the pNext chain because if we do
+          // we have to remove any components etc. Instead just add the individual
+          // VkPhysicalDeviceSynchronization2FeaturesKHR
+          sync2Features.synchronization2 = VK_TRUE;
+
+          sync2Features.pNext = (void *)createInfo.pNext;
+          createInfo.pNext = &sync2Features;
+        }
+        sync2.synchronization2 = VK_TRUE;
       }
     }
 
