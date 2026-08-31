@@ -32,6 +32,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QVBoxLayout>
 #include <QWidget>
 #include "Code/QRDUtils.h"
@@ -410,6 +411,26 @@ rdcstr MiniQtHelper::GetWidgetText(QWidget *widget)
 
   // if all else failed, return the window title of the widget
   return widget->windowTitle();
+}
+
+void MiniQtHelper::ScrollToTop(QWidget *widget)
+{
+  if(!widget)
+    return;
+
+  QAbstractScrollArea *w = qobject_cast<QAbstractScrollArea *>(widget);
+  if(w)
+    w->verticalScrollBar()->setSliderPosition(w->verticalScrollBar()->minimum());
+}
+
+void MiniQtHelper::ScrollToBottom(QWidget *widget)
+{
+  if(!widget)
+    return;
+
+  QAbstractScrollArea *w = qobject_cast<QAbstractScrollArea *>(widget);
+  if(w)
+    w->verticalScrollBar()->setSliderPosition(w->verticalScrollBar()->maximum());
 }
 
 void MiniQtHelper::SetWidgetFont(QWidget *widget, const rdcstr &font, int32_t fontSize, bool bold,

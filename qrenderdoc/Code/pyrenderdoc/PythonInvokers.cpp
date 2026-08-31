@@ -182,6 +182,12 @@ struct MiniQtInvoker : UIThreadInvoker<IMiniQtHelper>
     return InvokeRetFunction<rdcstr>(&IMiniQtHelper::GetWidgetText, widget);
   }
 
+  void ScrollToTop(QWidget *widget) { InvokeVoidFunction(&IMiniQtHelper::ScrollToTop, widget); }
+  void ScrollToBottom(QWidget *widget)
+  {
+    InvokeVoidFunction(&IMiniQtHelper::ScrollToBottom, widget);
+  }
+
   void SetWidgetFont(QWidget *widget, const rdcstr &font, int32_t fontSize, bool bold, bool italic)
   {
     InvokeVoidFunction(&IMiniQtHelper::SetWidgetFont, widget, font, fontSize, bold, italic);

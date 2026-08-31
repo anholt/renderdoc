@@ -695,6 +695,20 @@ add text next to it.
 )");
   virtual rdcstr GetWidgetText(QWidget *widget) = 0;
 
+  DOCUMENT(R"(Scroll the widget's vertical scrollbar to the top. If the widget has no scrollbar
+this will do nothing
+
+:param QWidget widget: The widget to scroll in.
+)");
+  virtual void ScrollToTop(QWidget *widget) = 0;
+
+  DOCUMENT(R"(Scroll the widget's vertical scrollbar to the bottom. If the widget has no scrollbar
+this will do nothing
+
+:param QWidget widget: The widget to scroll in.
+)");
+  virtual void ScrollToBottom(QWidget *widget) = 0;
+
   DOCUMENT(R"(Change the font properties of a widget.
 
 :param QWidget widget: The widget to change font of.
