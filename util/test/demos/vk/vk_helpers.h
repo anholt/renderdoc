@@ -196,6 +196,15 @@ void cmdPushConstants(VkCommandBuffer cmd, VkPipelineLayout layout, const T &val
   cmdPushConstants(cmd, layout, VK_SHADER_STAGE_ALL, val);
 }
 
+template <typename T>
+void cmdPushData(VkCommandBuffer cmd, uint32_t offset, const T &val)
+{
+  VkPushDataInfoEXT info = {VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT};
+  info.offset = offset;
+  info.data = {&val, sizeof(T)};
+  vkCmdPushDataEXT(cmd, &info);
+}
+
 void cmdSetViewport(VkCommandBuffer cmd, VkViewport viewport);
 
 struct ApplicationInfo : public VkApplicationInfo
@@ -1288,6 +1297,73 @@ struct Rect2D : public VkRect2D
   }
 };
 
+struct DescriptorSetAndBindingMapping : public VkDescriptorSetAndBindingMappingEXT
+{
+  DescriptorSetAndBindingMapping(uint32_t set, uint32_t binding)
+  {
+    sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+    pNext = NULL;
+    resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
+    bindingCount = 1;
+    descriptorSet = set;
+    firstBinding = binding;
+    sourceData = {0};
+  }
+
+  static DescriptorSetAndBindingMapping constOffset(uint32_t set, uint32_t binding, uint32_t offset,
+                                                    uint32_t samplerOffset = 0)
+  {
+    DescriptorSetAndBindingMapping mapping(set, binding);
+
+    mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+    mapping.sourceData.constantOffset.heapOffset = offset;
+    mapping.sourceData.constantOffset.pEmbeddedSampler = NULL;
+    mapping.sourceData.constantOffset.samplerHeapOffset = samplerOffset;
+
+    return mapping;
+  }
+
+  static DescriptorSetAndBindingMapping pushIndex(uint32_t set, uint32_t binding,
+                                                  uint32_t heapOffset, uint32_t pushOffset,
+                                                  uint32_t heapIndexStride, uint32_t heapArrayStride,
+                                                  uint32_t samplerHeapOffset = 0,
+                                                  uint32_t samplerPushOffset = 0,
+                                                  uint32_t samplerHeapIndexStride = 0,
+                                                  uint32_t samplerHeapArrayStride = 0)
+
+  {
+    DescriptorSetAndBindingMapping mapping(set, binding);
+
+    mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
+    mapping.sourceData.pushIndex.heapOffset = heapOffset;
+    mapping.sourceData.pushIndex.pushOffset = pushOffset;
+    mapping.sourceData.pushIndex.heapIndexStride = heapIndexStride;
+    mapping.sourceData.pushIndex.heapArrayStride = heapArrayStride;
+    mapping.sourceData.pushIndex.pEmbeddedSampler = NULL;
+    mapping.sourceData.pushIndex.samplerHeapOffset = samplerHeapOffset;
+    mapping.sourceData.pushIndex.samplerPushOffset = samplerPushOffset;
+    mapping.sourceData.pushIndex.samplerHeapIndexStride = samplerHeapIndexStride;
+    mapping.sourceData.pushIndex.samplerHeapArrayStride = samplerHeapArrayStride;
+
+    return mapping;
+  }
+
+  operator const VkDescriptorSetAndBindingMappingEXT *() const { return this; }
+};
+
+struct ShaderDescriptorSetAndBindingMappingInfo : public VkShaderDescriptorSetAndBindingMappingInfoEXT
+{
+  ShaderDescriptorSetAndBindingMappingInfo(VkDescriptorSetAndBindingMappingEXT &mapping)
+  {
+    sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT;
+    pNext = NULL;
+    mappingCount = 1;
+    pMappings = &mapping;
+  }
+
+  operator const VkShaderDescriptorSetAndBindingMappingInfoEXT *() const { return this; }
+};
+
 struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo
 {
   PipelineShaderStageCreateInfo(VkShaderModule module, VkShaderStageFlagBits stage,
@@ -1303,6 +1379,18 @@ struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo
   }
 
   operator const VkPipelineShaderStageCreateInfo *() const { return this; }
+};
+
+struct PipelineCreateFlags2CreateInfo : public VkPipelineCreateFlags2CreateInfo
+{
+  PipelineCreateFlags2CreateInfo(VkPipelineCreateFlagBits2 flags = 0)
+  {
+    sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO;
+    pNext = NULL;
+    this->flags = flags;
+  }
+
+  operator const VkPipelineCreateFlags2CreateInfo *() const { return this; }
 };
 
 struct ComputePipelineCreateInfo : public VkComputePipelineCreateInfo
