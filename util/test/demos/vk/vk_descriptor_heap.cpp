@@ -104,6 +104,30 @@ RD_TEST(VK_Descriptor_Heap, VulkanGraphicsTest)
     return vkh::ImageViewCreateInfo(tex.image, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT);
   }
 
+  VkDeviceAddress dataAddress;
+
+  AllocatedBuffer MakeTestBuffer(const char *name, uint32_t offset, const Vec4f &data)
+  {
+    // use 256 aligned sizes for buffers so we can check this on all drivers, we don't care to test
+    // aliasing caused by different sizes
+    VkDeviceSize size = AlignUp(offset, 0x100U) + 0x2000;
+    AllocatedBuffer ret(this,
+                        vkh::BufferCreateInfo(size, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR |
+                                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                                        VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT |
+                                                        VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT),
+                        VmaAllocationCreateInfo({0, VMA_MEMORY_USAGE_CPU_TO_GPU}));
+    setName(ret.buffer, name);
+    dataAddress = ret.address;
+    byte *ptr = ret.map();
+    // fill with garbage (that will be a relatively normal float value)
+    memset(ptr, 0x3f, size);
+    memcpy(ptr + offset, &data, sizeof(data));
+    ret.unmap();
+
+    return ret;
+  }
   int main()
   {
     // initialise, create window, create context, etc
@@ -138,6 +162,15 @@ RD_TEST(VK_Descriptor_Heap, VulkanGraphicsTest)
 
     VkFramebuffer framebuffer = createFramebuffer(
         vkh::FramebufferCreateInfo(renderPass, {colview}, mainWindow->scissor.extent));
+
+    vkh::PipelineCreateFlags2CreateInfo pipeCreateFlags =
+        vkh::PipelineCreateFlags2CreateInfo(VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT);
+
+    vkh::GraphicsPipelineCreateInfo pipeCreateInfo;
+    pipeCreateInfo.renderPass = renderPass;
+    pipeCreateInfo.inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+
+    pipeCreateInfo.pNext = &pipeCreateFlags;
 
     while(Running())
     {

@@ -1305,6 +1305,18 @@ struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo
   operator const VkPipelineShaderStageCreateInfo *() const { return this; }
 };
 
+struct PipelineCreateFlags2CreateInfo : public VkPipelineCreateFlags2CreateInfo
+{
+  PipelineCreateFlags2CreateInfo(VkPipelineCreateFlagBits2 flags = 0)
+  {
+    sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pNext = NULL;
+    this->flags = flags;
+  }
+
+  operator const VkPipelineCreateFlags2CreateInfo *() const { return this; }
+};
+
 struct ComputePipelineCreateInfo : public VkComputePipelineCreateInfo
 {
   ComputePipelineCreateInfo(VkPipelineLayout layout, VkPipelineShaderStageCreateInfo stage,
