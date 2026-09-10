@@ -461,12 +461,17 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
         ObjDisp(device)->GetBufferMemoryRequirements(Unwrap(device), buf, &mrq);
 
         // Can't create a memory-spanning buffer for this allocation.
-        // For descriptor buffers try again if that is enabled as those memory types are sometimes unique.
-        if((((1 << AllocateInfo.memoryTypeIndex) & mrq.memoryTypeBits) == 0) && DescriptorBuffers())
+        // For descriptor buffers/heaps try again if that is enabled as those memory types are sometimes unique.
+        if((((1 << AllocateInfo.memoryTypeIndex) & mrq.memoryTypeBits) == 0) &&
+           (DescriptorBuffers() || DescriptorHeap()))
         {
           ObjDisp(device)->DestroyBuffer(Unwrap(device), buf, NULL);
 
-          bufInfo.usage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+          if(DescriptorBuffers())
+            bufInfo.usage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+          if(DescriptorHeap())
+            bufInfo.usage |= VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT;
 
           ret = ObjDisp(device)->CreateBuffer(Unwrap(device), &bufInfo, NULL, &buf);
           RDCASSERTEQUAL(ret, VK_SUCCESS);
@@ -737,10 +742,14 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
         wholeMemBuf = VK_NULL_HANDLE;
 
         // can't create a memory-spanning buffer for this allocation. Try again with descriptor
-        // buffers if that is enabled as those memory types are sometimes unique.
-        if(DescriptorBuffers())
+        // buffers/heaps if that is enabled as those memory types are sometimes unique.
+        if(DescriptorBuffers() || DescriptorHeap())
         {
-          bufInfo.usage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+          if(DescriptorBuffers())
+            bufInfo.usage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+          if(DescriptorHeap())
+            bufInfo.usage |= VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT;
 
           ret = ObjDisp(device)->CreateBuffer(Unwrap(device), &bufInfo, NULL, &wholeMemBuf);
           RDCASSERTEQUAL(ret, VK_SUCCESS);
