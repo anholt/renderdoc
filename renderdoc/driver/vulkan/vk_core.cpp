@@ -2409,6 +2409,8 @@ VkResult WrappedVulkan::FilterDeviceExtensionProperties(VkPhysicalDevice physDev
           CHECK_PROP_SIZE(inputAttachmentDescriptorSize, MaxDescriptorSize);
           CHECK_PROP_SIZE(accelerationStructureDescriptorSize, MaxDescriptorSize);
 
+#undef CHECK_PROP_SIZE
+
           // we don't expect any world where descriptor buffer is available but descriptor
           // indexing doesn't support robust update after bind, but require it anyway as we
           // force robustness on
@@ -2499,6 +2501,63 @@ VkResult WrappedVulkan::FilterDeviceExtensionProperties(VkPhysicalDevice physDev
           }
 
           // supported and all descriptor sizes are sensible
+          return false;
+        }
+
+        // if it wasn't supported, remove the extension
+        return true;
+      }
+
+      if(!strcmp(ext.extensionName, VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME))
+      {
+        // require GPDP2
+        if(instDevInfo->ext_KHR_get_physical_device_properties2)
+        {
+          VkPhysicalDeviceDescriptorHeapFeaturesEXT descFeats = {
+              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT};
+          VkPhysicalDeviceFeatures2 baseFeats = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+          baseFeats.pNext = &descFeats;
+          ObjDisp(physDev)->GetPhysicalDeviceFeatures2(Unwrap(physDev), &baseFeats);
+
+          if(!descFeats.descriptorHeapCaptureReplay)
+          {
+            if(!filterWarned)
+            {
+              RDCWARN(
+                  "VkPhysicalDeviceDescriptorHeapFeaturesEXT.descriptorHeapCaptureReplay "
+                  "is false, can't support capture of VK_EXT_descriptor_heap");
+            }
+            return true;
+          }
+
+          VkPhysicalDeviceDescriptorHeapPropertiesEXT descProps = {
+              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT};
+
+          VkPhysicalDeviceProperties2 baseProps = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+          baseProps.pNext = &descProps;
+          ObjDisp(physDev)->GetPhysicalDeviceProperties2(Unwrap(physDev), &baseProps);
+
+#define CHECK_PROP_SIZE(prop, max)                                                               \
+  if(descProps.prop > max)                                                                       \
+  {                                                                                              \
+    if(!filterWarned)                                                                            \
+    {                                                                                            \
+      RDCWARN(                                                                                   \
+          "VkPhysicalDeviceDescriptorHeapPropertiesEXT." #prop                                   \
+          "is too large at %u (must be <= %u), can't support capture of VK_EXT_descriptor_heap", \
+          descProps.prop, max);                                                                  \
+    }                                                                                            \
+    return true;                                                                                 \
+  }
+
+          CHECK_PROP_SIZE(imageCaptureReplayOpaqueDataSize, FixedOpaqueDescriptorCaptureSize);
+
+          CHECK_PROP_SIZE(imageDescriptorSize, MaxDescriptorSize);
+          CHECK_PROP_SIZE(samplerDescriptorSize, MaxDescriptorSize);
+          CHECK_PROP_SIZE(bufferDescriptorSize, MaxDescriptorSize);
+
+#undef CHECK_PROP_SIZE
+
           return false;
         }
 
