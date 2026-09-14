@@ -1865,7 +1865,50 @@ bool WrappedVulkan::Serialise_vkBindImageMemory(SerialiserType &ser, VkDevice de
     if(!ok)
       return false;
 
+    byte origImageOpaque[FixedOpaqueDescriptorCaptureSize];
+    if(DescriptorHeap())
+    {
+      VkHostAddressRangeEXT range = {origImageOpaque,
+                                     m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize};
+      VkImage unwrappedImage = Unwrap(image);
+      ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
+    }
+
     ObjDisp(device)->BindImageMemory(Unwrap(device), Unwrap(image), Unwrap(memory), memoryOffset);
+
+    if(DescriptorHeap())
+    {
+      byte newImageOpaque[FixedOpaqueDescriptorCaptureSize];
+      VkHostAddressRangeEXT range = {newImageOpaque,
+                                     m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize};
+      VkImage unwrappedImage = Unwrap(image);
+      ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
+      if(memcmp(origImageOpaque, newImageOpaque, range.size) != 0)
+      {
+        // This should not be the case, as far as we understand the spec.  If
+        // the opaque data actually has any influence on descriptor contents,
+        // then we would need to capture at this point and sneak it back to
+        // where the original vkCreateImage() was recorded (which would also be
+        // an issue for an image that ever got re-bound to different memory --
+        // not a problem for open source Vulkan drivers that reserve VA space on
+        // the image)
+
+        rdcstr bitDifferences;
+
+        bitDifferences = "Before:\n";
+        for(uint32_t d = 0; d * 4 < range.size; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", ((uint32_t *)origImageOpaque)[d]);
+        bitDifferences += "\n\n";
+        bitDifferences += "After:\n";
+        for(uint32_t d = 0; d * 4 < range.size; d++)
+          bitDifferences += StringFormat::Fmt("%08llx ", ((uint32_t *)newImageOpaque)[d]);
+        bitDifferences += "\n";
+        RDCERR("vkBindImageMemory changed image %s on %s opaque data:\n%s",
+               ToStr(GetResID(image)).c_str(), ToStr(GetResID(memory)).c_str(),
+               bitDifferences.c_str());
+        return false;
+      }
+    }
 
     {
       LockedImageStateRef state = FindImageState(GetResID(image));
@@ -2790,6 +2833,28 @@ bool WrappedVulkan::Serialise_vkCreateImage(SerialiserType &ser, VkDevice device
       }
     }
 
+    VkOpaqueCaptureDataCreateInfoEXT *heapOpaque = NULL;
+    if(IsReplayMode(m_State) && DescriptorHeap())
+    {
+      heapOpaque = (VkOpaqueCaptureDataCreateInfoEXT *)FindNextStruct(
+          &CreateInfo, VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT);
+      if(!heapOpaque)
+      {
+        SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIReplayFailed,
+                         "Replaying vkCreateImage with missing opaque data");
+
+        return false;
+      }
+      else if(heapOpaque->pData->size != m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize)
+      {
+        SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIReplayFailed,
+                         "Replaying vkCreateImage with mismatched opaque data size (%ld vs %ld)",
+                         (long)heapOpaque->pData->size,
+                         (long)m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize);
+        return false;
+      }
+    }
+
     VkImageCreateInfo patched = CreateInfo;
 
     SetImageUsageFlags(&patched, patchedUsage);
@@ -2830,6 +2895,23 @@ bool WrappedVulkan::Serialise_vkCreateImage(SerialiserType &ser, VkDevice device
 
         if(*ptr != 0)
           m_CreationInfo.m_Image[live].address = *ptr;
+      }
+
+      if(heapOpaque)
+      {
+        byte temp[FixedOpaqueDescriptorCaptureSize];
+        VkHostAddressRangeEXT range = {temp,
+                                       m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize};
+        VkImage unwrappedImage = Unwrap(img);
+
+        ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
+        if(memcmp(heapOpaque->pData->address, range.address,
+                  m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize) != 0)
+        {
+          SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIReplayFailed,
+                           "Replayed image has mismatched VkOpaqueCaptureDataCreateInfoEXT");
+          return false;
+        }
       }
 
       bool inserted = false;
