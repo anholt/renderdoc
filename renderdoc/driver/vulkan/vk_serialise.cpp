@@ -290,6 +290,16 @@ void DoSerialiseViaResourceId(SerialiserType &ser, type &el)
 
 SERIALISE_VK_HANDLES();
 
+// Consistently serialises size_t as a uint64_t, otherwise capture/replay
+// between different bit-ness won't work.
+#define SERIALISE_MEMBER_SIZE_T(member)             \
+  {                                                 \
+    uint64_t member = el.member;                    \
+    ser.Serialise(STRING_LITERAL(#member), member); \
+    if(ser.IsReading())                             \
+      el.member = (size_t)member;                   \
+  }
+
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 
 #define HANDLE_PNEXT_OS_WIN32()                                                                       \
@@ -3213,15 +3223,7 @@ void DoSerialise(SerialiserType &ser, VkPhysicalDeviceLimits &el)
   SERIALISE_MEMBER(maxViewportDimensions);
   SERIALISE_MEMBER(viewportBoundsRange);
   SERIALISE_MEMBER(viewportSubPixelBits);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t minMemoryMapAlignment = (uint64_t)el.minMemoryMapAlignment;
-    ser.Serialise("minMemoryMapAlignment"_lit, minMemoryMapAlignment);
-    if(ser.IsReading())
-      el.minMemoryMapAlignment = (size_t)minMemoryMapAlignment;
-  }
-
+  SERIALISE_MEMBER_SIZE_T(minMemoryMapAlignment);
   SERIALISE_MEMBER(minTexelBufferOffsetAlignment);
   SERIALISE_MEMBER(minUniformBufferOffsetAlignment);
   SERIALISE_MEMBER(minStorageBufferOffsetAlignment);
@@ -4167,15 +4169,7 @@ void DoSerialise(SerialiserType &ser, VkSpecializationInfo &el)
 {
   SERIALISE_MEMBER(mapEntryCount);
   SERIALISE_MEMBER_ARRAY(pMapEntries, mapEntryCount);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t dataSize = el.dataSize;
-    ser.Serialise("dataSize"_lit, dataSize);
-    if(ser.IsReading())
-      el.dataSize = (size_t)dataSize;
-  }
-
+  SERIALISE_MEMBER_SIZE_T(dataSize);
   SERIALISE_MEMBER_ARRAY(pData, dataSize);
 }
 
@@ -4193,15 +4187,7 @@ void DoSerialise(SerialiserType &ser, VkPipelineCacheCreateInfo &el)
   SerialiseNext(ser, el.sType, el.pNext);
 
   SERIALISE_MEMBER_VKFLAGS(VkPipelineCacheCreateFlags, flags);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t initialDataSize = el.initialDataSize;
-    ser.Serialise("initialDataSize"_lit, initialDataSize);
-    if(ser.IsReading())
-      el.initialDataSize = (size_t)initialDataSize;
-  }
-
+  SERIALISE_MEMBER_SIZE_T(initialDataSize);
   SERIALISE_MEMBER_ARRAY(pInitialData, initialDataSize).Important();
 }
 
@@ -4240,14 +4226,7 @@ void DoSerialise(SerialiserType &ser, VkShaderModuleCreateInfo &el)
   SerialiseNext(ser, el.sType, el.pNext);
 
   SERIALISE_MEMBER_VKFLAGS(VkShaderModuleCreateFlags, flags);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t codeSize = el.codeSize;
-    ser.Serialise("codeSize"_lit, codeSize);
-    if(ser.IsReading())
-      el.codeSize = (size_t)codeSize;
-  }
+  SERIALISE_MEMBER_SIZE_T(codeSize);
 
   // serialise as void* so it goes through as a buffer, not an actual array of integers.
   {
@@ -7480,14 +7459,7 @@ void DoSerialise(SerialiserType &ser, VkShaderCreateInfoEXT &el)
   SERIALISE_MEMBER(stage).Important();
   SERIALISE_MEMBER_VKFLAGS(VkShaderStageFlags, nextStage);
   SERIALISE_MEMBER(codeType);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t codeSize = el.codeSize;
-    ser.Serialise("codeSize"_lit, codeSize);
-    if(ser.IsReading())
-      el.codeSize = (size_t)codeSize;
-  }
+  SERIALISE_MEMBER_SIZE_T(codeSize);
 
   // serialise as void* so it goes through as a buffer, not an actual array of integers.
   {
@@ -7996,15 +7968,7 @@ void DoSerialise(SerialiserType &ser, VkPipelineExecutableInternalRepresentation
   SERIALISE_MEMBER(name);
   SERIALISE_MEMBER(description);
   SERIALISE_MEMBER(isText);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t dataSize = el.dataSize;
-    ser.Serialise("dataSize"_lit, dataSize);
-    if(ser.IsReading())
-      el.dataSize = (size_t)dataSize;
-  }
-
+  SERIALISE_MEMBER_SIZE_T(dataSize);
   SERIALISE_MEMBER_ARRAY(pData, dataSize);
 }
 
@@ -8947,14 +8911,7 @@ void DoSerialise(SerialiserType &ser, VkValidationCacheCreateInfoEXT &el)
   SerialiseNext(ser, el.sType, el.pNext);
 
   SERIALISE_MEMBER_VKFLAGS(VkValidationCacheCreateFlagsEXT, flags);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t initialDataSize = (uint64_t)el.initialDataSize;
-    ser.Serialise("initialDataSize"_lit, initialDataSize);
-    if(ser.IsReading())
-      el.initialDataSize = (size_t)initialDataSize;
-  }
+  SERIALISE_MEMBER_SIZE_T(initialDataSize);
 
   // don't serialise the data
   // SERIALISE_MEMBER_ARRAY(pInitialData, el.initialDataSize);
@@ -10832,17 +10789,6 @@ void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDescriptorBufferDensityMap
             el.sType ==
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_DENSITY_MAP_PROPERTIES_EXT);
   SerialiseNext(ser, el.sType, el.pNext);
-
-  // don't serialise size_t, otherwise capture/replay between different bit-ness won't work
-  {
-    uint64_t combinedImageSamplerDensityMapDescriptorSize =
-        el.combinedImageSamplerDensityMapDescriptorSize;
-    ser.Serialise("combinedImageSamplerDensityMapDescriptorSize"_lit,
-                  combinedImageSamplerDensityMapDescriptorSize);
-    if(ser.IsReading())
-      el.combinedImageSamplerDensityMapDescriptorSize =
-          (size_t)combinedImageSamplerDensityMapDescriptorSize;
-  }
 }
 
 template <>
@@ -10867,14 +10813,6 @@ void DoSerialise(SerialiserType &ser, VkPhysicalDeviceDescriptorBufferProperties
   SERIALISE_MEMBER(maxSamplerDescriptorBufferBindings);
   SERIALISE_MEMBER(maxEmbeddedImmutableSamplerBindings);
   SERIALISE_MEMBER(maxEmbeddedImmutableSamplers);
-
-#define SERIALISE_MEMBER_SIZE_T(member)             \
-  {                                                 \
-    uint64_t member = el.member;                    \
-    ser.Serialise(STRING_LITERAL(#member), member); \
-    if(ser.IsReading())                             \
-      el.member = (size_t)member;                   \
-  }
 
   SERIALISE_MEMBER_SIZE_T(bufferCaptureReplayDescriptorDataSize);
   SERIALISE_MEMBER_SIZE_T(imageCaptureReplayDescriptorDataSize);
