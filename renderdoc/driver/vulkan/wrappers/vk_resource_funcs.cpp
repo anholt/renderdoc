@@ -1906,7 +1906,6 @@ bool WrappedVulkan::Serialise_vkBindImageMemory(SerialiserType &ser, VkDevice de
         RDCERR("vkBindImageMemory changed image %s on %s opaque data:\n%s",
                ToStr(GetResID(image)).c_str(), ToStr(GetResID(memory)).c_str(),
                bitDifferences.c_str());
-        return false;
       }
     }
 

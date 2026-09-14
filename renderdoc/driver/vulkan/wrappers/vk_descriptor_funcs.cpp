@@ -3830,13 +3830,22 @@ bool WrappedVulkan::Serialise_vkWriteResourceDescriptorsEXT(
           bitDifferences += StringFormat::Fmt("%08llx ", replayU32[d]);
         bitDifferences += "\n";
 
-        SET_ERROR_RESULT(m_FailedReplayResult, ResultCode::APIHardwareUnsupported,
-                         "Descriptor of type %s changed bit pattern.\n"
-                         "\n%s"
-                         "\n%s",
-                         ToStr(pResources[i].type).c_str(), bitDifferences.c_str(),
-                         GetPhysDeviceCompatString(false, false).c_str());
-        return false;
+        // Demoted this from an API replay error to a warning to work around
+        // NVIDIA: Image descriptors for capture/replay images, at least in the
+        // case of depth images with dedicated memory, will get a different
+        // descriptor written before and after BindImageMemory, even though that
+        // should not be the case.  This ends up triggering, because our
+        // WriteResourceDescriptor()s at replay time move up to before the
+        // memory binds.  It works out in the end because the application's
+        // descriptors were written with the memory bound, and so replay time's
+        // heap will have the proper descriptor contents (this data here).
+        RDCWARN(
+            "Descriptor of type %s changed bit pattern.\n"
+            "\n%s"
+            "\n%s",
+            ToStr(pResources[i].type).c_str(), bitDifferences.c_str(),
+            GetPhysDeviceCompatString(false, false).c_str());
+        RegisterHeapDescriptor(bytebuf(descriptor, curDescriptorSize), &pResources[i]);
       }
 
       RegisterHeapDescriptor(bytebuf((const byte *)addressRange.address, curDescriptorSize),
