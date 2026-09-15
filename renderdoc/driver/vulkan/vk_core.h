@@ -462,6 +462,14 @@ private:
   VkPhysicalDeviceDescriptorBufferPropertiesEXT m_DescriptorBufferProperties;
   VkPhysicalDeviceDescriptorHeapPropertiesEXT m_DescriptorHeapProperties;
 
+  struct OpaqueDataOverride
+  {
+    Chunk *chunk = NULL;
+    uint64_t offset = 0;
+  };
+  Threading::CriticalSection m_OpaqueDataOverrideLock;
+  std::unordered_map<ResourceId, OpaqueDataOverride> m_OpaqueDataOverride;
+
   Threading::CriticalSection m_ASLookupByAddrLock;
   rdcflatmap<VkDeviceAddress, ResourceId> m_ASLookupByAddr;
 

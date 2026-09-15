@@ -456,6 +456,11 @@ void WrappedVulkan::vkDestroyImage(VkDevice device, VkImage obj, const VkAllocat
 
   EraseImageState(id);
 
+  {
+    SCOPED_LOCK(m_OpaqueDataOverrideLock);
+    m_OpaqueDataOverride.erase(id);
+  }
+
   return ObjDisp(device)->DestroyImage(Unwrap(device), unwrappedObj, NULL);
 }
 
