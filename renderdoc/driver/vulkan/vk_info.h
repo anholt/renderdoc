@@ -718,6 +718,9 @@ struct VulkanCreationInfo
 
     uint32_t ycbcrCombinedImageSamplerDescriptorCount = 1;
 
+    Chunk *opaqueDataOverrideChunk;
+    uint64_t opaqueDataOverrideOffset;
+
     ResourceId getViewFromDescriptor(const byte *descriptorBytes, size_t descriptorSize)
     {
       for(auto it = viewDescriptors.begin(); it != viewDescriptors.end(); ++it)
