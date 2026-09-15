@@ -368,7 +368,9 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
 
       m_CreationInfo.m_Memory[live].Init(GetResourceManager(), m_CreationInfo, &AllocateInfo);
 
-      if(m_CreationInfo.m_Memory[live].opaqueAddr != 0)
+      VkMemoryDedicatedAllocateInfo *dedicated = (VkMemoryDedicatedAllocateInfo *)FindNextStruct(
+          &AllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
+
       {
         VkDeviceMemoryOpaqueCaptureAddressInfo getInfo = {
             VK_STRUCTURE_TYPE_DEVICE_MEMORY_OPAQUE_CAPTURE_ADDRESS_INFO,
@@ -379,7 +381,8 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
         uint64_t opaque =
             ObjDisp(device)->GetDeviceMemoryOpaqueCaptureAddress(Unwrap(device), &getInfo);
 
-        if(m_CreationInfo.m_Memory[live].opaqueAddr != opaque)
+        if(m_CreationInfo.m_Memory[live].opaqueAddr != 0 &&
+           m_CreationInfo.m_Memory[live].opaqueAddr != opaque)
         {
           SET_ERROR_RESULT(
               m_FailedReplayResult, ResultCode::APIReplayFailed,
@@ -388,10 +391,26 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
               m_CreationInfo.m_Memory[live].opaqueAddr, opaque);
           return false;
         }
+
+        VkMemoryOpaqueCaptureAddressAllocateInfo *memoryDeviceAddress =
+            (VkMemoryOpaqueCaptureAddressAllocateInfo *)FindNextStruct(
+                &AllocateInfo, VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO);
+        VkMemoryAllocateFlagsInfo *memFlags = (VkMemoryAllocateFlagsInfo *)FindNextStruct(
+            &AllocateInfo, VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO);
+
+        ResourceId image =
+            (dedicated && dedicated->image) ? GetResID(dedicated->image) : ResourceId();
+        RDCDEBUG(
+            "%s: vkAllocateMemory(%s | %s, 0x%016llx, %s) -> 0x%016llx\n", ToStr(live).c_str(),
+            (memFlags && (memFlags->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT)) ? "ADDRESS" : "0",
+            (memFlags && (memFlags->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))
+                ? "CAPTURE_REPLAY"
+                : "0",
+            memoryDeviceAddress ? (unsigned long long)memoryDeviceAddress->opaqueCaptureAddress
+                                : 0xd0d0d0d0ull,
+            ToStr(image).c_str(), opaque);
       }
 
-      VkMemoryDedicatedAllocateInfo *dedicated = (VkMemoryDedicatedAllocateInfo *)FindNextStruct(
-          &AllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
       if(dedicated && dedicated->buffer == VK_NULL_HANDLE && dedicated->image == VK_NULL_HANDLE)
       {
         dedicated = NULL;
@@ -672,6 +691,26 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
     const VkMemoryDedicatedAllocateInfo *dedicated =
         (const VkMemoryDedicatedAllocateInfo *)FindNextStruct(
             pAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
+
+    VkDeviceMemoryOpaqueCaptureAddressInfo getInfo = {
+        VK_STRUCTURE_TYPE_DEVICE_MEMORY_OPAQUE_CAPTURE_ADDRESS_INFO,
+        NULL,
+        Unwrap(*pMemory),
+    };
+
+    uint64_t opaque = ObjDisp(device)->GetDeviceMemoryOpaqueCaptureAddress(Unwrap(device), &getInfo);
+
+    memFlags = (VkMemoryAllocateFlagsInfo *)FindNextStruct(
+        &unwrapped, VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO);
+
+    ResourceId image = (dedicated && dedicated->image) ? GetResID(dedicated->image) : ResourceId();
+    RDCDEBUG("%s: vkAllocateMemory(%s | %s, %s) -> 0x%016llx\n", ToStr(id).c_str(),
+             (memFlags && (memFlags->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT)) ? "ADDRESS" : "0",
+             (memFlags && (memFlags->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))
+                 ? "CAPTURE_REPLAY"
+                 : "0",
+             ToStr(image).c_str(), opaque);
+
     if(dedicated && dedicated->buffer == VK_NULL_HANDLE && dedicated->image == VK_NULL_HANDLE)
     {
       dedicated = NULL;
@@ -855,7 +894,7 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
 
       if(memFlags && (memFlags->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT))
       {
-        VkDeviceMemoryOpaqueCaptureAddressInfo getInfo = {
+        getInfo = {
             VK_STRUCTURE_TYPE_DEVICE_MEMORY_OPAQUE_CAPTURE_ADDRESS_INFO,
             NULL,
             Unwrap(*pMemory),
@@ -865,8 +904,7 @@ VkResult WrappedVulkan::vkAllocateMemory(VkDevice device, const VkMemoryAllocate
             (VkMemoryOpaqueCaptureAddressAllocateInfo *)FindNextStruct(
                 &serialisedInfo, VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO);
 
-        uint64_t opaque =
-            ObjDisp(device)->GetDeviceMemoryOpaqueCaptureAddress(Unwrap(device), &getInfo);
+        opaque = ObjDisp(device)->GetDeviceMemoryOpaqueCaptureAddress(Unwrap(device), &getInfo);
 
         if(addr)
         {
@@ -1885,13 +1923,13 @@ bool WrappedVulkan::Serialise_vkBindImageMemory(SerialiserType &ser, VkDevice de
       ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
       if(memcmp(origImageOpaque, newImageOpaque, range.size) != 0)
       {
-        // This should not be the case, as far as we understand the spec.  If
-        // the opaque data actually has any influence on descriptor contents,
-        // then we would need to capture at this point and sneak it back to
-        // where the original vkCreateImage() was recorded (which would also be
-        // an issue for an image that ever got re-bound to different memory --
-        // not a problem for open source Vulkan drivers that reserve VA space on
-        // the image)
+        // This should not be the case, as far as we understand the spec (you're
+        // supposed to reserve VA space).  If the opaque data actually has any
+        // influence on descriptor contents, then we would need to capture at
+        // this point and sneak it back to where the original vkCreateImage()
+        // was recorded (which would also be an issue for an image that ever got
+        // re-bound to different memory -- not a problem for open source Vulkan
+        // drivers that reserve VA space on the image)
 
         rdcstr bitDifferences;
 
@@ -1903,7 +1941,7 @@ bool WrappedVulkan::Serialise_vkBindImageMemory(SerialiserType &ser, VkDevice de
         for(uint32_t d = 0; d * 4 < range.size; d++)
           bitDifferences += StringFormat::Fmt("%08llx ", ((uint32_t *)newImageOpaque)[d]);
         bitDifferences += "\n";
-        RDCERR("vkBindImageMemory changed image %s on %s opaque data:\n%s",
+        RDCWARN("vkBindImageMemory changed image %s on %s opaque data:\n%s",
                ToStr(GetResID(image)).c_str(), ToStr(GetResID(memory)).c_str(),
                bitDifferences.c_str());
       }
@@ -1992,6 +2030,21 @@ VkResult WrappedVulkan::vkBindImageMemory(VkDevice device, VkImage image, VkDevi
       Serialise_vkBindImageMemory(ser, device, image, mem, memOffset);
 
       chunk = scope.Get();
+    }
+
+    if(DescriptorHeap())
+    {
+      byte newImageOpaque[FixedOpaqueDescriptorCaptureSize];
+      VkHostAddressRangeEXT range = {newImageOpaque,
+                                     m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize};
+      VkImage unwrappedImage = Unwrap(image);
+      ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
+      rdcstr bits;
+      for(uint32_t d = 0; d * 4 < range.size; d++)
+        bits += StringFormat::Fmt("%08llx ", ((uint32_t *)newImageOpaque)[d]);
+      bits += "\n";
+      RDCWARN("vkBindImageMemory image %s on %s opaque data:\n%s",
+             ToStr(GetResID(image)).c_str(), ToStr(GetResID(mem)).c_str(), bits.c_str());
     }
 
     {

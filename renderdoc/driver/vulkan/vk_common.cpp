@@ -1208,6 +1208,12 @@ void OpaqueHeapDataForSerialising::fill(VkDevice wrappedDevice, VkImage wrappedI
           ->GetImageOpaqueCaptureDataEXT(Unwrap(wrappedDevice), 1, &unwrappedImage, &rangeData);
   if(opaqueQuery != VK_SUCCESS)
     RDCERR("Couldn't get opaque capture/replay data: %s", ToStr(opaqueQuery).c_str());
+  else
+  {
+    RDCASSERT(sz == 8);
+    RDCASSERT(props.imageCaptureReplayOpaqueDataSize == 8);
+    RDCDEBUG("vkCreateImage() opaque capture: 0x%016llx", *(uint64_t *)rangeData.address);
+  }
 }
 
 void OpaqueDataForSerialising::addForSerialising(VkBaseInStructure *serialisedCreateInfo)
@@ -1242,6 +1248,9 @@ void OpaqueHeapDataForSerialising::addForSerialising(VkBaseInStructure *serialis
     pData = &hostData;
     pNext = serialisedCreateInfo->pNext;
     serialisedCreateInfo->pNext = (VkBaseInStructure *)this;
+
+    RDCASSERT(sz == 8);
+    RDCDEBUG("vkCreateImage() opaque capture serialise: 0x%016llx", *(uint64_t *)hostData.address);
   }
 }
 

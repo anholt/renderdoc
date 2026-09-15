@@ -3839,11 +3839,15 @@ bool WrappedVulkan::Serialise_vkWriteResourceDescriptorsEXT(
         // memory binds.  It works out in the end because the application's
         // descriptors were written with the memory bound, and so replay time's
         // heap will have the proper descriptor contents (this data here).
+        const VkImageViewCreateInfo *ivci = (pResources[i].type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+                                                ? pResources[i].data.pImage->pView
+                                                : NULL;
+        ResourceId id = ivci ? GetResID(ivci->image) : ResourceId();
         RDCWARN(
-            "Descriptor of type %s changed bit pattern.\n"
+            "Descriptor of type %s (%s) changed bit pattern.\n"
             "\n%s"
             "\n%s",
-            ToStr(pResources[i].type).c_str(), bitDifferences.c_str(),
+            ToStr(pResources[i].type).c_str(), ToStr(id).c_str(), bitDifferences.c_str(),
             GetPhysDeviceCompatString(false, false).c_str());
         RegisterHeapDescriptor(bytebuf(descriptor, curDescriptorSize), &pResources[i]);
       }
@@ -3897,6 +3901,24 @@ VkResult WrappedVulkan::vkWriteResourceDescriptorsEXT(VkDevice device, uint32_t 
 
   for(uint32_t i = 0; i < resourceCount; i++)
   {
+    rdcstr bits;
+
+    uint32_t *capU32 = (uint32_t *)tempAddresses[i].address;
+
+    bits = "Capture:\n";
+    for(uint32_t d = 0; d * 4 < tempAddresses[i].size; d++)
+      bits += StringFormat::Fmt("%08llx ", capU32[d]);
+    bits += "\n";
+
+    const VkImageViewCreateInfo *ivci = (pResources[i].type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+                                            ? pResources[i].data.pImage->pView
+                                            : NULL;
+    ResourceId id = ivci ? GetResID(ivci->image) : ResourceId();
+    RDCDEBUG(
+        "Descriptor of type %s (%s):\n"
+        "\n%s",
+        ToStr(pResources[i].type).c_str(), ToStr(id).c_str(), bits.c_str());
+
     RDCASSERT(pDescriptors[i].size >= tempAddresses[i].size);
     memcpy(pDescriptors[i].address, tempAddresses[i].address, tempAddresses[i].size);
   }
