@@ -2671,6 +2671,8 @@ void VulkanCreationInfo::Image::Init(VulkanResourceManager *resourceMan, VulkanC
   cube = (GetImageCreateFlags(pCreateInfo) & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) ? true : false;
 
   address = 0;
+  opaqueDataOverrideChunk = NULL;
+  opaqueDataOverrideOffset = 0;
 }
 
 void VulkanCreationInfo::Sampler::Init(VulkanResourceManager *resourceMan, VulkanCreationInfo &info,

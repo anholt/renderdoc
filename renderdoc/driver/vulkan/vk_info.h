@@ -709,6 +709,9 @@ struct VulkanCreationInfo
 
     rdcarray<rdcpair<bytebuf, ResourceId>> viewDescriptors;
 
+    Chunk *opaqueDataOverrideChunk;
+    uint64_t opaqueDataOverrideOffset;
+
     ResourceId getViewFromDescriptor(const byte *descriptorBytes, size_t descriptorSize)
     {
       for(auto it = viewDescriptors.begin(); it != viewDescriptors.end(); ++it)
