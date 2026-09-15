@@ -1940,6 +1940,48 @@ VkResult WrappedVulkan::vkBindImageMemory(VkDevice device, VkImage image, VkDevi
       chunk = scope.Get();
     }
 
+    if(DescriptorHeap() && m_DescriptorHeapProperties.imageCaptureReplayOpaqueDataSize == 8)
+    {
+      byte newImageOpaque[FixedOpaqueDescriptorCaptureSize];
+      VkHostAddressRangeEXT range = {newImageOpaque, 8};
+      VkImage unwrappedImage = Unwrap(image);
+      ObjDisp(device)->GetImageOpaqueCaptureDataEXT(Unwrap(device), 1, &unwrappedImage, &range);
+      rdcstr bits;
+      for(uint32_t d = 0; d * 4 < range.size; d++)
+        bits += StringFormat::Fmt("%08llx ", ((uint32_t *)newImageOpaque)[d]);
+
+      // NVIDIA 32.0.6.1664 has a bug that at least dedicated-memory depth
+      // images change the result of vkGetImageOpaqueCaptureDataEXT() after
+      // vkBindImageMemory(), from 0 to the actual VA they got bound to.  This
+      // is contrary to the VK spec section 3.5.1:
+      //
+      //    "Information is retrieved from the implementation with commands of
+      //     the form vkGet* and vkEnumerate*. Unless otherwise specified for an
+      //     individual command, the results are invariant; that is, they will
+      //     remain unchanged when retrieved again by calling the same command
+      //     with the same parameters, so long as those parameters themselves
+      //     all remain valid."
+      //
+      // As a workaround, we serialized a spot in vkCreateImage()'s chunk that
+      // we can stash the value we find now, so that it can be used at
+      // CreateImage time during replay.
+      //
+      // https://gitlab.khronos.org/vulkan/vulkan/-/work_items/4979
+      ResourceId id = GetResID(image);
+      RDCASSERT(m_CreationInfo.m_Image[id].opaqueDataOverrideChunk != NULL);
+      RDCASSERT(m_CreationInfo.m_Image[id].opaqueDataOverrideOffset != 0);
+      byte *data = m_CreationInfo.m_Image[id].opaqueDataOverrideChunk->GetData() +
+                   m_CreationInfo.m_Image[id].opaqueDataOverrideOffset;
+      if(memcmp(data, range.address, range.size) != 0)
+      {
+        memcpy(data, range.address, range.size);
+        RDCWARN(
+            "vkBindImageMemory(%s): Attempting to override vkCreateImage()'s captured opaque data "
+            "to %s.",
+            ToStr(GetResID(image)).c_str(), bits.c_str());
+      }
+    }
+
     {
       LockedImageStateRef state = FindImageState(GetResID(image));
       if(!state)
@@ -2526,6 +2568,14 @@ bool WrappedVulkan::Serialise_vkCreateImage(SerialiserType &ser, VkDevice device
   // unused at the moment, just for user information
   SERIALISE_ELEMENT(memoryRequirements);
 
+  // Workaround for NVIDIA: we serialise an extra place to stash the opaque data
+  // that is only valid after vkBindImageMemory().
+  uint64_t opaqueDataOverride = 0;
+  if(ser.VersionAtLeast(0x21))
+    SERIALISE_ELEMENT(opaqueDataOverride);
+
+  // XXX: No serialising anything after opaqueDataOverride, the caller needs to know its position.
+
   SERIALISE_CHECK_READ_ERRORS();
 
   if(IsReplayingAndReading())
@@ -2775,6 +2825,24 @@ bool WrappedVulkan::Serialise_vkCreateImage(SerialiserType &ser, VkDevice device
 
           return false;
         }
+      }
+    }
+
+    if(IsReplayMode(m_State) && DescriptorHeap())
+    {
+      VkOpaqueCaptureDataCreateInfoEXT *heapOpaque =
+          (VkOpaqueCaptureDataCreateInfoEXT *)FindNextStruct(
+              &CreateInfo, VK_STRUCTURE_TYPE_OPAQUE_CAPTURE_DATA_CREATE_INFO_EXT);
+
+      if(heapOpaque && opaqueDataOverride != 0 &&
+         heapOpaque->pData->size == sizeof(opaqueDataOverride) &&
+         memcmp(&opaqueDataOverride, heapOpaque->pData->address, heapOpaque->pData->size) != 0)
+      {
+        RDCDEBUG(
+            "vkCreateImage(): overriding original VkOpaqueCaptureDataCreateInfoEXT with "
+            "0x%016llx\n",
+            opaqueDataOverride);
+        memcpy((void *)heapOpaque->pData->address, &opaqueDataOverride, sizeof(opaqueDataOverride));
       }
     }
 
@@ -3050,7 +3118,14 @@ VkResult WrappedVulkan::vkCreateImage(VkDevice device, const VkImageCreateInfo *
         SCOPED_SERIALISE_CHUNK(VulkanChunk::vkCreateImage);
         Serialise_vkCreateImage(ser, device, &serialisedCreateInfo, NULL, pImage);
 
-        chunk = scope.Get();
+        if(ser.VersionAtLeast(0x21))
+        {
+          uint64_t opaqueDataOverrideOffset = ser.GetWriter()->GetOffset() - 8;
+
+          chunk = scope.Get();
+          m_CreationInfo.m_Image[id].opaqueDataOverrideChunk = chunk;
+          m_CreationInfo.m_Image[id].opaqueDataOverrideOffset = opaqueDataOverrideOffset;
+        }
       }
 
       VkResourceRecord *record = GetResourceManager()->AddResourceRecord(*pImage);
