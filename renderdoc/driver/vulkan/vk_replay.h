@@ -255,6 +255,34 @@ struct VulkanPostVSData
   }
 };
 
+// Unlike descriptor buffers, descriptor heap combined image/samplers reference
+// separate descriptors in the resource and sampler heaps.  So, the
+// DescriptorAccess will point to the heapCombinedImageSamplerStore with an
+// index into heapCombinedImageSamplerRanges, which we can expand to the
+// appropriate ranges in GetDescriptors/GetSamplerDescriptors().
+struct HeapCombinedImageSamplerRange
+{
+  ResourceId heap;
+  uint32_t offset;
+  uint32_t size;
+
+  ResourceId samplerHeap;
+  uint32_t samplerOffset;
+  uint32_t samplerSize;
+};
+
+// A per-event structure similar to VKDynamicShaderFeedback, for non-array
+// static access that have to be decided at replay time due to heap mappings
+// needing to reference device addresses to determine the actual heap addresses.
+struct VKEventHeapDescriptors
+{
+  bool resolved = false;    // Whether staticAccess has been filled.
+  rdcarray<DescriptorAccess> staticAccess;
+
+  ResourceId combinedImageSamplerStore;
+  rdcarray<HeapCombinedImageSamplerRange> combinedImageSamplerRanges;
+};
+
 struct VKDynamicShaderFeedback
 {
   bool compute = false, valid = false;
@@ -334,6 +362,17 @@ public:
 
   rdcarray<DescriptorStoreDescription> GetDescriptorStores();
   void RegisterDescriptorStore(const DescriptorStoreDescription &desc);
+
+  // Map from heapCombinedImageSamplerStore resource IDs to the event ID for the
+  // VKEventHeapDescriptors containing it.
+  std::unordered_map<ResourceId, uint32_t> m_CombinedImageSamplerStores;
+  std::unordered_map<uint32_t, VKEventHeapDescriptors> m_EventHeapDescriptors;
+
+  // Returns the (descriptorStore, byteOffset) pair for a combined image/sampler
+  // descriptor heap access.
+  rdcpair<ResourceId, uint32_t> AddHeapCombinedImageSampler(uint32_t eventId,
+                                                            const HeapCombinedImageSamplerRange &r);
+  void GetDescriptorHeapStaticAccess(uint32_t eventId, const VulkanCreationInfo::ShaderEntry &sh);
 
   rdcarray<BufferDescription> GetBuffers();
   BufferDescription GetBuffer(ResourceId id);

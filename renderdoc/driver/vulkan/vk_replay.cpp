@@ -2662,7 +2662,7 @@ rdcarray<Descriptor> VulkanReplay::GetDescriptors(ResourceId descriptorStore,
       {
         Descriptor &d = ret[dst++];
 
-        d.type = DescriptorType::ConstantBuffer;
+        d.type = r.type != DescriptorType::Unknown ? r.type : DescriptorType::ConstantBuffer;
         d.resource = m_pDriver->m_InlineBuffers[descriptorStore];
         d.byteOffset = r.offset;
         d.byteSize = r.descriptorSize;
@@ -2670,6 +2670,39 @@ rdcarray<Descriptor> VulkanReplay::GetDescriptors(ResourceId descriptorStore,
     }
 
     return ret;
+  }
+
+  auto combined = m_CombinedImageSamplerStores.find(descriptorStore);
+  if(combined != m_CombinedImageSamplerStores.end())
+  {
+    auto &eventHeapDescriptors = m_EventHeapDescriptors[combined->second];
+
+    // Map descriptor heap combined image/sampler access to the image descriptor
+    // ranges.
+    rdcarray<DescriptorRange> resourceRanges;
+    ResourceId heap;
+    for(const DescriptorRange &r : ranges)
+    {
+      RDCASSERT(r.offset + r.count <= eventHeapDescriptors.combinedImageSamplerRanges.size());
+
+      for(uint32_t offset = r.offset; offset < r.offset + r.count; offset++)
+      {
+        auto combinedHeapRange = eventHeapDescriptors.combinedImageSamplerRanges[offset];
+
+        RDCASSERT(heap == ResourceId() || heap == combinedHeapRange.heap);
+        heap = combinedHeapRange.heap;
+
+        DescriptorRange range;
+        range.count = 1;
+        range.offset = combinedHeapRange.offset;
+        range.descriptorSize = combinedHeapRange.size;
+        range.type = DescriptorType::Image;
+
+        resourceRanges.push_back(range);
+      }
+    }
+
+    return GetDescriptors(heap, resourceRanges);
   }
 
   // specialisation constants 'descriptor' stored in a pipeline or shader object
@@ -2715,6 +2748,42 @@ rdcarray<Descriptor> VulkanReplay::GetDescriptors(ResourceId descriptorStore,
         // constants are not valid outside of the current event. We just pretend that all push
         // constants are the same and mutable
         d.byteSize = r.offset < state.pushConstSize ? state.pushConstSize - r.offset : 0;
+      }
+    }
+
+    return ret;
+  }
+
+  // check for a descriptor heap
+  if(WrappedVkBuffer::IsAlloc(rm->GetResource(descriptorStore)) &&
+     (m_pDriver->m_CreationInfo.m_Buffer[descriptorStore].usage &
+      VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT) != 0)
+  {
+    // we assume batched queries, so get the whole descriptor heap at once
+    bytebuf data;
+    GetBufferData(descriptorStore, 0, 0, data);
+
+    size_t dst = 0;
+    for(const DescriptorRange &r : ranges)
+    {
+      byte *descriptor = data.data() + r.offset;
+
+      for(uint32_t i = 0; i < r.count; i++)
+      {
+        if(descriptor >= data.end())
+        {
+          // silently drop out of bounds descriptor reads
+        }
+        else
+        {
+          DescriptorSetSlot setSlot =
+              m_pDriver->m_DescriptorLookup.fallback.lookup({descriptor, r.descriptorSize});
+
+          FillDescriptor(ret[dst], setSlot);
+        }
+
+        dst++;
+        descriptor += r.descriptorSize;
       }
     }
 
@@ -2859,10 +2928,83 @@ rdcarray<SamplerDescriptor> VulkanReplay::GetSamplerDescriptors(ResourceId descr
     return ret;
   }
 
+  auto combined = m_CombinedImageSamplerStores.find(descriptorStore);
+  if(combined != m_CombinedImageSamplerStores.end())
+  {
+    const auto &eventHeapDescriptors = m_EventHeapDescriptors[combined->second];
+
+    // Map descriptor heap combined image/sampler access to the sampler descriptor
+    // ranges.
+    rdcarray<DescriptorRange> resourceRanges;
+    ResourceId heap;
+    for(const DescriptorRange &r : ranges)
+    {
+      RDCASSERT(r.offset + r.count <= eventHeapDescriptors.combinedImageSamplerRanges.size());
+
+      for(uint32_t offset = r.offset; offset < r.offset + r.count; offset++)
+      {
+        auto combinedHeapRange = eventHeapDescriptors.combinedImageSamplerRanges[offset];
+
+        RDCASSERT(heap == ResourceId() || heap == combinedHeapRange.samplerHeap);
+        heap = combinedHeapRange.samplerHeap;
+
+        DescriptorRange range;
+        range.count = 1;
+        range.offset = combinedHeapRange.samplerOffset;
+        range.descriptorSize = combinedHeapRange.samplerSize;
+        range.type = DescriptorType::Sampler;
+
+        resourceRanges.push_back(range);
+      }
+    }
+
+    return GetSamplerDescriptors(heap, resourceRanges);
+  }
+
   // push constants 'descriptor' stored in a command buffer
   if(m_pDriver->m_BakedCmdBufferInfo.find(descriptorStore) != m_pDriver->m_BakedCmdBufferInfo.end())
   {
     // not sampler data
+    return ret;
+  }
+
+  // check for a descriptor heap
+  if(WrappedVkBuffer::IsAlloc(GetResourceManager()->GetResource(descriptorStore)) &&
+     (m_pDriver->m_CreationInfo.m_Buffer[descriptorStore].usage &
+      VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT) != 0)
+  {
+    // we assume batched queries, so get the whole descriptor heap at once
+    bytebuf data;
+    GetBufferData(descriptorStore, 0, 0, data);
+
+    size_t dst = 0;
+    for(const DescriptorRange &r : ranges)
+    {
+      byte *descriptor = data.data() + r.offset;
+
+      for(uint32_t i = 0; i < r.count; i++)
+      {
+        if(r.type != DescriptorType::Sampler && r.type != DescriptorType::ImageSampler)
+        {
+          ret[dst].type = r.type;
+        }
+        else if(descriptor >= data.end())
+        {
+          // silently drop out of bounds descriptor reads
+        }
+        else
+        {
+          DescriptorSetSlot setSlot =
+              m_pDriver->m_DescriptorLookup.fallback.lookup({descriptor, r.descriptorSize});
+
+          FillSamplerDescriptor(ret[dst], setSlot);
+        }
+
+        dst++;
+        descriptor += r.descriptorSize;
+      }
+    }
+
     return ret;
   }
 
@@ -2989,6 +3131,440 @@ rdcarray<SamplerDescriptor> VulkanReplay::GetSamplerDescriptors(ResourceId descr
   return ret;
 }
 
+// For heap combined image/sampler access, we have two separate ranges we need
+// to pass through to GetDescriptors/GetSamplerDescriptors(), but a
+// DescriptorAccess maps from the stage/index of the resource to a single range
+// in a store.  So, we create a store associated with the event here that will
+// map to the HeapCombinedImageSamplerRange.
+rdcpair<ResourceId, uint32_t> VulkanReplay::AddHeapCombinedImageSampler(
+    uint32_t eventId, const HeapCombinedImageSamplerRange &r)
+{
+  auto &eventHeapDescriptors = m_EventHeapDescriptors[eventId];
+
+  if(eventHeapDescriptors.combinedImageSamplerStore == ResourceId())
+  {
+    eventHeapDescriptors.combinedImageSamplerStore = ResourceIDGen::GetNewUniqueID();
+    m_CombinedImageSamplerStores[eventHeapDescriptors.combinedImageSamplerStore] = eventId;
+  }
+
+  uint32_t combinedIndex = (uint32_t)eventHeapDescriptors.combinedImageSamplerRanges.size();
+  eventHeapDescriptors.combinedImageSamplerRanges.push_back(r);
+
+  return make_rdcpair(eventHeapDescriptors.combinedImageSamplerStore, combinedIndex);
+}
+
+// Calculates the event-specific staticAccess for descriptor heap mappings.
+void VulkanReplay::GetDescriptorHeapStaticAccess(uint32_t eventId,
+                                                 const VulkanCreationInfo::ShaderEntry &sh)
+{
+  if(!sh.refl)
+    return;
+
+  const VulkanRenderState &state = m_pDriver->m_RenderState;
+  if(!state.UsingDescHeaps())
+    return;
+
+  auto &eventHeapDescriptors = m_EventHeapDescriptors[eventId];
+  if(eventHeapDescriptors.resolved)
+    return;
+  auto &staticAccess = eventHeapDescriptors.staticAccess;
+
+  uint64_t heapOffset = 0;
+  uint64_t samplerHeapOffset = 0;
+  ResourceId heap = ResourceId();
+  ResourceId samplerHeap = ResourceId();
+  if(state.resourceHeap.heapRange.size != 0)
+    m_pDriver->GetResIDFromAddr(state.resourceHeap.heapRange.address, heap, heapOffset);
+  if(state.samplerHeap.heapRange.size != 0)
+    m_pDriver->GetResIDFromAddr(state.samplerHeap.heapRange.address, samplerHeap, samplerHeapOffset);
+
+  auto addHeapMappingAccess = [this, eventId, &staticAccess, &state, &sh, heap, heapOffset,
+                               samplerHeap, samplerHeapOffset](
+                                  DescriptorType type, bool inputAttachment, uint16_t index,
+                                  uint32_t bindset, uint32_t bind, uint32_t arraySize) {
+    // Arrays are handled through shader feedback.
+    if(arraySize > 1)
+      return;
+
+    auto mapping = sh.GetDescriptorMapping(bindset, bind);
+    if(!mapping)
+    {
+      RDCERR("Failed to find descriptor mapping for %s (%d/%d)", ToStr(type).c_str(), bindset, bind);
+      return;
+    }
+    uint32_t shaderIndex = bind - mapping->firstBinding;
+
+    DescriptorAccess access;
+    access.stage = sh.stage;
+    access.type = type;
+    access.index = index;
+
+    auto readPush = [&state, mapping, bindset, bind](uint32_t offset, auto &val) {
+      if(offset + sizeof(val) > state.pushConstSize)
+      {
+        RDCERR("%s descriptor at set %d / binding %d read outside of push consts (%d / %d)",
+               ToStr(mapping->source).c_str(), bindset, bind, offset, state.pushConstSize);
+        return false;
+      }
+      memcpy(&val, state.pushconsts + offset, sizeof(val));
+      return true;
+    };
+
+    auto readBDA = [this, &state, mapping, bindset, bind](VkDeviceAddress address, auto &val) {
+      ResourceId id;
+      uint64_t offs;
+      m_pDriver->GetResIDFromAddr(address, id, offs);
+      if(id == ResourceId())
+      {
+        RDCWARN("%s for set %d / binding %d accessed invalid device address 0x%016llx",
+                ToStr(mapping->source).c_str(), bindset, bind, (long long)address);
+        return false;
+      }
+      bytebuf data;
+      GetDebugManager()->GetBufferData(id, offs, sizeof(val), data);
+      if(data.size() < sizeof(val))
+        return false;
+
+      memcpy(&val, data.data(), sizeof(val));
+      return true;
+    };
+
+    auto useDirectAddress = [this, &access, mapping, bindset, bind](VkDeviceAddress address) {
+      ResourceId buf;
+      uint64_t off;
+      m_pDriver->GetResIDFromAddr(address, buf, off);
+      if(buf == ResourceId())
+      {
+        RDCWARN("%s for set %d / binding %d accessed invalid device address 0x%016llx",
+                ToStr(mapping->source).c_str(), bindset, bind, (long long)address);
+        return false;
+      }
+
+      ResourceId &inlineId = m_pDriver->m_CreationInfo.m_Buffer[buf].inlineDescriptorId;
+      // Lazy register the inline ID -- descriptor heaps can access any buffer
+      // with BDA, unlike descriptor buffers that can only reference inline
+      // contents in  the descriptor buffer itself.
+      if(inlineId == ResourceId())
+      {
+        inlineId = ResourceIDGen::GetNewUniqueID();
+        m_pDriver->m_InlineBuffers[inlineId] = buf;
+      }
+      access.descriptorStore = inlineId;
+      access.byteOffset = (uint32_t)off;
+      uint64_t size = m_pDriver->m_CreationInfo.m_Buffer[buf].size;
+      access.byteSize = (uint32_t)(off < size ? size - off : 0);
+
+      return true;
+    };
+
+    ResourceId heapStore;
+    uint32_t heapStoreOffset;
+    VkDescriptorType vkType = MakeVkDescriptorType(type, inputAttachment);
+    uint32_t heapDescSize;
+    switch(vkType)
+    {
+      case VK_DESCRIPTOR_TYPE_SAMPLER:
+        heapDescSize = m_pDriver->HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_SAMPLER);
+        heapStore = samplerHeap;
+        heapStoreOffset = (uint32_t)samplerHeapOffset;
+        break;
+      case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+        heapDescSize = m_pDriver->HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+        heapStore = heap;
+        heapStoreOffset = (uint32_t)heapOffset;
+        break;
+      default:
+        heapDescSize = m_pDriver->HeapDescriptorDataSize(vkType);
+        heapStore = heap;
+        heapStoreOffset = (uint32_t)heapOffset;
+        break;
+    }
+
+    uint64_t samplerOffset = 0;
+    uint32_t samplerHeapArrayStride = 0;
+
+    switch(mapping->source)
+    {
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT:
+      {
+        auto &data = mapping->sourceData.constantOffset;
+        access.descriptorStore = heapStore;
+        access.byteSize = heapDescSize;
+        access.byteOffset = heapStoreOffset;
+        access.byteOffset += data.heapOffset;
+        access.byteOffset += shaderIndex * data.heapArrayStride;
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          samplerHeapArrayStride = data.samplerHeapArrayStride;
+          samplerOffset = samplerHeapOffset;
+          samplerOffset += data.samplerHeapOffset;
+          samplerOffset += shaderIndex * data.samplerHeapArrayStride;
+        }
+
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT:
+      {
+        auto &data = mapping->sourceData.pushIndex;
+        uint32_t pushIndex;
+        if(!readPush(data.pushOffset, pushIndex))
+          return;
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          uint32_t samplerPushIndex;
+          if(data.useCombinedImageSamplerIndex)
+          {
+            samplerPushIndex = pushIndex >> 20;
+            pushIndex &= 0xfffff;
+          }
+          else
+          {
+            if(!readPush(data.samplerPushOffset, samplerPushIndex))
+              return;
+          }
+
+          samplerHeapArrayStride = data.samplerHeapArrayStride;
+          samplerOffset = samplerHeapOffset;
+          samplerOffset += data.samplerHeapOffset;
+          samplerOffset += samplerPushIndex * data.samplerHeapIndexStride;
+          samplerOffset += shaderIndex * data.samplerHeapArrayStride;
+        }
+
+        access.descriptorStore = heapStore;
+        access.byteSize = heapDescSize;
+        access.byteOffset = heapStoreOffset;
+        access.byteOffset += data.heapOffset;
+        access.byteOffset += pushIndex * data.heapIndexStride;
+        access.byteOffset += shaderIndex * data.heapArrayStride;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_EXT:
+      {
+        auto &data = mapping->sourceData.indirectIndex;
+        VkDeviceAddress address;
+        if(!readPush(data.pushOffset, address))
+          return;
+        uint32_t indirectIndex;
+        uint32_t samplerIndirectIndex;
+        if(!readBDA(address + data.addressOffset, indirectIndex))
+          return;
+
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          if(data.useCombinedImageSamplerIndex)
+          {
+            samplerIndirectIndex = indirectIndex >> 20;
+            indirectIndex &= 0xfffff;
+          }
+          else
+          {
+            uint64_t samplerAddress;
+            if(!readPush(data.samplerPushOffset, samplerAddress))
+              return;
+
+            if(!readBDA(samplerAddress + data.samplerAddressOffset, samplerIndirectIndex))
+              return;
+          }
+          samplerHeapArrayStride = data.samplerHeapArrayStride;
+          samplerOffset = samplerHeapOffset;
+          samplerOffset += data.samplerHeapOffset;
+          samplerOffset += samplerIndirectIndex * data.samplerHeapIndexStride;
+          samplerOffset += shaderIndex * data.samplerHeapArrayStride;
+        }
+
+        access.descriptorStore = heapStore;
+        access.byteSize = heapDescSize;
+        access.byteOffset = heapStoreOffset;
+        access.byteOffset += data.heapOffset;
+        access.byteOffset += indirectIndex * data.heapIndexStride;
+        access.byteOffset += shaderIndex * data.heapArrayStride;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_INDIRECT_INDEX_ARRAY_EXT:
+      {
+        auto &data = mapping->sourceData.indirectIndexArray;
+        uint64_t indirectAddress;
+        if(!readPush(data.pushOffset, indirectAddress))
+          return;
+        uint64_t samplerIndirectAddress = 0;
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          if(!data.useCombinedImageSamplerIndex &&
+             !readPush(data.samplerPushOffset, samplerIndirectAddress))
+          {
+            return;
+          }
+        }
+
+        access.descriptorStore = heapStore;
+        access.byteSize = heapDescSize;
+        access.byteOffset = heapStoreOffset;
+        access.byteOffset += data.heapOffset;
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          samplerHeapArrayStride = data.samplerHeapIndexStride;
+          samplerOffset = samplerHeapOffset;
+          samplerOffset += data.samplerHeapOffset;
+        }
+
+        uint32_t resourceIndex, samplerIndex;
+        if(!readBDA(indirectAddress + data.addressOffset + shaderIndex * 4, resourceIndex))
+          return;
+
+        if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        {
+          if(data.useCombinedImageSamplerIndex)
+          {
+            samplerIndex = resourceIndex >> 20;
+            resourceIndex &= 0xfffff;
+          }
+          else if(!readBDA(samplerIndirectAddress + data.samplerAddressOffset + shaderIndex * 4,
+                           samplerIndex))
+          {
+            return;
+          }
+
+          samplerOffset += samplerIndex * data.samplerHeapIndexStride;
+        }
+
+        access.byteOffset += resourceIndex * data.heapIndexStride;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_RESOURCE_HEAP_DATA_EXT:
+      {
+        auto &data = mapping->sourceData.heapData;
+
+        uint64_t pushedOffset;
+        if(!readPush(data.pushOffset, pushedOffset))
+          return;
+        if(!useDirectAddress(state.resourceHeap.heapRange.address + data.heapOffset + pushedOffset))
+          return;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_DATA_EXT:
+      {
+        // Push constants get referenced by offsets into the command buffer's ResourceId.
+        access.descriptorStore = m_pDriver->GetPushConstantCommandBuffer();
+        access.byteOffset = mapping->sourceData.pushDataOffset;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_ADDRESS_EXT:
+      {
+        VkDeviceAddress address;
+        if(!readPush(mapping->sourceData.pushAddressOffset, address))
+          return;
+
+        if(!useDirectAddress(address))
+          return;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_INDIRECT_ADDRESS_EXT:
+      {
+        const VkDescriptorMappingSourceIndirectAddressEXT &data = mapping->sourceData.indirectAddress;
+        uint64_t indirectAddress;
+        if(!readPush(data.pushOffset, indirectAddress))
+          return;
+        VkDeviceAddress resourceAddress;
+        if(!readBDA(indirectAddress + data.addressOffset, resourceAddress))
+          return;
+
+        if(!useDirectAddress(resourceAddress))
+          return;
+        break;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_SHADER_RECORD_INDEX_EXT:
+      {
+        auto &data = mapping->sourceData.shaderRecordIndex;
+        uint32_t shaderRecordIndex = 0;    // XXX: Figure out how shader records work.
+        if(data.useCombinedImageSamplerIndex)
+          shaderRecordIndex &= 0xfffff;
+        RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+                bind);
+        access.descriptorStore = heapStore;
+        access.byteSize = heapDescSize;
+        access.byteOffset = heapStoreOffset;
+        access.byteOffset += data.heapOffset;
+        access.byteOffset += shaderRecordIndex * data.heapIndexStride;
+        access.byteOffset += shaderIndex * data.heapArrayStride;
+        return;
+      }
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_DATA_EXT:
+        /* We could add resource usage for the shader record's VkBuffer. */
+        RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+                bind);
+        return;
+
+      case VK_DESCRIPTOR_MAPPING_SOURCE_SHADER_RECORD_ADDRESS_EXT:
+        /* If we could capture the shader record (?), then we could add buffer
+         * usage for the buffer associated with the from the shader record.
+         */
+        RDCWARN("%s for set %d / binding %d not supported", ToStr(mapping->source).c_str(), bindset,
+                bind);
+        return;
+
+      default:
+        RDCERR("missing support for mapping source %s", DoStringise(mapping->source).c_str());
+        return;
+    }
+
+    if(vkType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+    {
+      HeapCombinedImageSamplerRange combined;
+      combined.heap = access.descriptorStore;
+      combined.offset = access.byteOffset;
+      combined.size = access.byteSize;
+      combined.samplerHeap = samplerHeap;
+      combined.samplerOffset = (uint32_t)samplerOffset;
+      combined.samplerSize = m_pDriver->HeapDescriptorDataSize(VK_DESCRIPTOR_TYPE_SAMPLER);
+
+      auto combinedAccess = AddHeapCombinedImageSampler(eventId, combined);
+      access.descriptorStore = combinedAccess.first;
+      access.byteOffset = combinedAccess.second;
+      access.byteSize = 1;
+    }
+
+    staticAccess.push_back(access);
+  };
+
+  for(uint32_t i = 0; i < sh.refl->constantBlocks.size(); i++)
+  {
+    // ignore push constants
+    if(!sh.refl->constantBlocks[i].bufferBacked)
+      continue;
+    addHeapMappingAccess(DescriptorType::ConstantBuffer, false, i & 0xffff,
+                         sh.refl->constantBlocks[i].fixedBindSetOrSpace,
+                         sh.refl->constantBlocks[i].fixedBindNumber,
+                         sh.refl->constantBlocks[i].bindArraySize);
+  }
+
+  for(uint32_t i = 0; i < sh.refl->samplers.size(); i++)
+    addHeapMappingAccess(DescriptorType::Sampler, false, i & 0xffff,
+                         sh.refl->samplers[i].fixedBindSetOrSpace,
+                         sh.refl->samplers[i].fixedBindNumber, sh.refl->samplers[i].bindArraySize);
+
+  for(uint32_t i = 0; i < sh.refl->readOnlyResources.size(); i++)
+    addHeapMappingAccess(sh.refl->readOnlyResources[i].descriptorType,
+                         sh.refl->readOnlyResources[i].isInputAttachment, i & 0xffff,
+                         sh.refl->readOnlyResources[i].fixedBindSetOrSpace,
+                         sh.refl->readOnlyResources[i].fixedBindNumber,
+                         sh.refl->readOnlyResources[i].bindArraySize);
+
+  for(uint32_t i = 0; i < sh.refl->readWriteResources.size(); i++)
+    addHeapMappingAccess(sh.refl->readWriteResources[i].descriptorType, false, i & 0xffff,
+                         sh.refl->readWriteResources[i].fixedBindSetOrSpace,
+                         sh.refl->readWriteResources[i].fixedBindNumber,
+                         sh.refl->readWriteResources[i].bindArraySize);
+}
+
 rdcarray<DescriptorAccess> VulkanReplay::GetDescriptorAccess(uint32_t eventId)
 {
   const VulkanRenderState &state = m_pDriver->m_RenderState;
@@ -2999,10 +3575,26 @@ rdcarray<DescriptorAccess> VulkanReplay::GetDescriptorAccess(uint32_t eventId)
   const bool compute = action && bool(action->flags & ActionFlags::Dispatch);
 
   if(state.graphics.pipeline != ResourceId())
-    ret.append(m_pDriver->m_CreationInfo.m_Pipeline[state.graphics.pipeline].staticDescriptorAccess);
+  {
+    VulkanCreationInfo::Pipeline &pipeline =
+        m_pDriver->m_CreationInfo.m_Pipeline[state.graphics.pipeline];
 
+    ret.append(pipeline.staticDescriptorAccess);
+    for(VulkanCreationInfo::ShaderEntry &sh : pipeline.shaders)
+    {
+      GetDescriptorHeapStaticAccess(eventId, sh);
+    }
+  }
   if(state.compute.pipeline != ResourceId())
-    ret.append(m_pDriver->m_CreationInfo.m_Pipeline[state.compute.pipeline].staticDescriptorAccess);
+  {
+    VulkanCreationInfo::Pipeline &pipeline =
+        m_pDriver->m_CreationInfo.m_Pipeline[state.compute.pipeline];
+    ret.append(pipeline.staticDescriptorAccess);
+    for(VulkanCreationInfo::ShaderEntry &sh : pipeline.shaders)
+    {
+      GetDescriptorHeapStaticAccess(eventId, sh);
+    }
+  }
 
   if(state.graphics.shaderObject)
   {
@@ -3012,14 +3604,30 @@ rdcarray<DescriptorAccess> VulkanReplay::GetDescriptorAccess(uint32_t eventId)
         continue;
       ResourceId shadid = state.shaderObjects[i];
       if(shadid != ResourceId())
+      {
         ret.append(m_pDriver->m_CreationInfo.m_ShaderObject[shadid].staticDescriptorAccess);
+        GetDescriptorHeapStaticAccess(eventId, m_pDriver->m_CreationInfo.m_ShaderObject[shadid].shad);
+      }
     }
   }
 
   if(state.compute.shaderObject && state.shaderObjects[(uint32_t)ShaderStage::Compute] != ResourceId())
+  {
     ret.append(m_pDriver->m_CreationInfo
                    .m_ShaderObject[state.shaderObjects[(uint32_t)ShaderStage::Compute]]
                    .staticDescriptorAccess);
+    GetDescriptorHeapStaticAccess(
+        eventId, m_pDriver->m_CreationInfo
+                     .m_ShaderObject[state.shaderObjects[(uint32_t)ShaderStage::Compute]]
+                     .shad);
+  }
+
+  auto eventHeapDescriptors = m_EventHeapDescriptors.find(eventId);
+  if(eventHeapDescriptors != m_EventHeapDescriptors.end())
+  {
+    eventHeapDescriptors->second.resolved = true;
+    ret.append(eventHeapDescriptors->second.staticAccess);
+  }
 
   for(DescriptorAccess &access : ret)
   {
@@ -3151,6 +3759,16 @@ rdcarray<DescriptorLogicalLocation> VulkanReplay::GetDescriptorLocations(
       d.logicalBindName = "Push constants";
     }
 
+    return ret;
+  }
+
+  // check for descriptor heaps or combined image/sampler descriptor heap
+  // descriptors, which have no location names.
+  if((WrappedVkBuffer::IsAlloc(GetResourceManager()->GetResource(descriptorStore)) &&
+      (m_pDriver->m_CreationInfo.m_Buffer[descriptorStore].usage &
+       VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT) != 0) ||
+     m_CombinedImageSamplerStores.find(descriptorStore) != m_CombinedImageSamplerStores.end())
+  {
     return ret;
   }
 

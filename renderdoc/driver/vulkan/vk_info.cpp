@@ -850,14 +850,18 @@ uint32_t GetDescriptorSizeOfBind(VulkanResourceManager *resourceMan,
 }
 
 static void ProcessStaticDescriptorAccess(VulkanResourceManager *resourceMan,
-                                          const ShaderReflection *refl, ResourceId specStorage,
+                                          const VulkanCreationInfo::ShaderEntry &sh,
+                                          ResourceId specStorage,
                                           rdcarray<DescriptorAccess> &descriptorAccess,
                                           rdcarray<const DescSetLayout *> setLayoutInfos)
 {
+  const ShaderReflection *refl = sh.refl;
+
   if(!refl)
     return;
 
   const uint32_t descSetLayoutsCount = (uint32_t)setLayoutInfos.size();
+  bool usingDescriptorHeapMappings = sh.descriptorMappings.size() != 0;
 
   DescriptorAccess access;
   access.stage = refl->stage;
@@ -897,6 +901,10 @@ static void ProcessStaticDescriptorAccess(VulkanResourceManager *resourceMan,
         access.byteOffset = 0;
         descriptorAccess.push_back(access);
       }
+    }
+    else if(usingDescriptorHeapMappings)
+    {
+      continue;
     }
     else
     {
@@ -958,6 +966,9 @@ static void ProcessStaticDescriptorAccess(VulkanResourceManager *resourceMan,
     if(bind.bindArraySize > 1)
       continue;
 
+    if(usingDescriptorHeapMappings)
+      continue;
+
     // Ignore bindings which are not in the descriptor set layouts
     if((bind.fixedBindSetOrSpace >= descSetLayoutsCount) ||
        bind.fixedBindNumber >= setLayoutInfos[bind.fixedBindSetOrSpace]->bindings.size())
@@ -1010,6 +1021,9 @@ static void ProcessStaticDescriptorAccess(VulkanResourceManager *resourceMan,
     const ShaderResource &bind = refl->readOnlyResources[i];
     // arrayed descriptors will be handled with bindless feedback
     if(bind.bindArraySize > 1)
+      continue;
+
+    if(usingDescriptorHeapMappings)
       continue;
 
     // Ignore bindings which are not in the descriptor set layouts
@@ -1207,7 +1221,7 @@ void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
   for(ResourceId setLayout : descSetLayouts)
     setLayoutInfos.push_back(&info.m_DescSetLayout[setLayout]);
 
-  ProcessStaticDescriptorAccess(resourceMan, shad.refl, id, staticDescriptorAccess, setLayoutInfos);
+  ProcessStaticDescriptorAccess(resourceMan, shad, id, staticDescriptorAccess, setLayoutInfos);
 }
 
 void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
@@ -2008,7 +2022,7 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,
     setLayoutInfos.push_back(&info.m_DescSetLayout[setLayout]);
 
   for(const ShaderEntry &shad : shaders)
-    ProcessStaticDescriptorAccess(resourceMan, shad.refl, id, staticDescriptorAccess, setLayoutInfos);
+    ProcessStaticDescriptorAccess(resourceMan, shad, id, staticDescriptorAccess, setLayoutInfos);
 }
 
 void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan, VulkanCreationInfo &info,
@@ -2143,7 +2157,7 @@ void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan, Vulk
     setLayoutInfos.push_back(&info.m_DescSetLayout[setLayout]);
 
   for(const ShaderEntry &shad : shaders)
-    ProcessStaticDescriptorAccess(resourceMan, shad.refl, id, staticDescriptorAccess, setLayoutInfos);
+    ProcessStaticDescriptorAccess(resourceMan, shad, id, staticDescriptorAccess, setLayoutInfos);
 }
 
 void VulkanCreationInfo::Pipeline::Init(VulkanResourceManager *resourceMan,

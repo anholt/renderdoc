@@ -3997,6 +3997,23 @@ bool WrappedVulkan::Serialise_vkWriteSamplerDescriptorsEXT(SerialiserType &ser, 
                          bitDifferences.c_str(), GetPhysDeviceCompatString(false, false).c_str());
         return false;
       }
+
+      bytebuf key = bytebuf(descriptor, curDescriptorSize);
+      if(!m_DescriptorLookup.fallback.contains(key))
+      {
+        DescriptorSetSlot data = {};
+        data.type = DescriptorSlotType::Sampler;
+
+        /* Create a ResourceId to store the sampler create info on, even though
+         * it's not a real VkSampler.
+         */
+        data.sampler = ResourceIDGen::GetNewUniqueID();
+        m_CreationInfo.m_Sampler[data.sampler].Init(GetResourceManager(), m_CreationInfo,
+                                                    &pSamplers[i]);
+        AddResource(data.sampler, ResourceType::Sampler, "Heap Sampler");
+
+        m_DescriptorLookup.fallback.insert(key, data);
+      }
     }
   }
 
