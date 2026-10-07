@@ -2700,20 +2700,22 @@ rdcarray<Descriptor> VulkanReplay::GetDescriptors(ResourceId descriptorStore,
   {
     const VulkanRenderState &state = m_pDriver->m_RenderState;
 
-    // should only be one descriptor referred here, but just munge them all to be the same
-    for(Descriptor &d : ret)
+    size_t dst = 0;
+    for(const DescriptorRange &r : ranges)
     {
-      d.type = DescriptorType::ConstantBuffer;
-      d.flags = DescriptorFlags::InlineData;
-      d.view = ResourceId();
-      d.resource = descriptorStore;
-      // push constants also implicitly always view the whole data, since the ranges specified in
-      // the pipeline must match offsets declared in the shader
-      d.byteOffset = 0;
-      // we don't verify that the current command buffer is the one being requested - since push
-      // constants are not valid outside of the current event. We just pretend that all push
-      // constants are the same and mutable
-      d.byteSize = state.pushConstSize;
+      for(uint32_t i = 0; i < r.count; i++)
+      {
+        Descriptor &d = ret[dst++];
+        d.type = DescriptorType::ConstantBuffer;
+        d.flags = DescriptorFlags::InlineData;
+        d.view = ResourceId();
+        d.resource = descriptorStore;
+        d.byteOffset = r.offset;
+        // we don't verify that the current command buffer is the one being requested - since push
+        // constants are not valid outside of the current event. We just pretend that all push
+        // constants are the same and mutable
+        d.byteSize = r.offset < state.pushConstSize ? state.pushConstSize - r.offset : 0;
+      }
     }
 
     return ret;
