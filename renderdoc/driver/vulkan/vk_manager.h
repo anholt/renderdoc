@@ -210,10 +210,10 @@ public:
 
   // easy path for getting the wrapped handle cast to the correct type
   template <typename realtype>
-  realtype GetHandle(ResourceId id)
+  realtype GetHandle(ResourceId id, bool optional = false)
   {
     return realtype(
-        (uint64_t)((typename UnwrapHelper<realtype>::ParentType *)ResourceManager::GetResource(id)));
+        (uint64_t)((typename UnwrapHelper<realtype>::ParentType *)ResourceManager::GetResource(id, optional)));
   }
 
   // handling memory & image layouts
