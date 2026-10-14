@@ -266,7 +266,7 @@ public:
     VkDevice dev = m_pDriver->GetDev();
     for(auto it = m_SampleViews.begin(); it != m_SampleViews.end(); it++)
       m_pDriver->vkDestroyImageView(dev, it->second, NULL);
-    for(auto it = m_BiasSamplers.begin(); it != m_BiasSamplers.end(); it++)
+    for(auto it = m_CachedSamplers.begin(); it != m_CachedSamplers.end(); it++)
       m_pDriver->vkDestroySampler(dev, it->second, NULL);
   }
 
@@ -768,13 +768,12 @@ public:
     VkBufferView bufferView =
         m_pDriver->GetResourceManager()->GetHandle<VkBufferView>(bufferViewDescriptor.view);
 
-    VkSampler sampler =
-        m_pDriver->GetResourceManager()->GetHandle<VkSampler>(samplerDescriptor.object);
-    VkImageView view = m_pDriver->GetResourceManager()->GetHandle<VkImageView>(imageDescriptor.view);
+    ResourceId sampler = samplerDescriptor.object;
+    ResourceId view = imageDescriptor.view;
     VkImageLayout layout = convert((DescriptorSlotImageLayout)imageDescriptor.byteOffset);
 
     // NULL view : return 0,0,0,0
-    if(!buffer && (view == VK_NULL_HANDLE))
+    if(!buffer && (view == ResourceId()))
     {
       memset(&output.value, 0, sizeof(output.value));
       hasResult = true;
@@ -788,7 +787,7 @@ public:
     VulkanCreationInfo::Sampler defaultSamplerProps = {};
 
     const VulkanCreationInfo::ImageView &viewProps =
-        buffer ? defaultViewProps : m_Creation.GetImageViewInfo(GetResID(view));
+        buffer ? defaultViewProps : m_Creation.GetImageViewInfo(view);
 
     // NULL image : return 0,0,0,0
     if(!buffer && (viewProps.image == ResourceId()))
@@ -940,8 +939,8 @@ public:
     }
 
     // create our own view (if we haven't already for this view) so we can promote to array
-    VkImageView sampleView = m_SampleViews[GetResID(view)];
-    if(sampleView == VK_NULL_HANDLE && view != VK_NULL_HANDLE)
+    VkImageView sampleView = m_SampleViews[view];
+    if(sampleView == VK_NULL_HANDLE && view != ResourceId())
     {
       VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
       viewInfo.image = m_pDriver->GetResourceManager()->GetHandle<VkImage>(viewProps.image);
@@ -969,17 +968,20 @@ public:
       VkResult vkr = m_pDriver->vkCreateImageView(dev, &viewInfo, NULL, &sampleView);
       CHECK_VKR(m_pDriver, vkr);
 
-      m_SampleViews[GetResID(view)] = sampleView;
+      m_SampleViews[view] = sampleView;
     }
 
-    if(operands.flags & rdcspv::ImageOperands::Bias)
+    // VK_EXT_descriptor_heap samplers have a ResourceId but no corresponding
+    // VkSampler, meaning we have to create one.
+    VkSampler vkSampler = m_pDriver->GetResourceManager()->GetHandle<VkSampler>(sampler, true);
+    if((operands.flags & rdcspv::ImageOperands::Bias) || (sampler != ResourceId() && vkSampler == VK_NULL_HANDLE))
     {
-      const ShaderVariable &biasVar = lane.GetSrc(operands.bias);
-
+      float bias = 0.0;
       // silently cast parameters to 32-bit floats
-      float bias = floatComp(biasVar, 0);
+      if(operands.flags & rdcspv::ImageOperands::Bias)
+        bias = floatComp(lane.GetSrc(operands.bias), 0);
 
-      if(bias != 0.0f)
+      if(bias != 0.0f || vkSampler == VK_NULL_HANDLE)
       {
         // bias can only be used with implicit lod operations, but we want to do everything with
         // explicit lod operations. So we instead push the bias into a new sampler, which is
@@ -987,14 +989,14 @@ public:
 
         // first check to see if we have one already, since the bias is probably going to be
         // coherent.
-        SamplerBiasKey key = {GetResID(sampler), bias};
+        SamplerCacheKey key = {sampler, bias};
 
-        auto insertIt = m_BiasSamplers.insert(std::make_pair(key, VkSampler()));
+        auto insertIt = m_CachedSamplers.insert(std::make_pair(key, VkSampler()));
         if(insertIt.second)
         {
           const VulkanCreationInfo::Sampler &samplerProps =
-              (sampler == VK_NULL_HANDLE) ? defaultSamplerProps
-                                          : m_Creation.GetSamplerInfo(key.first);
+              (vkSampler == VK_NULL_HANDLE) ? defaultSamplerProps
+                                           : m_Creation.GetSamplerInfo(key.first);
 
           VkSamplerCreateInfo sampInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
           sampInfo.magFilter = samplerProps.magFilter;
@@ -1043,18 +1045,19 @@ public:
             borderInfo.pNext = sampInfo.pNext;
             sampInfo.pNext = &borderInfo;
           }
+          // XXX: Map VkSamplerCustomBorderColorIndexCreateInfoEXT.
 
           // now add the shader's bias on
           sampInfo.mipLodBias += bias;
 
-          VkResult vkr = m_pDriver->vkCreateSampler(dev, &sampInfo, NULL, &sampler);
+          VkResult vkr = m_pDriver->vkCreateSampler(dev, &sampInfo, NULL, &vkSampler);
           CHECK_VKR(m_pDriver, vkr);
 
-          insertIt.first->second = sampler;
+          insertIt.first->second = vkSampler;
         }
         else
         {
-          sampler = insertIt.first->second;
+          vkSampler = insertIt.first->second;
         }
       }
     }
@@ -1379,7 +1382,7 @@ public:
       return false;
     }
 
-    VkDescriptorImageInfo samplerWriteInfo = {Unwrap(sampler), VK_NULL_HANDLE,
+    VkDescriptorImageInfo samplerWriteInfo = {Unwrap(vkSampler), VK_NULL_HANDLE,
                                               VK_IMAGE_LAYOUT_UNDEFINED};
     VkDescriptorImageInfo imageWriteInfo = {VK_NULL_HANDLE, Unwrap(sampleView), layout};
 
@@ -1498,7 +1501,7 @@ public:
     }
 
     // overwrite with our data
-    ObjDisp(dev)->UpdateDescriptorSets(Unwrap(dev), sampler != VK_NULL_HANDLE ? 3 : 2, writeSets, 0,
+    ObjDisp(dev)->UpdateDescriptorSets(Unwrap(dev), sampler != ResourceId() ? 3 : 2, writeSets, 0,
                                        NULL);
 
     uint32_t constsOffset = 0;
@@ -1878,8 +1881,8 @@ private:
   };
   rdcflatmap<BufViewKey, VkBufferView> m_SampleBufViews;
 
-  typedef rdcpair<ResourceId, float> SamplerBiasKey;
-  std::map<SamplerBiasKey, VkSampler> m_BiasSamplers;
+  typedef rdcpair<ResourceId, float> SamplerCacheKey;
+  std::map<SamplerCacheKey, VkSampler> m_CachedSamplers;
 
   Threading::RWLock bufferCacheLock;
   std::map<ShaderBindIndex, bytebuf> bufferCache;
