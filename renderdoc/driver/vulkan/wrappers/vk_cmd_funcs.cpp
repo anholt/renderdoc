@@ -1589,6 +1589,33 @@ bool WrappedVulkan::Serialise_vkBeginCommandBuffer(SerialiserType &ser, VkComman
       if(inheritanceConditionalRenderingInfo)
         m_BakedCmdBufferInfo[BakedCommandBuffer].inheritConditionalRendering =
             inheritanceConditionalRenderingInfo->conditionalRenderingEnable == VK_TRUE;
+
+      const VkCommandBufferInheritanceDescriptorHeapInfoEXT *inheritanceDescriptorHeapInfoInfo =
+          (const VkCommandBufferInheritanceDescriptorHeapInfoEXT *)FindNextStruct(
+              BeginInfo.pInheritanceInfo,
+              VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_DESCRIPTOR_HEAP_INFO_EXT);
+      if(inheritanceDescriptorHeapInfoInfo)
+      {
+        VulkanRenderState &state = m_BakedCmdBufferInfo[BakedCommandBuffer].state;
+        const VkBindHeapInfoEXT *resourceInfo =
+            inheritanceDescriptorHeapInfoInfo->pResourceHeapBindInfo;
+        const VkBindHeapInfoEXT *samplerInfo =
+            inheritanceDescriptorHeapInfoInfo->pSamplerHeapBindInfo;
+
+        if(resourceInfo)
+        {
+          state.resourceHeap.heapRange = resourceInfo->heapRange;
+          state.resourceHeap.reservedRangeOffset = resourceInfo->reservedRangeOffset;
+          state.resourceHeap.reservedRangeSize = resourceInfo->reservedRangeSize;
+        }
+
+        if(samplerInfo)
+        {
+          state.samplerHeap.heapRange = samplerInfo->heapRange;
+          state.samplerHeap.reservedRangeOffset = samplerInfo->reservedRangeOffset;
+          state.samplerHeap.reservedRangeSize = samplerInfo->reservedRangeSize;
+        }
+      }
     }
 
     byte *tempMem = GetTempMemory(GetNextPatchSize(unwrappedBeginInfo.pNext));
