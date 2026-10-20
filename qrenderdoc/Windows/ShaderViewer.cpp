@@ -4245,7 +4245,7 @@ void ShaderViewer::updateDebugState()
         uint32_t count = qMin(res.bindArraySize, (uint32_t)descriptors.size());
         for(uint32_t a = 0; a < count; a++)
         {
-          QString childName = QFormatStr("%1[%2]").arg(ro.name).arg(a);
+          QString childName = QFormatStr("%1[%2]").arg(ro.name).arg(descriptors[a].access.arrayElement);
           RDTreeWidgetItem *child = new RDTreeWidgetItem({
               QFormatStr("%1[%2]").arg(res.name).arg(a),
               childName,
@@ -4312,7 +4312,7 @@ void ShaderViewer::updateDebugState()
         uint32_t count = qMin(res.bindArraySize, (uint32_t)descriptors.size());
         for(uint32_t a = 0; a < count; a++)
         {
-          QString childName = QFormatStr("%1[%2]").arg(rw.name).arg(a);
+          QString childName = QFormatStr("%1[%2]").arg(rw.name).arg(descriptors[a].access.arrayElement);
           RDTreeWidgetItem *child = new RDTreeWidgetItem({
               QFormatStr("%1[%2]").arg(res.name).arg(a),
               childName,
@@ -4378,7 +4378,7 @@ void ShaderViewer::updateDebugState()
         uint32_t count = qMin(samp.bindArraySize, (uint32_t)descriptors.size());
         for(uint32_t a = 0; a < count; a++)
         {
-          QString childName = QFormatStr("%1[%2]").arg(s.name).arg(a);
+          QString childName = QFormatStr("%1[%2]").arg(s.name).arg(descriptors[a].access.arrayElement);
           RDTreeWidgetItem *child = new RDTreeWidgetItem({
               QFormatStr("%1[%2]").arg(m_ShaderDetails->samplers[i].name).arg(a),
               childName,
@@ -5109,7 +5109,7 @@ RDTreeWidgetItem *ShaderViewer::makeSourceVariableNode(const SourceVariableMappi
             uint32_t count = qMin(res.bindArraySize, (uint32_t)descriptors.size());
             for(uint32_t a = 0; a < count; a++)
               children.push_back(new RDTreeWidgetItem({
-                  QFormatStr("%1[%2]").arg(localName).arg(a),
+                  QFormatStr("%1[%2]").arg(localName).arg(descriptors[a].access.arrayElement),
                   QString(),
                   typeName,
                   ToQStr(descriptors[a].descriptor.resource),
