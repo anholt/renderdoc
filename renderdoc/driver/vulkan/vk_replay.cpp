@@ -2323,8 +2323,35 @@ void VulkanReplay::SavePipelineState(uint32_t eventId)
       ret.compute.descriptorBuffers[i].buffer = id;
     }
 
+    ret.compute.descriptorHeaps.clear();
+    if(state.resourceHeap.heapRange.size)
+    {
+      VKPipe::DescriptorHeap heap = {};
+      ResourceId id;
+      m_pDriver->GetResIDFromAddr(state.resourceHeap.heapRange.address, id, heap.offset);
+      heap.buffer = id;
+      heap.size = state.resourceHeap.heapRange.size;
+      heap.reservedOffset = state.resourceHeap.reservedRangeOffset;
+      heap.reservedSize = state.resourceHeap.reservedRangeSize;
+      heap.resourceHeap = true;
+      ret.compute.descriptorHeaps.push_back(heap);
+    }
+    if(state.samplerHeap.heapRange.size)
+    {
+      VKPipe::DescriptorHeap heap = {};
+      ResourceId id;
+      m_pDriver->GetResIDFromAddr(state.samplerHeap.heapRange.address, id, heap.offset);
+      heap.buffer = id;
+      heap.size = state.samplerHeap.heapRange.size;
+      heap.reservedOffset = state.samplerHeap.reservedRangeOffset;
+      heap.reservedSize = state.samplerHeap.reservedRangeSize;
+      heap.resourceHeap = false;
+      ret.compute.descriptorHeaps.push_back(heap);
+    }
+
     // these are not actually pipeline specific but for organisation/ease we store them there
     ret.graphics.descriptorBuffers = ret.compute.descriptorBuffers;
+    ret.graphics.descriptorHeaps = ret.compute.descriptorHeaps;
   }
 
   // image layouts

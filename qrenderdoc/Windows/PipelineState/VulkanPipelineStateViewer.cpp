@@ -1765,19 +1765,30 @@ void VulkanPipelineStateViewer::setShaderState(const VKPipe::Pipeline &pipe,
     shaderDebug->hide();
   }
 
-  if(pipe.pipelineComputeLayoutResourceId != ResourceId())
+  bool descHeap = pipe.descriptorHeaps.size() != 0;
+
+  if(descHeap)
   {
-    pipeLayout->setText(tr("Pipeline Layout: %1").arg(ToQStr(pipe.pipelineComputeLayoutResourceId)));
-  }
-  else if(pipe.pipelinePreRastLayoutResourceId == pipe.pipelineFragmentLayoutResourceId)
-  {
-    pipeLayout->setText(tr("Pipeline Layout: %1").arg(ToQStr(pipe.pipelineFragmentLayoutResourceId)));
+    pipeLayout->hide();
   }
   else
   {
-    pipeLayout->setText(tr("Pipeline Layouts: %1 and %2")
-                            .arg(ToQStr(pipe.pipelinePreRastLayoutResourceId))
-                            .arg(ToQStr(pipe.pipelineFragmentLayoutResourceId)));
+    if(pipe.pipelineComputeLayoutResourceId != ResourceId())
+    {
+      pipeLayout->setText(tr("Pipeline Layout: %1").arg(ToQStr(pipe.pipelineComputeLayoutResourceId)));
+    }
+    else if(pipe.pipelinePreRastLayoutResourceId == pipe.pipelineFragmentLayoutResourceId)
+    {
+      pipeLayout->setText(
+          tr("Pipeline Layout: %1").arg(ToQStr(pipe.pipelineFragmentLayoutResourceId)));
+    }
+    else
+    {
+      pipeLayout->setText(tr("Pipeline Layouts: %1 and %2")
+                              .arg(ToQStr(pipe.pipelinePreRastLayoutResourceId))
+                              .arg(ToQStr(pipe.pipelineFragmentLayoutResourceId)));
+    }
+    pipeLayout->show();
   }
 
   bool descBuf = false;
@@ -1790,19 +1801,35 @@ void VulkanPipelineStateViewer::setShaderState(const VKPipe::Pipeline &pipe,
     }
   }
 
-  if(descBuf)
+  if(descHeap)
   {
-    descSets->setHeaderText(2, tr(" Buffer"));
-    descSets->header()->showSection(3);    // buffer offset
-    descSets->header()->showSection(4);    // set offset
-    descSets->header()->showSection(5);    // type
+    descSets->setHeaderText(0, tr("Heap"));
+    descSets->setHeaderText(1, tr("Offset"));
+    descSets->setHeaderText(2, tr("Size"));
+    descSets->setHeaderText(3, tr("Reserved Offset"));
+    descSets->setHeaderText(4, tr("Reserved Size"));
+    descSets->header()->showSection(3);
+    descSets->header()->showSection(4);
+    descSets->header()->hideSection(5);    // type
   }
   else
   {
-    descSets->setHeaderText(2, tr("Set"));
-    descSets->header()->hideSection(3);    // buffer offset
-    descSets->header()->hideSection(4);    // set offset
-    descSets->header()->hideSection(5);    // type
+    descSets->setHeaderText(0, tr("Index"));
+    descSets->setHeaderText(1, tr("Layout"));
+    if(descBuf)
+    {
+      descSets->setHeaderText(2, tr(" Buffer"));
+      descSets->header()->showSection(3);    // buffer offset
+      descSets->header()->showSection(4);    // set offset
+      descSets->header()->showSection(5);    // type
+    }
+    else
+    {
+      descSets->setHeaderText(2, tr("Set"));
+      descSets->header()->hideSection(3);    // buffer offset
+      descSets->header()->hideSection(4);    // set offset
+      descSets->header()->hideSection(5);    // type
+    }
   }
 
   descSets->clear();
@@ -1855,6 +1882,25 @@ void VulkanPipelineStateViewer::setShaderState(const VKPipe::Pipeline &pipe,
         item->setText(5, type);
       }
 
+      descSets->addTopLevelItem(item);
+    }
+  }
+  else if(descHeap)
+  {
+    for(uint32_t i = 0; i < pipe.descriptorHeaps.size(); i++)
+    {
+      const VKPipe::DescriptorHeap &heap = pipe.descriptorHeaps[i];
+
+      QString type;
+      if(heap.resourceHeap)
+        type = tr("Resources");
+      else
+        type = tr("Samplers");
+
+      RDTreeWidgetItem *item = new RDTreeWidgetItem(
+          {type, qulonglong(heap.offset), qulonglong(heap.size), qulonglong(heap.reservedOffset),
+           qulonglong(heap.reservedSize), QString(), QString()});
+      item->setTag(i);
       descSets->addTopLevelItem(item);
     }
   }
@@ -3361,6 +3407,20 @@ void VulkanPipelineStateViewer::descSet_itemActivated(RDTreeWidgetItem *item, in
     return;
 
   int index = item->tag().toInt();
+
+  // Note: heaps are shared between graphics and compute.
+  const rdcarray<VKPipe::DescriptorHeap> &descHeaps =
+      m_Ctx.CurVulkanPipelineState()->compute.descriptorHeaps;
+  if(descHeaps.size())
+  {
+    if(index < descHeaps.count())
+    {
+      IBufferViewer *viewer =
+          m_Ctx.ViewBuffer(descHeaps[index].offset, descHeaps[index].size, descHeaps[index].buffer);
+      m_Ctx.AddDockWindow(viewer->Widget(), DockReference::AddTo, this);
+    }
+    return;
+  }
 
   const rdcarray<VKPipe::DescriptorSet> &descSets =
       stage->stage == ShaderStage::Compute ? m_Ctx.CurVulkanPipelineState()->compute.descriptorSets
