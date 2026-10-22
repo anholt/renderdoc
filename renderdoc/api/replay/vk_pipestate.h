@@ -223,6 +223,80 @@ DOCUMENT(R"(
 VKPipeline()
 VKPipeline(other: VKPipeline)
 
+
+A single descriptor heap binding.
+)");
+struct DescriptorHeap
+{
+  DOCUMENT("");
+  DescriptorHeap() = default;
+  DescriptorHeap(const DescriptorHeap &) = default;
+  DescriptorHeap &operator=(const DescriptorHeap &) = default;
+
+  bool operator==(const DescriptorHeap &o) const
+  {
+    return buffer == o.buffer && offset == o.offset && size == o.size &&
+           reservedOffset == o.reservedOffset && reservedSize == o.reservedSize &&
+           resourceHeap == o.resourceHeap;
+  }
+  bool operator<(const DescriptorHeap &o) const
+  {
+    if(!(buffer == o.buffer))
+      return buffer < o.buffer;
+    if(!(offset == o.offset))
+      return offset < o.offset;
+    if(!(size == o.size))
+      return size < o.size;
+    if(!(reservedOffset == o.reservedOffset))
+      return reservedOffset < o.reservedOffset;
+    if(!(reservedSize == o.reservedSize))
+      return reservedSize < o.reservedSize;
+    if(!(resourceHeap == o.resourceHeap))
+      return resourceHeap < o.resourceHeap;
+    return false;
+  }
+
+  DOCUMENT(R"(The :class:`ResourceId` of the buffer object being bound.
+
+:type: ResourceId
+)");
+  ResourceId buffer;
+
+  DOCUMENT(R"(The offset in bytes from the base of the buffer object to the start of the bound region.
+
+:type: int
+)");
+  uint64_t offset = 0;
+
+  DOCUMENT(R"(The size in bytes of the bound region.
+
+:type: int
+)");
+  uint64_t size = 0;
+
+  DOCUMENT(R"(The offset in bytes from the start of the bound region for the reserved range.
+
+:type: int
+)");
+  uint64_t reservedOffset = 0;
+
+  DOCUMENT(R"(The size in bytes of the reserved range.
+
+:type: int
+)");
+  uint64_t reservedSize = 0;
+
+  DOCUMENT(R"(Indicates if this is the resource heap (as opposed to the sampler heap).
+
+:type: bool
+)");
+  bool resourceHeap = false;
+};
+
+DOCUMENT(R"(
+VKPipeline()
+VKPipeline(other: VKPipeline)
+
 Describes the object and descriptor set bindings of a Vulkan pipeline object.
 )");
 struct Pipeline
@@ -273,6 +347,12 @@ When not using pipeline libraries, this will be identical to :data:`pipelinePreR
 :type: List[VKDescriptorBuffer]
 )");
   rdcarray<DescriptorBuffer> descriptorBuffers;
+
+  DOCUMENT(R"(The bound descriptor heaps.
+
+:type: List[VKDescriptorHeap]
+)");
+  rdcarray<DescriptorHeap> descriptorHeaps;
 };
 
 DOCUMENT(R"(
@@ -1757,6 +1837,7 @@ struct State
 DECLARE_REFLECTION_STRUCT(VKPipe::DynamicOffset);
 DECLARE_REFLECTION_STRUCT(VKPipe::DescriptorSet);
 DECLARE_REFLECTION_STRUCT(VKPipe::DescriptorBuffer);
+DECLARE_REFLECTION_STRUCT(VKPipe::DescriptorHeap);
 DECLARE_REFLECTION_STRUCT(VKPipe::Pipeline);
 DECLARE_REFLECTION_STRUCT(VKPipe::IndexBuffer);
 DECLARE_REFLECTION_STRUCT(VKPipe::InputAssembly);

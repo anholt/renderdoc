@@ -1968,6 +1968,20 @@ void DoSerialise(SerialiserType &ser, VKPipe::DescriptorBuffer &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VKPipe::DescriptorHeap &el)
+{
+  SERIALISE_MEMBER(buffer);
+  SERIALISE_MEMBER(offset);
+  SERIALISE_MEMBER(size);
+  SERIALISE_MEMBER(reservedOffset);
+  SERIALISE_MEMBER(reservedSize);
+
+  SERIALISE_MEMBER(resourceHeap);
+
+  SIZE_CHECK(44);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VKPipe::DescriptorSet &el)
 {
   SERIALISE_MEMBER(layoutResourceId);
