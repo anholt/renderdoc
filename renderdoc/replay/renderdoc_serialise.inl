@@ -1968,6 +1968,20 @@ void DoSerialise(SerialiserType &ser, VKPipe::DescriptorBuffer &el)
 }
 
 template <typename SerialiserType>
+void DoSerialise(SerialiserType &ser, VKPipe::DescriptorHeap &el)
+{
+  SERIALISE_MEMBER(buffer);
+  SERIALISE_MEMBER(offset);
+  SERIALISE_MEMBER(size);
+  SERIALISE_MEMBER(reservedOffset);
+  SERIALISE_MEMBER(reservedSize);
+
+  SERIALISE_MEMBER(resourceHeap);
+
+  SIZE_CHECK(48);
+}
+
+template <typename SerialiserType>
 void DoSerialise(SerialiserType &ser, VKPipe::DescriptorSet &el)
 {
   SERIALISE_MEMBER(layoutResourceId);
@@ -1994,8 +2008,9 @@ void DoSerialise(SerialiserType &ser, VKPipe::Pipeline &el)
 
   SERIALISE_MEMBER(descriptorSets);
   SERIALISE_MEMBER(descriptorBuffers);
+  SERIALISE_MEMBER(descriptorHeaps);
 
-  SIZE_CHECK(88);
+  SIZE_CHECK(112);
 }
 
 template <typename SerialiserType>
@@ -2349,7 +2364,7 @@ void DoSerialise(SerialiserType &ser, VKPipe::State &el)
 
   SERIALISE_MEMBER(conditionalRendering);
 
-  SIZE_CHECK(1936);
+  SIZE_CHECK(1984);
 }
 
 #pragma endregion Vulkan pipeline state
