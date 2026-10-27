@@ -1045,6 +1045,7 @@ private:
   rdcarray<VkResourceRecord *> m_CoherentMaps;
   Threading::CriticalSection m_CoherentMapsLock;
 
+  std::unordered_map<uint32_t, ResourceId> m_CustomBorderColorIndices;
   rdcarray<VkResourceRecord *> m_ForcedReferences;
   Threading::CriticalSection m_ForcedReferencesLock;
 

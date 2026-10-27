@@ -4355,6 +4355,18 @@ bool WrappedVulkan::Serialise_vkRegisterCustomBorderColorEXT(
     SerialiserType &ser, VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
     VkBool32 requestIndex, uint32_t *pIndex)
 {
+  SERIALISE_ELEMENT(device);
+  SERIALISE_ELEMENT_OPT(pBorderColor);
+  SERIALISE_ELEMENT(requestIndex);
+  SERIALISE_ELEMENT_OPT(pIndex);
+
+  if(IsReplayingAndReading())
+  {
+    VkResult ret = ObjDisp(device)->RegisterCustomBorderColorEXT(Unwrap(device), pBorderColor,
+                                                                 requestIndex, pIndex);
+    RDCASSERT(ret == VK_SUCCESS);
+  }
+
   return true;
 }
 
@@ -4362,8 +4374,30 @@ VkResult WrappedVulkan::vkRegisterCustomBorderColorEXT(
     VkDevice device, const VkSamplerCustomBorderColorCreateInfoEXT *pBorderColor,
     VkBool32 requestIndex, uint32_t *pIndex)
 {
-  return ObjDisp(device)->RegisterCustomBorderColorEXT(Unwrap(device), pBorderColor, requestIndex,
-                                                       pIndex);
+  VkResult ret;
+  SERIALISE_TIME_CALL(ret = ObjDisp(device)->RegisterCustomBorderColorEXT(
+                          Unwrap(device), pBorderColor, requestIndex, pIndex));
+  if(ret != VK_SUCCESS)
+    return ret;
+
+  if(IsCaptureMode(m_State))
+  {
+    // Create a record for the custom border color registration.  It will get
+    // referenced from the device if it's alive at the start of frame capture.
+    ResourceId id = ResourceIDGen::GetNewUniqueID();
+    VkResourceRecord *record = GetResourceManager()->AddResourceRecord(id);
+    CACHE_THREAD_SERIALISER();
+    SCOPED_SERIALISE_CHUNK(VulkanChunk::vkRegisterCustomBorderColorEXT);
+    Serialise_vkRegisterCustomBorderColorEXT(ser, m_Device, pBorderColor, VK_TRUE, pIndex);
+    record->AddChunk(scope.Get());
+    {
+      SCOPED_LOCK(m_ForcedReferencesLock);
+      m_CustomBorderColorIndices.insert(std::make_pair(*pIndex, id));
+    }
+    AddForcedReference(record);
+  }
+
+  return VK_SUCCESS;
 }
 
 template <typename SerialiserType>
@@ -4375,7 +4409,20 @@ bool WrappedVulkan::Serialise_vkUnregisterCustomBorderColorEXT(SerialiserType &s
 
 void WrappedVulkan::vkUnregisterCustomBorderColorEXT(VkDevice device, uint32_t index)
 {
-  return ObjDisp(device)->UnregisterCustomBorderColorEXT(Unwrap(device), index);
+  SERIALISE_TIME_CALL(ObjDisp(device)->UnregisterCustomBorderColorEXT(Unwrap(device), index));
+
+  if(IsCaptureMode(m_State))
+  {
+    SCOPED_LOCK(m_ForcedReferencesLock);
+    auto it = m_CustomBorderColorIndices.find(index);
+    if(it != m_CustomBorderColorIndices.end())
+    {
+      VkResourceRecord *record = GetResourceManager()->GetResourceRecord(it->second);
+      m_ForcedReferences.removeOne(record);
+      record->Delete(m_ResourceManager);
+      m_CustomBorderColorIndices.erase(it);
+    }
+  }
 }
 
 INSTANTIATE_FUNCTION_SERIALISED(VkResult, vkAllocateMemory, VkDevice device,
