@@ -1027,7 +1027,7 @@ public:
           if(samplerProps.ycbcr != ResourceId())
           {
             ycbcrInfo.conversion =
-                m_pDriver->GetResourceManager()->GetHandle<VkSamplerYcbcrConversion>(viewProps.image);
+                m_pDriver->GetResourceManager()->GetHandle<VkSamplerYcbcrConversion>(samplerProps.ycbcr);
 
             ycbcrInfo.pNext = sampInfo.pNext;
             sampInfo.pNext = &ycbcrInfo;
