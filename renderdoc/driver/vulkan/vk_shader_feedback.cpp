@@ -1352,23 +1352,41 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
       }
 
       // if we see an access chain of a variable we're snooping, save out the result
-      if(it.opcode() == rdcspv::Op::AccessChain || it.opcode() == rdcspv::Op::InBoundsAccessChain)
+      if(it.opcode() == rdcspv::Op::AccessChain || it.opcode() == rdcspv::Op::InBoundsAccessChain ||
+         it.opcode() == rdcspv::Op::UntypedAccessChainKHR ||
+         it.opcode() == rdcspv::Op::UntypedInBoundsAccessChainKHR)
       {
-        rdcspv::OpAccessChain chain(it);
-        chain.op = it.opcode();
-
-        // is this a var we want to snoop?
-        auto varIt = varLookup.find(chain.base);
-        if(varIt != varLookup.end())
+        size_t indexesSize;
+        rdcspv::Id index;
+        rdcspv::Id var;
+        if(it.opcode() == rdcspv::Op::AccessChain || it.opcode() == rdcspv::Op::InBoundsAccessChain)
         {
+          rdcspv::OpAccessChain chain(it);
           // multi-dimensional arrays of descriptors is not allowed - however an access chain could
           // be longer than 5 words (1 index). Think of the case of a uniform buffer where the first
           // index goes into the descriptor array, and further indices go inside the uniform buffer
           // members.
-          RDCASSERT(chain.indexes.size() >= 1, chain.indexes.size());
+          if(chain.indexes.size() >= 1)
+            index = chain.indexes[0];
 
-          rdcspv::Id index = chain.indexes[0];
+          auto varIt = varLookup.find(chain.base);
+          if(varIt != varLookup.end())
+            var = varIt->second;
+        }
+        else
+        {
+          rdcspv::OpUntypedAccessChainKHR chain(it);
+          if(chain.indexes.size() >= 1)
+            index = chain.indexes[0];
 
+          auto varIt = varLookup.find(chain.base);
+          if(varIt != varLookup.end())
+            var = varIt->second;
+        }
+
+        // is this a var we want to snoop?
+        if(var != rdcspv::Id())
+        {
           // patch after the access chain
           it++;
 
@@ -1430,7 +1448,7 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
             // add the index on top of that
             // offsetaddr = bindingOffset + shiftedindex
             rdcspv::Id offsetaddr = editor.AddOperation(
-                it, rdcspv::OpIAdd(indexOffsetType, editor.MakeId(), varIt->second, shiftedindex));
+                it, rdcspv::OpIAdd(indexOffsetType, editor.MakeId(), var, shiftedindex));
             it++;
 
             // clamp the offset address to the maximum byte offset. If the user is reading out of
@@ -1456,8 +1474,8 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
 
             // add the index to this binding's base index
             // ssboindex = bindingOffset + index
-            rdcspv::Id ssboindex = editor.AddOperation(
-                it, rdcspv::OpIAdd(uint32Type, editor.MakeId(), index, varIt->second));
+            rdcspv::Id ssboindex =
+                editor.AddOperation(it, rdcspv::OpIAdd(uint32Type, editor.MakeId(), index, var));
             it++;
 
             // clamp the ssboindex to the maximum slot. If the user is reading out of bounds, don't
@@ -1610,20 +1628,31 @@ bool VulkanReplay::FetchShaderFeedback(uint32_t eventId)
       key.index.arrayElement = 0;
 
       const VulkanCreationInfo::DescriptorMapping *mapping = NULL;
+      VulkanCreationInfo::DescriptorMapping directMapping = {};
       VkDescriptorType vkType = MakeVkDescriptorType(type, inputAttachment);
 
       if(usingDescriptorHeap)
       {
-        mapping = sh.GetDescriptorMapping(bindset, bind, vkType, ro);
-
-        if(!mapping)
+        if(sh.descriptorMappings.size() == 0)
         {
-          // XXX: add support for resources with direct bindless from the shader,
-          // rather than set/slot mappings.
+          // No shader mappings, so this is from an untyped access chain
+          // accessing the heap.
+          directMapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+          mapping = &directMapping;
+        }
+        else
+        {
+          mapping = sh.GetDescriptorMapping(bindset, bind, vkType, ro);
 
-          RDCERR("Shader referenced a heap descriptor at set %d / binding %d that was not mapped",
-                 bindset, bind);
-          return;
+          if(!mapping)
+          {
+            // XXX: add support for resources with direct bindless from the shader,
+            // rather than set/slot mappings.
+
+            RDCERR("Shader referenced a heap descriptor at set %d / binding %d that was not mapped",
+                   bindset, bind);
+            return;
+          }
         }
       }
       else
@@ -1713,6 +1742,13 @@ bool VulkanReplay::FetchShaderFeedback(uint32_t eventId)
             heapStore = heap;
             heapStoreOffset = (uint32_t)heapOffset;
             break;
+        }
+
+        if(mapping == &directMapping)
+        {
+          // XXX Actually this needs to come from the untyped access chain's type.
+          directMapping.sourceData.constantOffset.heapArrayStride = heapDescSize;
+          directMapping.sourceData.constantOffset.samplerHeapArrayStride = heapDescSize;
         }
 
         if(mapping->embeddedSampler != ResourceId())
