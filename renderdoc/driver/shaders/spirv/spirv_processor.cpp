@@ -241,6 +241,13 @@ void Decorations::Register(const DecorationAndParamData &decoration)
 
     arrayStride = decoration.arrayStride;
   }
+  else if(decoration == Decoration::ArrayStrideIdEXT)
+  {
+    RDCASSERT(!(flags & HasLocation));
+    flags = Flags(flags | HasArrayStrideIdEXT);
+
+    arrayStrideIdEXT = decoration.arrayStrideIdEXT;
+  }
   else if(decoration == Decoration::DescriptorSet)
   {
     RDCASSERT(!(flags & HasOffset));
@@ -254,6 +261,13 @@ void Decorations::Register(const DecorationAndParamData &decoration)
     flags = Flags(flags | HasOffset);
 
     offset = decoration.offset;
+  }
+  else if(decoration == Decoration::OffsetIdEXT)
+  {
+    RDCASSERT(!(flags & HasDescriptorSet));
+    flags = Flags(flags | HasOffsetIdEXT);
+
+    offsetIdEXT = decoration.offsetIdEXT;
   }
   else if(decoration == Decoration::BuiltIn)
   {
@@ -475,7 +489,8 @@ void Processor::Parse(const rdcarray<uint32_t> &spirvWords)
     {
       START_SECTION(Section::DebugModuleProcessed);
     }
-    else if(opcode == Op::Decorate || opcode == Op::MemberDecorate || opcode == Op::GroupDecorate ||
+    else if(opcode == Op::Decorate || opcode == Op::DecorateId || opcode == Op::MemberDecorate ||
+            opcode == Op::MemberDecorateIdEXT || opcode == Op::GroupDecorate ||
             opcode == Op::GroupMemberDecorate || opcode == Op::DecorationGroup ||
             opcode == Op::DecorateString || opcode == Op::MemberDecorateString)
     {

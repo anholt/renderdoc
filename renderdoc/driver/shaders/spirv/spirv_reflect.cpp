@@ -339,9 +339,13 @@ struct sortedbind
 {
   T bindres;
   rdcspv::Id id;
+  uint32_t heapStride = 0;
 
   sortedbind() = default;
-  sortedbind(rdcspv::Id id, const T &res) : bindres(res), id(id) {}
+  sortedbind(rdcspv::Id id, const T &res, uint32_t heapStride)
+      : bindres(res), id(id), heapStride(heapStride)
+  {
+  }
   bool operator<(const sortedbind &o) const
   {
     if(bindres.fixedBindSetOrSpace != o.bindres.fixedBindSetOrSpace)
@@ -1181,6 +1185,12 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   // first access chains so the second one can reference the original global
   std::map<Id, Id> topLevelChildChain;
 
+  // For untyped builtin variables like ResourceHeapEXT, we want to find the
+  // types they get used as for reflection.  This maps from the untyped variable
+  // to a type of the access chain.  This won't be sufficient if the same
+  // ResourceHeapEXT actually gets used as multiple types.
+  std::map<Id, rdcarray<Id>> untypedAccessVarTypes;
+
   // build the static call tree from the entry point, and build a list of all IDs referenced
   {
     std::set<Id> processed;
@@ -1238,6 +1248,14 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
               usedStructChildren[globalId].insert(
                   EvaluateConstant(access.indexes[0], specInfo).value.u32v[0]);
           }
+        }
+        else if(it.opcode() == Op::UntypedAccessChainKHR ||
+                it.opcode() == Op::UntypedInBoundsAccessChainKHR)
+        {
+          OpUntypedAccessChainKHR access(it);
+
+          if(!untypedAccessVarTypes[access.base].contains(access.baseType))
+            untypedAccessVarTypes[access.base].push_back(access.baseType);
         }
 
         if(it.opcode() == Op::FunctionCall)
@@ -1305,7 +1323,63 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
     }
   }
 
+  // Mirror of global Variables, but just the subset that we want to use for the
+  // loop below, so that we can also include variable-like reflections for
+  // direct descriptor heap references.
+  struct ReflectedVar
+  {
+    Id id;
+    Id interfaceId;
+    Id type;
+    Id dataType;
+    StorageClass storage;
+    rdcstr name;
+    bool isHeap;
+    uint32_t stride;
+  };
+
+  rdcarray<ReflectedVar> reflectedGlobals;
+
   for(const Variable &global : globals)
+  {
+    if(global.storage == StorageClass::Uniform || global.storage == StorageClass::UniformConstant ||
+       global.storage == StorageClass::AtomicCounter ||
+       global.storage == StorageClass::StorageBuffer || global.storage == StorageClass::PushConstant ||
+       global.storage == StorageClass::TaskPayloadWorkgroupEXT)
+    {
+      if((decorations[global.id].flags & Decorations::HasBuiltIn) != 0 &&
+         (decorations[global.id].builtIn == BuiltIn::ResourceHeapEXT ||
+          decorations[global.id].builtIn == BuiltIn::SamplerHeapEXT))
+      {
+        auto it = untypedAccessVarTypes.find(global.id);
+        if(it != untypedAccessVarTypes.end())
+        {
+          for(Id type : it->second)
+          {
+            uint32_t stride = 0;
+
+            const Decorations &dec = decorations[type];
+            if(dec.flags & Decorations::HasArrayStride)
+            {
+              stride = dec.arrayStride;
+            }
+            else if(dec.flags & Decorations::HasArrayStrideIdEXT)
+            {
+              stride = EvaluateConstant(dec.arrayStrideIdEXT, specInfo).value.u32v[0];
+            }
+            reflectedGlobals.push_back(
+                {global.id, type, type, type, global.storage, dataTypes[type].name, true, stride});
+            patchData.heapInterfaceTypes.push_back(type);
+          }
+        }
+        continue;
+      }
+    }
+    reflectedGlobals.push_back({global.id, global.id, global.type, global.dataType, global.storage,
+                                strings[global.id], false, 0});
+  }
+
+  for(const ReflectedVar &global : reflectedGlobals)
   {
     if(global.storage == StorageClass::Input || global.storage == StorageClass::Output)
     {
@@ -1319,7 +1393,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
       rdcarray<SigParameter> &sigarray = (isInput ? inputs : outputs);
 
       // try to use the instance/variable name
-      rdcstr name = strings[global.id];
+      rdcstr name = global.name;
 
       // otherwise fall back to naming after the builtin or location
       if(name.empty())
@@ -1471,9 +1545,12 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             global.storage == StorageClass::PushConstant ||
             global.storage == StorageClass::TaskPayloadWorkgroupEXT)
     {
-      // variable type must be a pointer of the same storage class
-      RDCASSERT(dataTypes[global.type].type == DataType::PointerType);
-      RDCASSERT(dataTypes[global.type].pointerType.storage == global.storage);
+      if(!global.isHeap)
+      {
+        // variable type must be a pointer of the same storage class
+        RDCASSERT(dataTypes[global.type].type == DataType::PointerType);
+        RDCASSERT(dataTypes[global.type].pointerType.storage == global.storage);
+      }
 
       const DataType *varType = &dataTypes[global.dataType];
 
@@ -1491,11 +1568,13 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
         varType = &dataTypes[varType->InnerType()];
       }
 
-      // new SSBOs are in the storage buffer class, previously they were in uniform with BufferBlock
-      // decoration
+      // new SSBOs are in the storage buffer class, previously they were in uniform with
+      // BufferBlock decoration
       const bool block = (decorations[varType->id].flags & Decorations::Block);
       const bool ssbo = (global.storage == StorageClass::StorageBuffer) ||
-                        (decorations[varType->id].flags & Decorations::BufferBlock);
+                        (decorations[varType->id].flags & Decorations::BufferBlock) ||
+                        (varType->type == DataType::BufferType &&
+                         bufferTypes[varType->id].storage == StorageClass::StorageBuffer);
       const bool pushConst = (global.storage == StorageClass::PushConstant);
       const bool atomicCounter = (global.storage == StorageClass::AtomicCounter);
       const bool taskPayload = (global.storage == StorageClass::TaskPayloadWorkgroupEXT);
@@ -1531,6 +1610,15 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
         }
       }
 
+      /* For direct heap access with untyped pointers, we use bindset to
+       * indicate if it's the sampler heap.
+       */
+      if(global.isHeap)
+      {
+        bindset = decorations[global.id].builtIn == BuiltIn::SamplerHeapEXT;
+        bind = 0;
+      }
+
       if(usedIds.find(global.id) == usedIds.end())
       {
         // ignore this variable that's not in the entry point's used interface
@@ -1544,7 +1632,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
 
         res.isReadOnly = false;
         res.isTexture = false;
-        res.name = strings[global.id];
+        res.name = global.name;
         if(res.name.empty())
           res.name = varType->name;
         if(res.name.empty())
@@ -1561,20 +1649,21 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
         res.fixedBindNumber = GetBinding(decorations[global.id].binding);
         res.bindArraySize = arraySize;
 
-        rwresources.push_back(sortedres(global.id, res));
+        rwresources.push_back(sortedres(global.id, res, global.stride));
       }
       else if(varType->IsOpaqueType())
       {
-        // on Vulkan should never have elements that have no binding declared but are used. On GL we
-        // should have gotten a location
-        // above, which will be rewritten later when looking up the pipeline state since it's
-        // mutable from action to action in theory.
+        // on Vulkan should never have elements that have no binding declared but are used. On GL
+        // we should have gotten a location above, which will be rewritten later when looking up
+        // the pipeline state since it's mutable from action to action in theory.
         RDCASSERT(bind != INVALID_BIND);
 
         // opaque type - buffers, images, etc
         ShaderResource res;
 
-        res.name = strings[global.id];
+        res.name = global.name;
+        if(res.name.empty())
+          res.name = strings[global.id];
         if(res.name.empty())
           res.name = StringFormat::Fmt("res%u", global.id.value());
 
@@ -1590,7 +1679,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
           samp.fixedBindNumber = bind;
           samp.bindArraySize = arraySize;
 
-          samplers.push_back(sortedsamp(global.id, samp));
+          samplers.push_back(sortedsamp(global.interfaceId, samp, global.stride));
         }
         else if(varType->type == DataType::AccelerationStructureType)
         {
@@ -1599,7 +1688,34 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
           res.isTexture = false;
           res.isReadOnly = true;
 
-          roresources.push_back(sortedres(global.id, res));
+          roresources.push_back(sortedres(global.interfaceId, res, global.stride));
+        }
+        else if(varType->type == DataType::BufferType)
+        {
+          res.isTexture = false;
+          if(ssbo)
+          {
+            res.descriptorType = DescriptorType::ReadWriteBuffer;
+            res.isReadOnly = false;
+            rwresources.push_back(sortedres(global.interfaceId, res, global.stride));
+          }
+          else
+          {
+            ConstantBlock cblock;
+
+            cblock.name = res.name;
+            cblock.bufferBacked = true;
+            cblock.inlineDataBytes = false;
+            cblock.fixedBindNumber = bind;
+            cblock.fixedBindSetOrSpace = bindset;
+            cblock.bindArraySize = arraySize;
+
+            // We wouldn't get the type inside the UBO until after the
+            // OpTypebufferEXT, so just give it a raw view for now.
+            cblock.byteSize = 0;
+
+            cblocks.push_back(sortedcblock(global.interfaceId, cblock, global.stride));
+          }
         }
         else
         {
@@ -1647,7 +1763,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             if(!res.isTexture)
               res.descriptorType = DescriptorType::TypedBuffer;
 
-            roresources.push_back(sortedres(global.id, res));
+            roresources.push_back(sortedres(global.interfaceId, res, global.stride));
           }
           else
           {
@@ -1655,7 +1771,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             if(!res.isTexture)
               res.descriptorType = DescriptorType::ReadWriteTypedBuffer;
 
-            rwresources.push_back(sortedres(global.id, res));
+            rwresources.push_back(sortedres(global.interfaceId, res, global.stride));
           }
         }
       }
@@ -1669,7 +1785,8 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             if(!patchData.invalidTaskPayload)
             {
               RDCWARN(
-                  "Unhandled case - non-struct task payload. Most likely DXC bug as only one task "
+                  "Unhandled case - non-struct task payload. Most likely DXC bug as only one "
+                  "task "
                   "payload variable allowed per entry point.");
               taskPayloadBlock.name = "invalid";
               taskPayloadBlock.bufferBacked = false;
@@ -1716,10 +1833,10 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
         }
         else
         {
-          // on Vulkan should never have elements that have no binding declared but are used, unless
-          // it's push constants (which is handled elsewhere). On GL we should have gotten a
-          // location above, which will be rewritten later when looking up the pipeline state since
-          // it's mutable from action to action in theory.
+          // on Vulkan should never have elements that have no binding declared but are used,
+          // unless it's push constants (which is handled elsewhere). On GL we should have gotten
+          // a location above, which will be rewritten later when looking up the pipeline state
+          // since it's mutable from action to action in theory.
           RDCASSERT(pushConst || bind != INVALID_BIND);
 
           if(ssbo)
@@ -1728,7 +1845,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
 
             res.isReadOnly = false;
             res.isTexture = false;
-            res.name = strings[global.id];
+            res.name = global.name;
             if(res.name.empty())
               res.name = StringFormat::Fmt("ssbo%u", global.id.value());
             res.textureType = TextureType::Buffer;
@@ -1746,7 +1863,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             MakeConstantBlockVariables(effectiveStorage, *varType, 0, 0, res.variableType.members,
                                        pointerTypes, false, specInfo);
 
-            rwresources.push_back(sortedres(global.id, res));
+            rwresources.push_back(sortedres(global.interfaceId, res, global.stride));
           }
           else
           {
@@ -1756,7 +1873,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
 
             ConstantBlock cblock;
 
-            cblock.name = strings[global.id];
+            cblock.name = global.name;
             if(cblock.name.empty())
               cblock.name = StringFormat::Fmt("uniforms%u", global.id.value());
             cblock.bufferBacked = !pushConst;
@@ -1774,7 +1891,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
             else
               cblock.byteSize = 0;
 
-            cblocks.push_back(sortedcblock(global.id, cblock));
+            cblocks.push_back(sortedcblock(global.interfaceId, cblock, global.stride));
           }
         }
       }
@@ -1822,7 +1939,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
     specblock.fixedBindNumber = 0x8000000;
     specblock.bindArraySize = 1;
 
-    cblocks.push_back(sortedcblock(Id(), specblock));
+    cblocks.push_back(sortedcblock(Id(), specblock, 0));
   }
 
   if(!globalsblock.variables.empty())
@@ -1836,7 +1953,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
     globalsblock.fixedBindNumber = 0x8000001;
     globalsblock.bindArraySize = 1;
 
-    cblocks.push_back(sortedcblock(Id(), globalsblock));
+    cblocks.push_back(sortedcblock(Id(), globalsblock, 0));
   }
 
   reflection.taskPayload = taskPayloadBlock;
@@ -1965,6 +2082,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   for(size_t i = 0; i < cblocks.size(); i++)
   {
     patchData.cblockInterface.push_back(cblocks[i].id);
+    patchData.cblockHeapStrides.push_back(cblocks[i].heapStride);
     reflection.constantBlocks[i] = cblocks[i].bindres;
     // fix up any bind points marked with INVALID_BIND. They were sorted to the end
     // but from here on we want to just be able to index with the bind point
@@ -1976,6 +2094,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   for(size_t i = 0; i < samplers.size(); i++)
   {
     patchData.samplerInterface.push_back(samplers[i].id);
+    patchData.samplerHeapStrides.push_back(samplers[i].heapStride);
     reflection.samplers[i] = samplers[i].bindres;
     // fix up any bind points marked with INVALID_BIND. They were sorted to the end
     // but from here on we want to just be able to index with the bind point
@@ -1987,6 +2106,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   for(size_t i = 0; i < roresources.size(); i++)
   {
     patchData.roInterface.push_back(roresources[i].id);
+    patchData.roHeapStrides.push_back(roresources[i].heapStride);
     reflection.readOnlyResources[i] = roresources[i].bindres;
     // fix up any bind points marked with INVALID_BIND. They were sorted to the end
     // but from here on we want to just be able to index with the bind point
@@ -1998,6 +2118,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   for(size_t i = 0; i < rwresources.size(); i++)
   {
     patchData.rwInterface.push_back(rwresources[i].id);
+    patchData.rwHeapStrides.push_back(rwresources[i].heapStride);
     reflection.readWriteResources[i] = rwresources[i].bindres;
     // fix up any bind points marked with INVALID_BIND. They were sorted to the end
     // but from here on we want to just be able to index with the bind point

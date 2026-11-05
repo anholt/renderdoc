@@ -76,6 +76,9 @@ struct SPIRVPatchData
   rdcarray<rdcspv::Id> roInterface;
   rdcarray<rdcspv::Id> rwInterface;
   rdcarray<rdcspv::Id> samplerInterface;
+  rdcarray<rdcspv::Id> heapInterfaceTypes;
+  // Stored in the same order as roInterface and friends.
+  rdcarray<uint32_t> cblockHeapStrides, roHeapStrides, rwHeapStrides, samplerHeapStrides;
 
   // set of used IDs
   rdcarray<rdcspv::Id> usedIds;

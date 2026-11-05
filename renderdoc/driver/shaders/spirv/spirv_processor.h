@@ -288,6 +288,8 @@ struct Decorations
     UTF8 = 0x40,
 
     // which packed decorations have been set
+    HasArrayStrideIdEXT = 0x00100000,
+    HasOffsetIdEXT = 0x00200000,
     HasLocation = 0x01000000,
     HasArrayStride = 0x02000000,
     HasDescriptorSet = 0x04000000,
@@ -305,12 +307,14 @@ struct Decorations
   {
     uint32_t location = ~0U;    // only valid on variables
     uint32_t arrayStride;       // only valid on types
+    Id arrayStrideIdEXT;        // from VK_EXT_descriptor_heap
   };
 
   union
   {
     uint32_t set = ~0U;    // only valid on global variables
     uint32_t offset;       // only valid on struct members
+    Id offsetIdEXT;        // from VK_EXT_descriptor_heap
   };
 
   union
