@@ -437,37 +437,28 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
   // or as either byte offset for buffer addressing or ssbo index otherwise)
   std::map<rdcspv::Id, rdcspv::Id> varLookup;
 
-  // iterate over all variables. We do this here because in the absence of the buffer address
-  // extension we might declare our own below and patch bindings - so we need to look these up now
-  for(const rdcspv::Variable &var : editor.GetGlobals())
-  {
-    // skip variables without one of these storage classes, as they are not descriptors
-    if(var.storage != rdcspv::StorageClass::UniformConstant &&
-       var.storage != rdcspv::StorageClass::Uniform &&
-       var.storage != rdcspv::StorageClass::StorageBuffer)
-      continue;
-
+  auto addLookup = [&](rdcspv::Id interfaceId) {
     // figure out which interface this variable is in to make our key
     BindKey key = {};
     key.stage = refl.stage;
 
     int32_t idx = -1;
-    if((idx = patchData.cblockInterface.indexOf(var.id)) >= 0)
+    if((idx = patchData.cblockInterface.indexOf(interfaceId)) >= 0)
     {
       key.index.category = DescriptorCategory::ConstantBlock;
       key.index.index = (uint32_t)idx;
     }
-    else if((idx = patchData.samplerInterface.indexOf(var.id)) >= 0)
+    else if((idx = patchData.samplerInterface.indexOf(interfaceId)) >= 0)
     {
       key.index.category = DescriptorCategory::Sampler;
       key.index.index = (uint32_t)idx;
     }
-    else if((idx = patchData.roInterface.indexOf(var.id)) >= 0)
+    else if((idx = patchData.roInterface.indexOf(interfaceId)) >= 0)
     {
       key.index.category = DescriptorCategory::ReadOnlyResource;
       key.index.index = (uint32_t)idx;
     }
-    else if((idx = patchData.rwInterface.indexOf(var.id)) >= 0)
+    else if((idx = patchData.rwInterface.indexOf(interfaceId)) >= 0)
     {
       key.index.category = DescriptorCategory::ReadWriteResource;
       key.index.index = (uint32_t)idx;
@@ -480,7 +471,7 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
       // store the offset for this variable so we watch for access chains and know where to store to
       if(IsBDA(storageMode))
       {
-        rdcspv::Id id = varLookup[var.id] =
+        rdcspv::Id id = varLookup[interfaceId] =
             editor.AddConstantImmediate<uintvulkanmax_t>(uintvulkanmax_t(it->second.offset));
 
         editor.SetName(
@@ -493,13 +484,32 @@ void AnnotateShader(const ShaderReflection &refl, const SPIRVPatchData &patchDat
         uint64_t index = it->second.offset / 4;
         RDCASSERT(index < 0xFFFFFFFFULL, it->first.index.category, it->first.index.index,
                   it->second.offset);
-        rdcspv::Id id = varLookup[var.id] = editor.AddConstantImmediate<uint32_t>(uint32_t(index));
+        rdcspv::Id id = varLookup[interfaceId] =
+            editor.AddConstantImmediate<uint32_t>(uint32_t(index));
 
         editor.SetName(
             id, StringFormat::Fmt("__feedbackOffset_%s_%u", ToStr(it->first.index.category).c_str(),
                                   it->first.index.index));
       }
     }
+  };
+
+  // iterate over all variables. We do this here because in the absence of the buffer address
+  // extension we might declare our own below and patch bindings - so we need to look these up now
+  for(const rdcspv::Variable &var : editor.GetGlobals())
+  {
+    // skip variables without one of these storage classes, as they are not descriptors
+    if(var.storage != rdcspv::StorageClass::UniformConstant &&
+       var.storage != rdcspv::StorageClass::Uniform &&
+       var.storage != rdcspv::StorageClass::StorageBuffer)
+      continue;
+
+    addLookup(var.id);
+  }
+
+  for(const rdcspv::Id type : patchData.heapInterfaceTypes)
+  {
+    addLookup(type);
   }
 
   rdcspv::Id carryStructType = editor.DeclareStructType({uint32Type, uint32Type});
@@ -1629,20 +1639,28 @@ bool VulkanReplay::FetchShaderFeedback(uint32_t eventId)
       key.index.arrayElement = 0;
 
       const VulkanCreationInfo::DescriptorMapping *mapping = NULL;
+      VulkanCreationInfo::DescriptorMapping directMapping = {};
       VkDescriptorType vkType = MakeVkDescriptorType(type, inputAttachment);
 
       if(usingDescriptorHeap)
       {
-        mapping = sh.GetDescriptorMapping(bindset, bind, vkType, ro);
-
-        if(!mapping)
+        if(sh.descriptorMappings.size() == 0)
         {
-          // XXX: add support for resources with direct bindless from the shader,
-          // rather than set/slot mappings.
+          // No shader mappings, so this is from an untyped access chain
+          // accessing the heap.
+          directMapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+          mapping = &directMapping;
+        }
+        else
+        {
+          mapping = sh.GetDescriptorMapping(bindset, bind, vkType, ro);
 
-          RDCERR("Shader referenced a heap descriptor at set %d / binding %d that was not mapped",
-                 bindset, bind);
-          return;
+          if(!mapping)
+          {
+            RDCERR("Shader referenced a heap descriptor at set %d / binding %d that was not mapped",
+                   bindset, bind);
+            return;
+          }
         }
       }
       else
@@ -1732,6 +1750,36 @@ bool VulkanReplay::FetchShaderFeedback(uint32_t eventId)
             heapStore = heap;
             heapStoreOffset = (uint32_t)heapOffset;
             break;
+        }
+
+        if(mapping == &directMapping)
+        {
+          const rdcarray<uint32_t> *strides = NULL;
+          switch(key.index.category)
+          {
+            case DescriptorCategory::ConstantBlock:
+              strides = &sh.patchData->cblockHeapStrides;
+              break;
+            case DescriptorCategory::ReadOnlyResource:
+              strides = &sh.patchData->roHeapStrides;
+              break;
+            case DescriptorCategory::ReadWriteResource:
+              strides = &sh.patchData->rwHeapStrides;
+              break;
+            case DescriptorCategory::Sampler: strides = &sh.patchData->samplerHeapStrides; break;
+            case DescriptorCategory::Unknown:
+              RDCWARN("Unknown descriptor type in feedback.");
+              break;
+          }
+          uint32_t stride = strides ? (*strides)[index] : 0;
+          if(stride == 0)
+          {
+            RDCWARN("Missing stride, assuming descriptor size.");
+            stride = heapDescSize;
+          }
+          // Note that this field (not samplerHeapArrayStride) is used for
+          // separate samplers, as well.
+          directMapping.sourceData.constantOffset.heapArrayStride = stride;
         }
 
         if(mapping->embeddedSampler != ResourceId())
