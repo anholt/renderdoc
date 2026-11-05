@@ -475,7 +475,8 @@ void Processor::Parse(const rdcarray<uint32_t> &spirvWords)
     {
       START_SECTION(Section::DebugModuleProcessed);
     }
-    else if(opcode == Op::Decorate || opcode == Op::MemberDecorate || opcode == Op::GroupDecorate ||
+    else if(opcode == Op::Decorate || opcode == Op::DecorateId || opcode == Op::MemberDecorate ||
+            opcode == Op::MemberDecorateIdEXT || opcode == Op::GroupDecorate ||
             opcode == Op::GroupMemberDecorate || opcode == Op::DecorationGroup ||
             opcode == Op::DecorateString || opcode == Op::MemberDecorateString)
     {

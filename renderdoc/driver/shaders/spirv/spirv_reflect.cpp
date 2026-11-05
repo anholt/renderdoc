@@ -1177,6 +1177,12 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
   // first access chains so the second one can reference the original global
   std::map<Id, Id> topLevelChildChain;
 
+  // For untyped builtin variables like ResourceHeapEXT, we want to find the
+  // types they get used as for reflection.  This maps from the untyped variable
+  // to a type of the access chain.  This won't be sufficient if the same
+  // ResourceHeapEXT actually gets used as multiple types.
+  std::map<Id, Id> untypedAccessType;
+
   // build the static call tree from the entry point, and build a list of all IDs referenced
   {
     std::set<Id> processed;
@@ -1234,6 +1240,13 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
               usedStructChildren[globalId].insert(
                   EvaluateConstant(access.indexes[0], specInfo).value.u32v[0]);
           }
+        }
+        else if(it.opcode() == Op::UntypedAccessChainKHR ||
+                it.opcode() == Op::UntypedInBoundsAccessChainKHR)
+        {
+          OpUntypedAccessChainKHR access(it);
+
+          untypedAccessType[access.base] = access.baseType;
         }
 
         if(it.opcode() == Op::FunctionCall)
@@ -1473,6 +1486,21 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
 
       const DataType *varType = &dataTypes[dataTypes[global.type].InnerType()];
 
+      bool isHeap = false;
+      if((decorations[global.id].flags & Decorations::HasBuiltIn) != 0 &&
+         (decorations[global.id].builtIn == BuiltIn::ResourceHeapEXT ||
+          decorations[global.id].builtIn == BuiltIn::SamplerHeapEXT))
+      {
+        // Should be untyped.
+        RDCASSERT(dataTypes[global.type].pointerType.baseId == Id());
+
+        // Treat it as the access type of one of the access chains it gets used
+        // as.
+        if(untypedAccessType.find(global.id) != untypedAccessType.end())
+          varType = &dataTypes[untypedAccessType[global.id]];
+        isHeap = true;
+      }
+
       // if the outer type is an array, get the length and peel it off.
       uint32_t arraySize = 1;
       bool singleArray = false;
@@ -1525,6 +1553,15 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
         {
           bind = ~0U;
         }
+      }
+
+      /* For direct heap access with untyped pointers, we use bindset to
+       * indicate if it's the sampler heap.
+       */
+      if(isHeap)
+      {
+        bindset = decorations[global.id].builtIn == BuiltIn::SamplerHeapEXT;
+        bind = 0;
       }
 
       if(usedIds.find(global.id) == usedIds.end())
