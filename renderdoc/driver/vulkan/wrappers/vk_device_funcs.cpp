@@ -4748,6 +4748,26 @@ bool WrappedVulkan::Serialise_vkCreateDevice(SerialiserType &ser, VkPhysicalDevi
       physBase.pNext = &m_DescriptorHeapProperties;
 
       ObjDisp(physicalDevice)->GetPhysicalDeviceProperties2(Unwrap(physicalDevice), &physBase);
+
+      if(IsReplayingAndReading())
+      {
+        auto getDescSize = [this, &physicalDevice](VkDescriptorType type) {
+          return (uint32_t)ObjDisp(physicalDevice)
+              ->GetPhysicalDeviceDescriptorSizeEXT(Unwrap(physicalDevice), type);
+        };
+
+        m_HeapDescriptorSizes.ubo = getDescSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        m_HeapDescriptorSizes.storageBuffer = getDescSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+        m_HeapDescriptorSizes.uniformTexelBuffer =
+            getDescSize(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
+        m_HeapDescriptorSizes.storageTexelBuffer =
+            getDescSize(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
+        m_HeapDescriptorSizes.sampledImage = getDescSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+        m_HeapDescriptorSizes.storageImage = getDescSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        if(m_AccelerationStructures)
+          m_HeapDescriptorSizes.accelStructure =
+              getDescSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+      }
     }
 
     // MoltenVK reports 0x3fffffff for this limit so just ignore that value if it comes up

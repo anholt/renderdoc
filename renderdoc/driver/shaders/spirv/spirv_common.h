@@ -449,6 +449,18 @@ struct SpecConstant
   size_t dataSize = 0;
 };
 
+struct SPIRVHeapDescriptorSizes
+{
+  uint32_t ubo = 0;
+  uint32_t storageBuffer = 0;
+  uint32_t uniformTexelBuffer = 0;
+  uint32_t storageTexelBuffer = 0;
+  uint32_t sampledImage = 0;
+  uint32_t storageImage = 0;
+  uint32_t sampler = 0;
+  uint32_t accelStructure = 0;
+};
+
 DECLARE_STRINGISE_TYPE(rdcspv::Id);
 
 enum class ShaderStage : uint8_t;

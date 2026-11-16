@@ -415,7 +415,8 @@ bool WrappedVulkan::Serialise_vkCreateShaderModule(SerialiserType &ser, VkDevice
       {
         live = GetResourceManager()->WrapResource(ShaderModule, Unwrap(device), sh);
 
-        m_CreationInfo.m_ShaderModule[live].Init(GetResourceManager(), m_CreationInfo, &CreateInfo);
+        m_CreationInfo.m_ShaderModule[live].Init(GetResourceManager(), m_CreationInfo, &CreateInfo,
+                                                 m_HeapDescriptorSizes);
       }
     }
 
@@ -457,7 +458,8 @@ VkResult WrappedVulkan::vkCreateShaderModule(VkDevice device,
     }
     else
     {
-      m_CreationInfo.m_ShaderModule[id].Init(GetResourceManager(), m_CreationInfo, pCreateInfo);
+      m_CreationInfo.m_ShaderModule[id].Init(GetResourceManager(), m_CreationInfo, pCreateInfo,
+                                             m_HeapDescriptorSizes);
     }
   }
 
@@ -507,7 +509,7 @@ bool WrappedVulkan::Serialise_vkCreateShadersEXT(SerialiserType &ser, VkDevice d
         live = GetResourceManager()->WrapResource(Shader, Unwrap(device), sh);
 
         m_CreationInfo.m_ShaderObject[live].Init(GetResourceManager(), m_CreationInfo, live,
-                                                 &CreateInfo);
+                                                 &CreateInfo, m_HeapDescriptorSizes);
         AddEmbeddedSamplerResources(live, m_CreationInfo.m_ShaderObject[live].shad);
       }
     }
@@ -585,7 +587,7 @@ VkResult WrappedVulkan::vkCreateShadersEXT(VkDevice device, uint32_t createInfoC
       else
       {
         m_CreationInfo.m_ShaderObject[id].Init(GetResourceManager(), m_CreationInfo, id,
-                                               &pCreateInfos[i]);
+                                               &pCreateInfos[i], m_HeapDescriptorSizes);
       }
     }
   }
@@ -688,7 +690,8 @@ VkShaderModule WrappedVulkan::CreateFakeInlineShaderModule(ResourceId id, VkDevi
 
   GetResourceManager()->WrapResource(id, Unwrap(device), module);
 
-  m_CreationInfo.m_ShaderModule[id].Init(GetResourceManager(), m_CreationInfo, pCreateInfo);
+  m_CreationInfo.m_ShaderModule[id].Init(GetResourceManager(), m_CreationInfo, pCreateInfo,
+                                         m_HeapDescriptorSizes);
 
   return module;
 }

@@ -610,8 +610,10 @@ public:
   }
   const Decorations &GetDecorations(Id id) const { return decorations[id]; };
   const rdcarray<uint32_t> &GetSPIRV() const { return m_SPIRV; }
+  void SetHeapDescriptorSizes(const SPIRVHeapDescriptorSizes &sizes) { heapDescSizes = sizes; }
 protected:
   virtual void Parse(const rdcarray<uint32_t> &spirvWords);
+  SPIRVHeapDescriptorSizes heapDescSizes;
 
   rdcarray<uint32_t> m_SPIRV;
 

@@ -1214,7 +1214,8 @@ const VulkanCreationInfo::DescriptorMapping *VulkanCreationInfo::ShaderEntry::Ge
 
 void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
                                             VulkanCreationInfo &info, ResourceId id,
-                                            const VkShaderCreateInfoEXT *pCreateInfo)
+                                            const VkShaderCreateInfoEXT *pCreateInfo,
+                                            SPIRVHeapDescriptorSizes &heapDescriptorSizes)
 {
   flags = pCreateInfo->flags;
 
@@ -1235,7 +1236,7 @@ void VulkanCreationInfo::ShaderObject::Init(VulkanResourceManager *resourceMan,
     smInfo.pCode = (const uint32_t *)pCreateInfo->pCode;
   }
 
-  info.m_ShaderModule[id].Init(resourceMan, info, &smInfo);
+  info.m_ShaderModule[id].Init(resourceMan, info, &smInfo, heapDescriptorSizes);
 
   shad.entryPoint = pCreateInfo->pName;
 
@@ -2927,8 +2928,11 @@ void VulkanCreationInfo::ImageView::Init(VulkanResourceManager *resourceMan, Vul
 
 void VulkanCreationInfo::ShaderModule::Init(VulkanResourceManager *resourceMan,
                                             VulkanCreationInfo &info,
-                                            const VkShaderModuleCreateInfo *pCreateInfo)
+                                            const VkShaderModuleCreateInfo *pCreateInfo,
+                                            SPIRVHeapDescriptorSizes &heapDescriptorSizes)
 {
+  spirv.SetHeapDescriptorSizes(heapDescriptorSizes);
+
   const uint32_t SPIRVMagic = 0x07230203;
   if(pCreateInfo->codeSize < 4 || memcmp(pCreateInfo->pCode, &SPIRVMagic, sizeof(SPIRVMagic)) != 0)
   {

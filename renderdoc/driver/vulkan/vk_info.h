@@ -508,7 +508,8 @@ struct VulkanCreationInfo
   struct ShaderObject
   {
     void Init(VulkanResourceManager *resourceMan, VulkanCreationInfo &info, ResourceId id,
-              const VkShaderCreateInfoEXT *pCreateInfo);
+              const VkShaderCreateInfoEXT *pCreateInfo,
+              SPIRVHeapDescriptorSizes &heapDescriptorSizes);
 
     ShaderEntry shad;
 
@@ -809,7 +810,8 @@ struct VulkanCreationInfo
   struct ShaderModule
   {
     void Init(VulkanResourceManager *resourceMan, VulkanCreationInfo &info,
-              const VkShaderModuleCreateInfo *pCreateInfo);
+              const VkShaderModuleCreateInfo *pCreateInfo,
+              SPIRVHeapDescriptorSizes &heapDescriptorSizes);
 
     bool Reinit();
     void Reload(VulkanResourceManager *resourceMan, const VulkanCreationInfo &info, ResourceId id);

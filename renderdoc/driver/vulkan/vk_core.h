@@ -461,6 +461,8 @@ private:
 
   VkPhysicalDeviceDescriptorBufferPropertiesEXT m_DescriptorBufferProperties;
   VkPhysicalDeviceDescriptorHeapPropertiesEXT m_DescriptorHeapProperties;
+  // The VkPhysicalDeviceDescriptorSize sizes during a replay.
+  SPIRVHeapDescriptorSizes m_HeapDescriptorSizes;
 
   struct OpaqueDataOverride
   {

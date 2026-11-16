@@ -793,6 +793,45 @@ void Processor::RegisterOp(Iter it)
     if(opdata.op == Op::SpecConstantDataKHR)
       specConstants.insert(opdata.result);
   }
+  else if(opdata.op == Op::ConstantSizeOfEXT)
+  {
+    OpConstantSizeOfEXT decoded(it);
+    const DataType &resultType = dataTypes[opdata.resultType];
+
+    uint32_t size = 0;
+    switch(dataTypes[decoded.type].type)
+    {
+      case DataType::BufferType:
+        if(bufferTypes[decoded.type].storage == StorageClass::Uniform)
+          size = heapDescSizes.ubo;
+        else if(bufferTypes[decoded.type].storage == StorageClass::StorageBuffer)
+          size = heapDescSizes.storageBuffer;
+        break;
+      case DataType::ImageType:
+        if(imageTypes[decoded.type].sampled)
+          size = heapDescSizes.sampledImage;
+        else
+          size = heapDescSizes.storageImage;
+        break;
+      case DataType::SamplerType: size = heapDescSizes.sampler; break;
+      case DataType::AccelerationStructureType: size = heapDescSizes.accelStructure; break;
+      default: break;
+    }
+
+    if(size == 0)
+    {
+      RDCERR("Unexpected data type in OpConstantSizeOf(%d)", decoded.type.value());
+    }
+
+    ShaderVariable v = ShaderVariable("constantSize", 1, 0, 0, 0);
+    v.columns = 1;
+    v.type = resultType.scalar().Type();
+    if(resultType.scalar().width == 64)
+      v.value.u64v[0] = size;
+    else
+      v.value.u32v[0] = size;
+    constants[opdata.result] = {opdata.resultType, opdata.result, v, {}, opdata.op};
+  }
   else if(opdata.op == Op::TypeVoid || opdata.op == Op::TypeBool || opdata.op == Op::TypeInt ||
           opdata.op == Op::TypeFloat)
   {
