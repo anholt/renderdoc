@@ -839,6 +839,13 @@ void Processor::RegisterOp(Iter it)
     OpTypeRuntimeArray decoded(it);
     dataTypes[opdata.result] = DataType(opdata.result, decoded.elementType, Id());
   }
+  else if(opdata.op == Op::TypeBufferEXT)
+  {
+    OpTypeBufferEXT decoded(it);
+
+    bufferTypes[opdata.result] = Buffer(decoded.storageClass);
+    dataTypes[opdata.result] = DataType(opdata.result, DataType::BufferType);
+  }
   else if(opdata.op == Op::TypeImage)
   {
     OpTypeImage decoded(it);

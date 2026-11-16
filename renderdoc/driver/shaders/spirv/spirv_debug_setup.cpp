@@ -4296,6 +4296,7 @@ uint32_t Debugger::WalkVariable(
     case DataType::SampledImageType:
     case DataType::RayQueryType:
     case DataType::AccelerationStructureType:
+    case DataType::BufferType:
     case DataType::UnknownType:
     {
       RDCERR("Unexpected variable type %d", type.type);

@@ -937,6 +937,10 @@ void Reflector::PostParse()
         type.name = StringFormat::Fmt("Sampled%s",
                                       dataTypes[sampledImageTypes[type.id].baseId].name.c_str());
       }
+      else if(type.type == DataType::BufferType)
+      {
+        type.name = StringFormat::Fmt("Buffer<%s>", ToStr(bufferTypes[type.id].storage).c_str());
+      }
       else if(type.type == DataType::RayQueryType)
       {
         type.name = StringFormat::Fmt("rayQuery%u", type.id.value());

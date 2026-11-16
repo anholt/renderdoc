@@ -179,6 +179,17 @@ struct Pointer
   bool operator==(const Pointer &o) const { return baseId == o.baseId && storage == o.storage; }
 };
 
+struct Buffer
+{
+  Buffer() : storage(StorageClass::Max) {}
+  Buffer(StorageClass storage) : storage(storage) {}
+
+  StorageClass storage;
+
+  bool operator!=(const Buffer &o) const { return !operator==(o); }
+  bool operator==(const Buffer &o) const { return storage == o.storage; }
+};
+
 struct Image
 {
   Image()
@@ -332,6 +343,7 @@ struct DataType
     StructType,
     PointerType,
     ArrayType,
+    BufferType,
     ImageType,
     SamplerType,
     SampledImageType,
@@ -393,6 +405,7 @@ struct DataType
       case Type::StructType:
       case Type::PointerType:
       case Type::ArrayType: return false;
+      case Type::BufferType:
       case Type::ImageType:
       case Type::SamplerType:
       case Type::SampledImageType:
@@ -642,6 +655,7 @@ protected:
   DenseIdMap<Decorations> decorations;
 
   SparseIdMap<DataType> dataTypes;
+  SparseIdMap<Buffer> bufferTypes;
   SparseIdMap<Image> imageTypes;
   SparseIdMap<Sampler> samplerTypes;
   SparseIdMap<SampledImage> sampledImageTypes;
