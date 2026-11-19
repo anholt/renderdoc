@@ -49,6 +49,7 @@ enum class PointerFlags
   SSBO = 0x2,
   GlobalArrayBinding = 0x4,
   DereferencedPhysical = 0x8,
+  PointerReadConstantBlock = 0x10,
 };
 
 BITMASK_OPERATORS(PointerFlags);
@@ -470,6 +471,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       "SPV_KHR_vulkan_memory_model",
       "SPV_KHR_compute_shader_derivatives",
       "SPV_KHR_integer_dot_product",
+      "SPV_KHR_untyped_pointers",
 
       // EXT extensions
       "SPV_EXT_demote_to_helper_invocation",
@@ -631,6 +633,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       case Capability::FMAKHR:
       case Capability::Shader64BitIndexingEXT:
       case Capability::FragmentShadingRateKHR:
+      case Capability::UntypedPointersKHR:
       {
         supported = true;
         break;
@@ -679,13 +682,6 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
 
       // SPV_KHR_fragment_shader_barycentric
       case Capability::FragmentBarycentricKHR:
-      {
-        supported = false;
-        break;
-      }
-
-      // SPV_KHR_untyped_pointers
-      case Capability::UntypedPointersKHR:
       {
         supported = false;
         break;
@@ -1475,6 +1471,14 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
 
           if(api->GetGraphicsAPI() == GraphicsAPI::Vulkan)
             RDCASSERT(binding.index != ~0U);
+
+          // For untyped UBOs, we want the ReadFromPointer path to just access
+          // through the same byte-based paths as SSBOs.
+          if(dataTypes[v.type].InnerType() == Id())
+          {
+            enablePointerFlags(var, PointerFlags::PointerReadConstantBlock);
+            var.SetBindIndex(binding);
+          }
 
           auto cbufferCallback = [this, &binding](
                                      ShaderVariable &var, const Decorations &curDecorations,
@@ -3341,7 +3345,7 @@ ShaderVariable Debugger::MakeCompositePointer(const ShaderVariable &base, Id id,
   }
 
   if((leaf->type == VarType::ReadWriteResource && checkPointerFlags(*leaf, PointerFlags::SSBO)) ||
-     physicalPointer)
+     checkPointerFlags(*leaf, PointerFlags::PointerReadConstantBlock) || physicalPointer)
   {
     ShaderVariable ret;
     uint64_t byteOffset = 0;
@@ -3668,7 +3672,8 @@ DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariab
       ret = ShaderVariable(ptr.name, 0, 0, 0, 0);
       return DeviceOpResult::Succeeded;
     }
-    if(inner->type == VarType::ReadWriteResource && checkPointerFlags(*inner, PointerFlags::SSBO))
+    if((inner->type == VarType::ReadWriteResource && checkPointerFlags(*inner, PointerFlags::SSBO)) ||
+       checkPointerFlags(*inner, PointerFlags::PointerReadConstantBlock))
     {
       if(typeId == Id())
         typeId = getBufferTypeId(ptr);
@@ -4128,10 +4133,12 @@ rdcstr Debugger::GetHumanName(Id id) const
   return name;
 }
 
-void Debugger::AllocateVariable(Id id, Id typeId, ShaderVariable &outVar) const
+void Debugger::AllocateVariable(Id id, Id typeId, Id dataType, ShaderVariable &outVar) const
 {
   // allocs should always be pointers
   RDCASSERT(dataTypes[typeId].type == DataType::PointerType);
+  if(dataType == Id())
+    dataType = dataTypes[typeId].InnerType();
 
   auto initCallback = [](ShaderVariable &var, const Decorations &, const DataType &, uint64_t,
                          const rdcstr &) {
@@ -4144,8 +4151,8 @@ void Debugger::AllocateVariable(Id id, Id typeId, ShaderVariable &outVar) const
     memset(&var.value, 0xcc, sizeof(var.value));
   };
 
-  WalkVariable<ShaderVariable, true>(Decorations(), dataTypes[dataTypes[typeId].InnerType()], ~0U,
-                                     false, outVar, rdcstr(), initCallback);
+  WalkVariable<ShaderVariable, true>(Decorations(), dataTypes[dataType], ~0U, false, outVar,
+                                     rdcstr(), initCallback);
 }
 
 template <typename ShaderVarType, bool allocate>

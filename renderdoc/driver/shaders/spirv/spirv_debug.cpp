@@ -299,8 +299,8 @@ void ThreadState::EnterFunction(const rdcarray<Id> &arguments)
 
   size_t i = 0;
   // handle any variable declarations
-  while(OpDecoder(it).op == Op::Variable || OpDecoder(it).op == Op::Line ||
-        OpDecoder(it).op == Op::NoLine)
+  while(OpDecoder(it).op == Op::Variable || OpDecoder(it).op == Op::UntypedVariableKHR ||
+        OpDecoder(it).op == Op::Line || OpDecoder(it).op == Op::NoLine)
   {
     if(OpDecoder(it).op == Op::Line || OpDecoder(it).op == Op::NoLine)
     {
@@ -308,19 +308,38 @@ void ThreadState::EnterFunction(const rdcarray<Id> &arguments)
       continue;
     }
 
-    OpVariable decl(it);
+    Id result, resultType, dataType, initializer;
+
+    if(OpDecoder(it).op == Op::Variable)
+    {
+      OpVariable decl(it);
+      result = decl.result;
+      resultType = decl.resultType;
+      if(decl.HasInitializer())
+        initializer = decl.initializer;
+    }
+    else
+    {
+      RDCASSERT(OpDecoder(it).op == Op::UntypedVariableKHR);
+      OpUntypedVariableKHR decl(it);
+      result = decl.result;
+      resultType = decl.resultType;
+      dataType = decl.dataType;
+      if(decl.HasInitializer())
+        initializer = decl.initializer;
+    }
 
     ShaderVariable &stackvar = frame->locals[i];
-    stackvar.name = GetRawName(decl.result);
+    stackvar.name = GetRawName(result);
 
-    rdcstr sourceName = debugger.GetHumanName(decl.result);
+    rdcstr sourceName = debugger.GetHumanName(result);
 
-    debugger.AllocateVariable(decl.result, decl.resultType, stackvar);
+    debugger.AllocateVariable(result, resultType, dataType, stackvar);
 
-    if(decl.HasInitializer())
-      AssignValue(stackvar, ids[decl.initializer]);
+    if(initializer != Id())
+      AssignValue(stackvar, ids[initializer]);
 
-    SetDst(decl.result, debugger.MakePointerVariable(decl.result, &stackvar));
+    SetDst(result, debugger.MakePointerVariable(result, &stackvar));
 
     it++;
     i++;
@@ -1036,6 +1055,34 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
     case Op::InBoundsAccessChain:
     {
       OpAccessChain chain(it);
+
+      rdcarray<uint32_t> indices;
+
+      // evaluate the indices
+      indices.reserve(chain.indexes.size());
+      for(Id id : chain.indexes)
+        indices.push_back(uintComp(GetSrc(id), 0));
+
+      Id baseId = debugger.GetPointerBaseId(ids[chain.base]);
+      SetDst(chain.result, debugger.MakeCompositePointer(ids[chain.base], baseId, indices));
+
+      // create duplicate GSM pointers for the active thread which point to the global GSM not the local GSM cache
+      if(hasDebugState)
+      {
+        auto gsmPtrIt = gsmPointers.find(chain.base);
+        if(gsmPtrIt != gsmPointers.end())
+        {
+          ShaderVariable gsmGlobal = debugger.MakeCompositePointer(gsmPtrIt->second, baseId, indices);
+          gsmGlobal.name = GetRawName(chain.result);
+          gsmPointers[chain.result] = gsmGlobal;
+        }
+      }
+      break;
+    }
+    case Op::UntypedAccessChainKHR:
+    case Op::UntypedInBoundsAccessChainKHR:
+    {
+      OpUntypedAccessChainKHR chain(it);
 
       rdcarray<uint32_t> indices;
 
@@ -5431,9 +5478,6 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
     case Op::EnqueueNodePayloadsAMDX:
     case Op::IsNodePayloadValidAMDX:
     case Op::UntypedGroupAsyncCopyKHR:
-    case Op::UntypedVariableKHR:
-    case Op::UntypedAccessChainKHR:
-    case Op::UntypedInBoundsAccessChainKHR:
     case Op::UntypedInBoundsPtrAccessChainKHR:
     case Op::UntypedPtrAccessChainKHR:
     case Op::UntypedArrayLengthKHR:
@@ -5675,6 +5719,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
     case Op::FunctionParameter:
     case Op::FunctionEnd:
     case Op::Variable:
+    case Op::UntypedVariableKHR:
     {
       // these should be handled elsewhere specially
       RDCERR("Encountered SPIR-V operation %s in general dispatch loop", ToStr(opdata.op).c_str());

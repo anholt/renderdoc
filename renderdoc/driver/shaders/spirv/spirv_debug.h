@@ -719,7 +719,7 @@ public:
   bool HasDebugInfo() const { return m_DebugInfo.valid; }
   bool InDebugScope(uint32_t inst) const;
   rdcstr GetHumanName(Id id) const;
-  void AllocateVariable(Id id, Id typeId, ShaderVariable &outVar) const;
+  void AllocateVariable(Id id, Id typeId, Id dataType, ShaderVariable &outVar) const;
 
   DeviceOpResult ReadFromPointer(const ShaderVariable &ptr, ShaderVariable &ret, Id typeId) const;
   DeviceOpResult GetPointerValue(const ShaderVariable &v, ShaderVariable &ret) const;
