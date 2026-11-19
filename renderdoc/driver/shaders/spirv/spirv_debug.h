@@ -426,8 +426,8 @@ struct ThreadState
   bool elected = false;
 
   const ShaderVariable &GetSrc(Id id) const;
-  DeviceOpResult WritePointerValue(Id pointer, const ShaderVariable &val);
-  DeviceOpResult ReadPointerValue(bool atomic, Id pointer, ShaderVariable &ret);
+  DeviceOpResult WritePointerValue(Id pointer, const ShaderVariable &val, Id typeId);
+  DeviceOpResult ReadPointerValue(bool atomic, Id pointer, ShaderVariable &ret, Id typeId);
 
   void DebugBreak();
 
@@ -721,7 +721,7 @@ public:
   rdcstr GetHumanName(Id id) const;
   void AllocateVariable(Id id, Id typeId, ShaderVariable &outVar) const;
 
-  DeviceOpResult ReadFromPointer(const ShaderVariable &ptr, ShaderVariable &ret) const;
+  DeviceOpResult ReadFromPointer(const ShaderVariable &ptr, ShaderVariable &ret, Id typeId) const;
   DeviceOpResult GetPointerValue(const ShaderVariable &v, ShaderVariable &ret) const;
   uint64_t GetPointerByteOffset(const ShaderVariable &ptr) const;
   DebugAPIWrapper::TextureType GetTextureType(const ShaderVariable &img) const;
@@ -734,7 +734,7 @@ public:
   bool IsPhysicalPointer(const ShaderVariable &v) const;
 
   bool ArePointersAndEqual(const ShaderVariable &a, const ShaderVariable &b) const;
-  DeviceOpResult WriteThroughPointer(ShaderVariable &ptr, const ShaderVariable &val) const;
+  DeviceOpResult WriteThroughPointer(ShaderVariable &ptr, const ShaderVariable &val, Id typeId) const;
   ShaderVariable MakeCompositePointer(const ShaderVariable &base, Id id,
                                       rdcarray<uint32_t> &indices) const;
 

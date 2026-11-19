@@ -340,7 +340,7 @@ const ShaderVariable &ThreadState::GetSrc(Id id) const
   return ids[id];
 }
 
-DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &val)
+DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &val, Id typeId)
 {
   RDCASSERT(ids[pointer].type == VarType::GPUPointer);
 
@@ -350,7 +350,7 @@ DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &
 
   if(!hasDebugState)
   {
-    return debugger.WriteThroughPointer(ids[pointer], val);
+    return debugger.WriteThroughPointer(ids[pointer], val, typeId);
   }
   else
   {
@@ -380,7 +380,7 @@ DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &
       if(debugger.GetPointerValue(ids[pointer], basechange.before) == DeviceOpResult::NeedsDevice)
         return DeviceOpResult::NeedsDevice;
       basechange.after = basechange.before;
-      if(debugger.WriteThroughPointer(var, val) == DeviceOpResult::NeedsDevice)
+      if(debugger.WriteThroughPointer(var, val, typeId) == DeviceOpResult::NeedsDevice)
         return DeviceOpResult::NeedsDevice;
       pendingDebugState.changes.push_back(basechange);
       return DeviceOpResult::Succeeded;
@@ -412,7 +412,7 @@ DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &
       }
     }
 
-    opResult = debugger.WriteThroughPointer(var, val);
+    opResult = debugger.WriteThroughPointer(var, val, typeId);
     SPIRV_DEBUG_RDCASSERTEQUAL(opResult, DeviceOpResult::Succeeded);
 
     // now evaluate the value after
@@ -430,7 +430,7 @@ DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &
     auto gsmPtrIt = gsmPointers.find(pointer);
     if(gsmPtrIt != gsmPointers.end())
     {
-      opResult = debugger.WriteThroughPointer(gsmPtrIt->second, val);
+      opResult = debugger.WriteThroughPointer(gsmPtrIt->second, val, typeId);
       SPIRV_DEBUG_RDCASSERTEQUAL(opResult, DeviceOpResult::Succeeded);
     }
 
@@ -523,7 +523,8 @@ DeviceOpResult ThreadState::WritePointerValue(Id pointer, const ShaderVariable &
   return DeviceOpResult::Succeeded;
 }
 
-DeviceOpResult ThreadState::ReadPointerValue(bool atomic, Id pointer, ShaderVariable &ret)
+DeviceOpResult ThreadState::ReadPointerValue(bool atomic, Id pointer, ShaderVariable &ret,
+                                             rdcspv::Id typeId)
 {
   // active lane: atomic operations read GSM from the global backing memory
   if(hasDebugState && atomic)
@@ -532,10 +533,10 @@ DeviceOpResult ThreadState::ReadPointerValue(bool atomic, Id pointer, ShaderVari
     if(gsmPtrIt != gsmPointers.end())
     {
       const ShaderVariable &globalPtr = gsmPointers[pointer];
-      return debugger.ReadFromPointer(globalPtr, ret);
+      return debugger.ReadFromPointer(globalPtr, ret, typeId);
     }
   }
-  return debugger.ReadFromPointer(GetSrc(pointer), ret);
+  return debugger.ReadFromPointer(GetSrc(pointer), ret, typeId);
 }
 
 void ThreadState::DebugBreak()
@@ -977,7 +978,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       // get the pointer value, evaluate it (i.e. dereference) and store the result
       ShaderVariable val;
-      if(ReadPointerValue(false, load.pointer, val) == DeviceOpResult::NeedsDevice)
+      if(ReadPointerValue(false, load.pointer, val, load.resultType) == DeviceOpResult::NeedsDevice)
       {
         SetStepNeedsDeviceThread();
         break;
@@ -993,7 +994,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       // ignore
       (void)store.memoryAccess;
 
-      if(WritePointerValue(store.pointer, GetSrc(store.object)) == DeviceOpResult::NeedsDevice)
+      if(WritePointerValue(store.pointer, GetSrc(store.object),
+                           debugger.GetTypeForId(store.object).id) == DeviceOpResult::NeedsDevice)
       {
         SetStepNeedsDeviceThread();
         break;
@@ -1009,15 +1011,20 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       (void)copy.memoryAccess0;
       (void)copy.memoryAccess1;
 
+      // Pick the datatype from whichever one isn't an untyped pointer.
+      Id type = debugger.GetTypeForId(copy.target).InnerType();
+      if(type == Id())
+        type = debugger.GetTypeForId(copy.source).InnerType();
+
       ShaderVariable val;
       {
-        if(ReadPointerValue(false, copy.source, val) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(false, copy.source, val, type) == DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
         }
       }
-      if(WritePointerValue(copy.target, val) == DeviceOpResult::NeedsDevice)
+      if(WritePointerValue(copy.target, val, type) == DeviceOpResult::NeedsDevice)
       {
         SetStepNeedsDeviceThread();
         break;
@@ -1262,7 +1269,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       // then evaluate it, to get the extracted value
       ShaderVariable val;
-      DeviceOpResult opResult = debugger.ReadFromPointer(ptr, val);
+      DeviceOpResult opResult = debugger.ReadFromPointer(ptr, val, extract.resultType);
       SPIRV_DEBUG_RDCASSERTEQUAL(opResult, DeviceOpResult::Succeeded);
       SetDst(extract.result, val);
 
@@ -4386,7 +4393,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       OpImageTexelPointer ptr(it);
 
       ShaderVariable val;
-      if(ReadPointerValue(false, ptr.image, val) == DeviceOpResult::NeedsDevice)
+      if(ReadPointerValue(false, ptr.image, val, Id()) == DeviceOpResult::NeedsDevice)
       {
         SetStepNeedsDeviceThread();
         break;
@@ -4426,7 +4433,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(ReadPointerValue(true, load.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(true, load.pointer, result, load.resultType) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4471,7 +4479,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(WritePointerValue(store.pointer, value) == DeviceOpResult::NeedsDevice)
+        if(WritePointerValue(store.pointer, value, debugger.GetTypeForId(store.value).id) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4505,12 +4514,13 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(ReadPointerValue(true, excg.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(true, excg.pointer, result, excg.resultType) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
         }
-        if(WritePointerValue(excg.pointer, value) == DeviceOpResult::NeedsDevice)
+        if(WritePointerValue(excg.pointer, value, excg.resultType) == DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4568,7 +4578,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(ReadPointerValue(true, cmpexcg.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(true, cmpexcg.pointer, result, cmpexcg.resultType) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4614,7 +4625,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       {
         if(ptr.members.empty())
         {
-          if(WritePointerValue(cmpexcg.pointer, value) == DeviceOpResult::NeedsDevice)
+          if(WritePointerValue(cmpexcg.pointer, value, cmpexcg.resultType) ==
+             DeviceOpResult::NeedsDevice)
           {
             SetStepNeedsDeviceThread();
             break;
@@ -4650,7 +4662,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(ReadPointerValue(true, atomic.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(true, atomic.pointer, result, atomic.resultType) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4693,7 +4706,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       // write the new value
       if(ptr.members.empty())
       {
-        if(WritePointerValue(atomic.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(WritePointerValue(atomic.pointer, result, atomic.resultType) == DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4738,7 +4751,8 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
 
       if(ptr.members.empty())
       {
-        if(ReadPointerValue(true, atomic.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(ReadPointerValue(true, atomic.pointer, result, atomic.resultType) ==
+           DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;
@@ -4852,7 +4866,7 @@ void ThreadState::StepNext(bool useDebugState, const uint32_t steps,
       // write the new value
       if(ptr.members.empty())
       {
-        if(WritePointerValue(atomic.pointer, result) == DeviceOpResult::NeedsDevice)
+        if(WritePointerValue(atomic.pointer, result, atomic.resultType) == DeviceOpResult::NeedsDevice)
         {
           SetStepNeedsDeviceThread();
           break;

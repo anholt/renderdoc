@@ -401,7 +401,7 @@ ShaderVariable Modf(ThreadState &state, uint32_t, const rdcarray<Id> &params)
     IMPL_FOR_FLOAT_TYPES(_IMPL);
   }
 
-  state.WritePointerValue(iptr, whole);
+  state.WritePointerValue(iptr, whole, state.debugger.GetTypeForId(iptr).InnerType());
 
   return var;
 }
@@ -774,7 +774,7 @@ ShaderVariable Frexp(ThreadState &state, uint32_t, const rdcarray<Id> &params)
     IMPL_FOR_FLOAT_TYPES(_IMPL);
   }
 
-  state.WritePointerValue(iptr, whole);
+  state.WritePointerValue(iptr, whole, state.debugger.GetTypeForId(iptr).InnerType());
 
   return var;
 }

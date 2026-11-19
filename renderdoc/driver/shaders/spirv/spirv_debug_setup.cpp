@@ -3602,10 +3602,11 @@ DeviceOpResult Debugger::GetPointerValue(const ShaderVariable &ptr, ShaderVariab
   }
 
   // every other kind of pointer displays as its contents
-  return ReadFromPointer(ptr, ret);
+  return ReadFromPointer(ptr, ret, Id());
 }
 
-DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariable &ret) const
+DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariable &ret,
+                                         rdcspv::Id typeId) const
 {
   if(ptr.type != VarType::GPUPointer)
   {
@@ -3621,7 +3622,6 @@ DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariab
   }
 
   // values for setting up pointer reads, either from a physical pointer or from an opaque pointer
-  rdcspv::Id typeId;
   Decorations parentDecorations;
   uint64_t baseAddress;
   ShaderBindIndex bind;
@@ -3633,10 +3633,13 @@ DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariab
     if(!IsDeviceThread() && !apiWrapper->IsBufferCached(baseAddress))
       return DeviceOpResult::NeedsDevice;
 
-    if(checkPointerFlags(ptr, PointerFlags::DereferencedPhysical))
-      typeId = getBufferTypeId(ptr);
-    else
-      typeId = pointerTypeToId[ptr.GetPointer().pointerTypeID];
+    if(typeId == Id())
+    {
+      if(checkPointerFlags(ptr, PointerFlags::DereferencedPhysical))
+        typeId = getBufferTypeId(ptr);
+      else
+        typeId = pointerTypeToId[ptr.GetPointer().pointerTypeID];
+    }
 
     RDCASSERT(typeId != rdcspv::Id());
 
@@ -3667,7 +3670,8 @@ DeviceOpResult Debugger::ReadFromPointer(const ShaderVariable &ptr, ShaderVariab
     }
     if(inner->type == VarType::ReadWriteResource && checkPointerFlags(*inner, PointerFlags::SSBO))
     {
-      typeId = getBufferTypeId(ptr);
+      if(typeId == Id())
+        typeId = getBufferTypeId(ptr);
       byteOffset = getByteOffset(ptr);
       bind = inner->GetBindIndex();
       bind.arrayElement = getBindArrayIndex(ptr);
@@ -3896,10 +3900,10 @@ bool Debugger::ArePointersAndEqual(const ShaderVariable &a, const ShaderVariable
   return false;
 }
 
-DeviceOpResult Debugger::WriteThroughPointer(ShaderVariable &ptr, const ShaderVariable &val) const
+DeviceOpResult Debugger::WriteThroughPointer(ShaderVariable &ptr, const ShaderVariable &val,
+                                             rdcspv::Id typeId) const
 {
   // values for setting up pointer reads, either from a physical pointer or from an opaque pointer
-  rdcspv::Id typeId;
   Decorations parentDecorations;
   uint64_t baseAddress;
   ShaderBindIndex bind;
@@ -3912,10 +3916,13 @@ DeviceOpResult Debugger::WriteThroughPointer(ShaderVariable &ptr, const ShaderVa
     if(!IsDeviceThread() && !apiWrapper->IsBufferCached(baseAddress))
       return DeviceOpResult::NeedsDevice;
 
-    if(checkPointerFlags(ptr, PointerFlags::DereferencedPhysical))
-      typeId = getBufferTypeId(ptr);
-    else
-      typeId = pointerTypeToId[ptr.GetPointer().pointerTypeID];
+    if(typeId == Id())
+    {
+      if(checkPointerFlags(ptr, PointerFlags::DereferencedPhysical))
+        typeId = getBufferTypeId(ptr);
+      else
+        typeId = pointerTypeToId[ptr.GetPointer().pointerTypeID];
+    }
 
     RDCASSERT(typeId != rdcspv::Id());
     parentDecorations = decorations[typeId];
@@ -3939,7 +3946,8 @@ DeviceOpResult Debugger::WriteThroughPointer(ShaderVariable &ptr, const ShaderVa
     const ShaderVariable *inner = getPointer(ptr);
     if(inner->type == VarType::ReadWriteResource && checkPointerFlags(*inner, PointerFlags::SSBO))
     {
-      typeId = getBufferTypeId(ptr);
+      if(typeId == Id())
+        typeId = getBufferTypeId(ptr);
       byteOffset = getByteOffset(ptr);
       bind = inner->GetBindIndex();
       bind.arrayElement = getBindArrayIndex(ptr);
