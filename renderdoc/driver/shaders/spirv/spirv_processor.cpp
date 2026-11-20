@@ -625,8 +625,8 @@ void Processor::RegisterOp(Iter it)
 
     // only register global variables here
     if(decoded.storageClass != rdcspv::StorageClass::Function)
-      globals.push_back(
-          Variable(decoded.resultType, decoded.result, decoded.storageClass, decoded.initializer));
+      globals.push_back(Variable(decoded.resultType, dataTypes[decoded.resultType].InnerType(),
+                                 decoded.result, decoded.storageClass, decoded.initializer));
 
     if(decoded.storageClass == StorageClass::Workgroup)
       m_ThreadScope |= ThreadScope::Workgroup;

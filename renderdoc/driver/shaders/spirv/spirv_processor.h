@@ -476,8 +476,12 @@ struct EntryPoint
 struct Variable
 {
   Variable() = default;
-  Variable(Id t, Id i, StorageClass s, Id init) : type(t), id(i), storage(s), initializer(init) {}
+  Variable(Id t, Id dataType, Id i, StorageClass s, Id init)
+      : type(t), dataType(dataType), id(i), storage(s), initializer(init)
+  {
+  }
   Id type;
+  Id dataType;
   Id id;
   StorageClass storage;
   Id initializer;
@@ -488,6 +492,8 @@ struct Variable
       return id < o.id;
     if(type != o.type)
       return type < o.type;
+    if(dataType != o.dataType)
+      return dataType < o.dataType;
     if(storage != o.storage)
       return storage < o.storage;
     return initializer < o.initializer;
@@ -496,7 +502,8 @@ struct Variable
   bool operator!=(const Variable &o) const { return !operator==(o); }
   bool operator==(const Variable &o) const
   {
-    return id == o.id && type == o.type && storage == o.storage && initializer == o.initializer;
+    return id == o.id && type == o.type && dataType == o.dataType && storage == o.storage &&
+           initializer == o.initializer;
   }
 };
 

@@ -1302,7 +1302,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
       // variable type must be a pointer of the same storage class
       RDCASSERT(dataTypes[global.type].type == DataType::PointerType);
       RDCASSERT(dataTypes[global.type].pointerType.storage == global.storage);
-      const DataType &baseType = dataTypes[dataTypes[global.type].InnerType()];
+      const DataType &baseType = dataTypes[global.dataType];
 
       const bool isInput = (global.storage == StorageClass::Input);
 
@@ -1465,7 +1465,7 @@ void Reflector::MakeReflection(const GraphicsAPI sourceAPI, const ShaderStage st
       RDCASSERT(dataTypes[global.type].type == DataType::PointerType);
       RDCASSERT(dataTypes[global.type].pointerType.storage == global.storage);
 
-      const DataType *varType = &dataTypes[dataTypes[global.type].InnerType()];
+      const DataType *varType = &dataTypes[global.dataType];
 
       // if the outer type is an array, get the length and peel it off.
       uint32_t arraySize = 1;

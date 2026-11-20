@@ -984,7 +984,7 @@ void Reflector::CheckDebuggable(bool &debuggable, rdcstr &debugStatus) const
       // global variables should all be pointers into opaque storage
       RDCASSERT(type.type == DataType::PointerType);
 
-      const DataType *innertype = &dataTypes[type.InnerType()];
+      const DataType *innertype = &dataTypes[v.dataType];
 
       if(innertype->type == DataType::ArrayType)
       {
@@ -1261,8 +1261,8 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
           // on GL, detect and name gl_PerVertex as the builtin struct
           if(api->GetGraphicsAPI() == GraphicsAPI::OpenGL)
           {
-            if(!dataTypes[type.InnerType()].children.empty() &&
-               dataTypes[type.InnerType()].children[0].decorations.flags & Decorations::HasBuiltIn)
+            if(!dataTypes[v.dataType].children.empty() &&
+               dataTypes[v.dataType].children[0].decorations.flags & Decorations::HasBuiltIn)
               sourceName = "gl_PerVertex";
           }
         }
@@ -1353,8 +1353,8 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
           // create the opaque storage
           workgroup[laneIndex].inputs.push_back(var);
 
-          WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[type.InnerType()], ~0U,
-                                             false, workgroup[laneIndex].inputs.back(), rdcstr(),
+          WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[v.dataType], ~0U, false,
+                                             workgroup[laneIndex].inputs.back(), rdcstr(),
                                              fillInputCallback);
         }
 
@@ -1363,8 +1363,8 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
       }
       else
       {
-        WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[type.InnerType()], ~0U,
-                                           false, var, rdcstr(), fillInputCallback);
+        WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[v.dataType], ~0U, false,
+                                           var, rdcstr(), fillInputCallback);
 
         active.outputs.push_back(var);
         liveGlobals.push_back(v.id);
@@ -1389,7 +1389,7 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
       // global variables should all be pointers into opaque storage
       RDCASSERT(type.type == DataType::PointerType);
 
-      const DataType *innertype = &dataTypes[type.InnerType()];
+      const DataType *innertype = &dataTypes[v.dataType];
 
       if(sourceName == var.name)
         sourceName = GetHumanName(innertype->id);
@@ -1602,7 +1602,7 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
       // global variables should all be pointers into opaque storage
       RDCASSERT(type.type == DataType::PointerType);
 
-      const DataType *innertype = &dataTypes[type.InnerType()];
+      const DataType *innertype = &dataTypes[v.dataType];
 
       // if we don't have a good human name, generate a better one using the interface information
       // we have
@@ -1946,8 +1946,8 @@ ShaderDebugTrace *Debugger::BeginDebug(DebugAPIWrapper *api, const ShaderStage s
         memset(&var.value, 0xcc, sizeof(var.value));
       };
 
-      WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[type.InnerType()], ~0U, false,
-                                         var, rdcstr(), uninitialisedCallback);
+      WalkVariable<ShaderVariable, true>(decorations[v.id], dataTypes[v.dataType], ~0U, false, var,
+                                         rdcstr(), uninitialisedCallback);
 
       if(v.initializer != Id())
         AssignValue(var, active.ids[v.initializer]);
